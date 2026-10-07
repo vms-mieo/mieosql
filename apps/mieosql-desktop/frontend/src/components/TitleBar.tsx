@@ -4,6 +4,32 @@ import { Minus, Square, X } from "lucide-react";
 const isTauri =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
+function WindowButton({
+  title,
+  danger,
+  onClick,
+  children,
+}: {
+  title: string;
+  danger?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      className={`grid h-[22px] w-8 place-items-center rounded-md text-slate-500 transition-colors ${
+        danger
+          ? "hover:bg-rose-500 hover:text-white"
+          : "hover:bg-slate-900/[0.06] hover:text-slate-700"
+      }`}
+      onClick={onClick}
+      title={title}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function TitleBar() {
   const onMinimize = () => {
     if (isTauri) void getCurrentWindow().minimize();
@@ -17,48 +43,34 @@ export function TitleBar() {
 
   return (
     <header
-      className="flex h-[30px] shrink-0 select-none items-center justify-between bg-[#2d3748] pr-2 pl-3 text-slate-200"
+      className="flex h-7 shrink-0 items-center justify-between border-b border-slate-300/70 bg-window pr-1.5 pl-3 select-none"
       data-tauri-drag-region
+      onDoubleClick={onToggleMaximize}
     >
-      <div className="flex items-center gap-2" data-tauri-drag-region>
+      <div className="flex min-w-0 items-center gap-2" data-tauri-drag-region>
         <div
-          className="grid h-4 w-4 place-items-center rounded-full bg-amber-500 text-[10px] font-black text-white"
+          className="grid h-4 w-4 shrink-0 place-items-center rounded-[5px] bg-accent text-[10px] font-bold text-white"
           data-tauri-drag-region
         >
           M
         </div>
         <span
-          className="text-[11px] font-medium tracking-wide"
+          className="truncate text-[13px] font-medium text-slate-900"
           data-tauri-drag-region
         >
           MieoSQL
         </span>
-        <span className="text-[10px] text-slate-400" data-tauri-drag-region>
-          multi-engine database client
-        </span>
       </div>
-      <div className="flex items-center gap-1 text-slate-400">
-        <button
-          className="rounded px-2 py-0.5 transition hover:bg-slate-700 hover:text-white"
-          onClick={onMinimize}
-          title="Minimize"
-        >
-          <Minus size={11} />
-        </button>
-        <button
-          className="rounded px-2 py-0.5 transition hover:bg-slate-700 hover:text-white"
-          onClick={onToggleMaximize}
-          title="Maximize"
-        >
-          <Square size={10} />
-        </button>
-        <button
-          className="rounded px-2 py-0.5 transition hover:bg-red-600 hover:text-white"
-          onClick={onClose}
-          title="Close"
-        >
-          <X size={13} />
-        </button>
+      <div className="flex items-center">
+        <WindowButton title="Minimize" onClick={onMinimize}>
+          <Minus size={12} />
+        </WindowButton>
+        <WindowButton title="Maximize" onClick={onToggleMaximize}>
+          <Square size={9.5} />
+        </WindowButton>
+        <WindowButton title="Close" danger onClick={onClose}>
+          <X size={12} />
+        </WindowButton>
       </div>
     </header>
   );

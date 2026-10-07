@@ -1,9 +1,285 @@
 @import "tailwindcss";
 
+/* ===========================================================================
+   MieoSQL design system — "Apple native developer tool"
+   macOS · Xcode · Finder flavour. No gradients, no glass, no neon.
+   Cheat sheet: docs/DESIGN_SYSTEM.md
+   =========================================================================== */
+
+@theme {
+  /* ---- Font families --------------------------------------------------- */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    "SF Mono", ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo,
+    Consolas, "Liberation Mono", monospace;
+
+  /* ---- Apple system grays → slate scale (base neutral) ------------------ */
+  --color-slate-50: #fafafc;
+  --color-slate-100: #f2f2f7;
+  --color-slate-200: #e5e5ea;
+  --color-slate-300: #d2d2d7;
+  --color-slate-400: #aeaeb2;
+  --color-slate-500: #8e8e93;
+  --color-slate-600: #6e6e73;
+  --color-slate-700: #3a3a3c;
+  --color-slate-800: #2c2c2e;
+  --color-slate-900: #1d1d1f;
+  --color-slate-950: #111113;
+
+  /* ---- Apple blue → sky / blue scales (single accent) ------------------- */
+  --color-sky-50: #f0f7ff;
+  --color-sky-100: #e1efff;
+  --color-sky-200: #c7e2ff;
+  --color-sky-300: #a3d1ff;
+  --color-sky-400: #6fb6ff;
+  --color-sky-500: #2f96ff;
+  --color-sky-600: #007aff;
+  --color-sky-700: #0066d6;
+  --color-sky-800: #0055b3;
+  --color-sky-900: #004799;
+  --color-sky-950: #00306b;
+
+  --color-blue-50: #f0f7ff;
+  --color-blue-100: #e1efff;
+  --color-blue-200: #c7e2ff;
+  --color-blue-300: #a3d1ff;
+  --color-blue-400: #6fb6ff;
+  --color-blue-500: #2f96ff;
+  --color-blue-600: #007aff;
+  --color-blue-700: #0066d6;
+  --color-blue-800: #0055b3;
+  --color-blue-900: #004799;
+  --color-blue-950: #00306b;
+
+  /* ---- Success green → emerald ----------------------------------------- */
+  --color-emerald-50: #edfbf0;
+  --color-emerald-100: #d7f5de;
+  --color-emerald-200: #b0eac0;
+  --color-emerald-300: #7fdda0;
+  --color-emerald-400: #52ce7e;
+  --color-emerald-500: #34c759;
+  --color-emerald-600: #28a745;
+  --color-emerald-700: #1f8a39;
+  --color-emerald-800: #186e2d;
+  --color-emerald-900: #125723;
+  --color-emerald-950: #0a3d18;
+
+  /* ---- Warning orange → amber / orange ---------------------------------- */
+  --color-amber-50: #fff7eb;
+  --color-amber-100: #ffedd1;
+  --color-amber-200: #ffdba3;
+  --color-amber-300: #ffc46b;
+  --color-amber-400: #ffad33;
+  --color-amber-500: #ff9500;
+  --color-amber-600: #e68200;
+  --color-amber-700: #c46e00;
+  --color-amber-800: #a65c00;
+  --color-amber-900: #8c4e00;
+  --color-amber-950: #663900;
+
+  --color-orange-50: #fff7eb;
+  --color-orange-100: #ffedd1;
+  --color-orange-200: #ffdba3;
+  --color-orange-300: #ffc46b;
+  --color-orange-400: #ffad33;
+  --color-orange-500: #ff9500;
+  --color-orange-600: #e68200;
+  --color-orange-700: #c46e00;
+  --color-orange-800: #a65c00;
+  --color-orange-900: #8c4e00;
+  --color-orange-950: #663900;
+
+  /* ---- Error red → rose / red ------------------------------------------- */
+  --color-rose-50: #fff0ef;
+  --color-rose-100: #ffe0de;
+  --color-rose-200: #ffc2bf;
+  --color-rose-300: #ff9e99;
+  --color-rose-400: #ff6f69;
+  --color-rose-500: #ff3b30;
+  --color-rose-600: #e5352b;
+  --color-rose-700: #c62d24;
+  --color-rose-800: #a3261f;
+  --color-rose-900: #8a201a;
+  --color-rose-950: #5f1612;
+
+  --color-red-50: #fff0ef;
+  --color-red-100: #ffe0de;
+  --color-red-200: #ffc2bf;
+  --color-red-300: #ff9e99;
+  --color-red-400: #ff6f69;
+  --color-red-500: #ff3b30;
+  --color-red-600: #e5352b;
+  --color-red-700: #c62d24;
+  --color-red-800: #a3261f;
+  --color-red-900: #8a201a;
+  --color-red-950: #5f1612;
+
+  /* ---- Decorative hues are folded back into the neutral scale ----------- */
+  --color-teal-50: #fafafc;
+  --color-teal-100: #f2f2f7;
+  --color-teal-200: #e5e5ea;
+  --color-teal-300: #d2d2d7;
+  --color-teal-400: #aeaeb2;
+  --color-teal-500: #8e8e93;
+  --color-teal-600: #6e6e73;
+  --color-teal-700: #3a3a3c;
+  --color-teal-800: #2c2c2e;
+  --color-teal-900: #1d1d1f;
+
+  --color-cyan-50: #fafafc;
+  --color-cyan-100: #f2f2f7;
+  --color-cyan-200: #e5e5ea;
+  --color-cyan-300: #d2d2d7;
+  --color-cyan-400: #aeaeb2;
+  --color-cyan-500: #8e8e93;
+  --color-cyan-600: #6e6e73;
+  --color-cyan-700: #3a3a3c;
+  --color-cyan-800: #2c2c2e;
+  --color-cyan-900: #1d1d1f;
+
+  --color-violet-50: #fafafc;
+  --color-violet-100: #f2f2f7;
+  --color-violet-200: #e5e5ea;
+  --color-violet-300: #d2d2d7;
+  --color-violet-400: #aeaeb2;
+  --color-violet-500: #8e8e93;
+  --color-violet-600: #6e6e73;
+  --color-violet-700: #3a3a3c;
+  --color-violet-800: #2c2c2e;
+  --color-violet-900: #1d1d1f;
+
+  --color-indigo-50: #fafafc;
+  --color-indigo-100: #f2f2f7;
+  --color-indigo-200: #e5e5ea;
+  --color-indigo-300: #d2d2d7;
+  --color-indigo-400: #aeaeb2;
+  --color-indigo-500: #8e8e93;
+  --color-indigo-600: #6e6e73;
+  --color-indigo-700: #3a3a3c;
+  --color-indigo-800: #2c2c2e;
+  --color-indigo-900: #1d1d1f;
+
+  --color-fuchsia-50: #fafafc;
+  --color-fuchsia-100: #f2f2f7;
+  --color-fuchsia-200: #e5e5ea;
+  --color-fuchsia-300: #d2d2d7;
+  --color-fuchsia-400: #aeaeb2;
+  --color-fuchsia-500: #8e8e93;
+  --color-fuchsia-600: #6e6e73;
+  --color-fuchsia-700: #3a3a3c;
+  --color-fuchsia-800: #2c2c2e;
+  --color-fuchsia-900: #1d1d1f;
+
+  --color-purple-50: #fafafc;
+  --color-purple-100: #f2f2f7;
+  --color-purple-200: #e5e5ea;
+  --color-purple-300: #d2d2d7;
+  --color-purple-400: #aeaeb2;
+  --color-purple-500: #8e8e93;
+  --color-purple-600: #6e6e73;
+  --color-purple-700: #3a3a3c;
+  --color-purple-800: #2c2c2e;
+  --color-purple-900: #1d1d1f;
+
+  --color-pink-50: #fff0ef;
+  --color-pink-100: #ffe0de;
+  --color-pink-200: #ffc2bf;
+  --color-pink-300: #ff9e99;
+  --color-pink-400: #ff6f69;
+  --color-pink-500: #ff3b30;
+  --color-pink-600: #e5352b;
+  --color-pink-700: #c62d24;
+  --color-pink-800: #a3261f;
+  --color-pink-900: #8a201a;
+
+  /* ---- Semantic surfaces ------------------------------------------------ */
+  --color-accent: #007aff;
+  --color-accent-hover: #0066d6;
+  --color-window: #f5f5f7;
+  --color-sidebar: #f2f2f7;
+  --color-surface: #ffffff;
+  --color-hairline: #d2d2d7;
+
+  /* ---- Radii (window 10 · button/input 7 · search/dropdown 8 · modal 12)  */
+  --radius: 0.4375rem; /* 7px — bare `rounded` */
+  --radius-sm: 0.375rem; /* 6px  */
+  --radius-md: 0.5rem; /* 8px  */
+  --radius-lg: 0.625rem; /* 10px */
+  --radius-xl: 0.75rem; /* 12px */
+  --radius-2xl: 0.875rem; /* 14px */
+
+  /* ---- Text colors ------------------------------------------------------ */
+  --color-ink: #1d1d1f;
+  --color-ink-soft: #6e6e73;
+  --color-ink-muted: #8e8e93;
+  --color-ink-faint: #d2d2d7;
+  --color-heading: #1d1d1f;
+
+  /* ---- Type scale ------------------------------------------------------- */
+  /* Application / page title */
+  --text-title: 20px;
+  --text-title--line-height: 1.25;
+  --text-title--font-weight: 600;
+  /* Section title */
+  --text-section: 15px;
+  --text-section--line-height: 1.3;
+  --text-section--font-weight: 600;
+  /* Subsection title */
+  --text-subsection: 13px;
+  --text-subsection--line-height: 1.4;
+  --text-subsection--font-weight: 600;
+  /* Body / sidebar / button / tab */
+  --text-body: 13px;
+  --text-body--line-height: 1.4;
+  --text-button: 13px;
+  --text-button--line-height: 1.4;
+  --text-button--font-weight: 500;
+  --text-tab: 13px;
+  --text-tab--line-height: 1.4;
+  --text-tab--font-weight: 500;
+  /* Table */
+  --text-table: 12.5px;
+  --text-table--line-height: 1.35;
+  --text-table-head: 11.5px;
+  --text-table-head--line-height: 1.35;
+  --text-table-head--font-weight: 600;
+  /* Form */
+  --text-label: 12px;
+  --text-label--line-height: 1.4;
+  --text-label--font-weight: 500;
+  --text-input: 13px;
+  --text-input--line-height: 1.4;
+  /* Chrome */
+  --text-badge: 10.5px;
+  --text-badge--line-height: 1.2;
+  --text-badge--font-weight: 600;
+  --text-caption: 11px;
+  --text-caption--line-height: 1.4;
+  --text-tooltip: 12px;
+  --text-tooltip--line-height: 1.4;
+  /* Code / SQL / JSON / logs */
+  --text-code: 12.5px;
+  --text-code--line-height: 1.5;
+}
+
 :root {
-  --row-h: 22px;
-  --font-code: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
+  color-scheme: light;
+
+  /* Data grid row metrics (spec: row 32–36px, header 32px) */
+  --row-h: 32px;
+  --grid-head-h: 32px;
+  --font-code: var(--font-mono);
+
+  /* Grid surface tokens (overridable per theme) */
+  --grid-zebra: #fafafc;
+  --grid-hover: #f2f2f7;
+  --grid-selected: rgba(0, 122, 255, 0.12);
+  --grid-line: #ededf0;
+  --grid-head: #f2f2f7;
+  --grid-focus: #007aff;
+  --grid-focus-bg: rgba(0, 122, 255, 0.06);
 }
 
 html,
@@ -13,80 +289,96 @@ body,
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  font-size: 12px;
-  line-height: 1.35;
-  color: #1e293b;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1d1d1f;
+  background: var(--color-window);
   overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(0, 122, 255, 0.2);
 }
 
 .font-code {
   font-family: var(--font-code);
 }
 
-/* ---- scrollbars (desktop-app look) ---- */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
+/* ---- scrollbars (macOS overlay look) ---------------------------------- */
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
 }
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f5f9;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 5px;
-  border: 2px solid #f1f5f9;
+::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.22);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  min-height: 32px;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.38);
 }
-.custom-scrollbar::-webkit-scrollbar-corner {
-  background: #f1f5f9;
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
-/* ---- CodeMirror refinement (light theme, 12px, code font) ---- */
+.custom-scrollbar {
+  scrollbar-width: thin;
+}
+
+/* ---- CodeMirror (SQL editor): code typography 12.5px / 1.5 ------------ */
 .cm-editor {
   height: 100%;
-  font-size: 12px;
+  font-size: 12.5px;
   background: #ffffff;
 }
 .cm-editor .cm-scroller {
-  font-family: var(--font-code);
-  line-height: 18px;
+  font-family: var(--font-mono);
+  line-height: 1.5;
 }
 .cm-editor.cm-focused {
   outline: none;
 }
+.cm-editor .cm-content {
+  caret-color: #007aff;
+}
 .cm-gutters {
-  background: #fbfdff !important;
-  border-right: 1px solid #e2e8f0 !important;
-  color: #94a3b8 !important;
+  background: #fafafc !important;
+  border-right: 1px solid #e5e5ea !important;
+  color: #aeaeb2 !important;
+  font-family: var(--font-mono);
 }
 .cm-activeLineGutter {
-  background: #eef6ff !important;
-  color: #0369a1 !important;
+  background: #f2f2f7 !important;
+  color: #007aff !important;
 }
 .cm-activeLine {
-  background: #f0f7ff !important;
+  background: rgba(0, 122, 255, 0.04) !important;
 }
 .cm-selectionBackground,
 .cm-content ::selection {
-  background: #dbeafe !important;
+  background: rgba(0, 122, 255, 0.18) !important;
 }
 
-/* ---- Excel-like data grid ---- */
+/* ---- Data grid (Excel-like, high density) ---- */
 .grid-row {
   height: var(--row-h);
 }
 .grid-row:nth-child(even) {
-  background: #f8fafc;
+  background: var(--grid-zebra);
 }
 .grid-row:hover {
-  background: #eff6ff !important;
+  background: var(--grid-hover) !important;
 }
 .grid-row.selected {
-  background: #dbeafe !important;
+  background: var(--grid-selected) !important;
 }
 .grid-cell {
   height: var(--row-h);
@@ -95,11 +387,51 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 0 8px;
-  border-right: 1px solid #eef2f7;
-  border-bottom: 1px solid #eef2f7;
+  border-right: 1px solid var(--grid-line);
+  border-bottom: 1px solid var(--grid-line);
 }
 .grid-cell.focused {
-  outline: 1.5px solid #0ea5e9;
+  outline: 1.5px solid var(--grid-focus);
   outline-offset: -1.5px;
-  background: #f0f9ff;
+  background: var(--grid-focus-bg);
+}
+
+/* ---- Dark theme palette (spec §8) -------------------------------------
+   Applied when <html data-theme="dark"> is set. Apple dark system colors:
+   Window #1C1C1E · Panel #2C2C2E · Text #F5F5F7 · Secondary #98989D ·
+   Border #3A3A3C · Accent #0A84FF
+   -------------------------------------------------------------------- */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-ink: #f5f5f7;
+  --color-ink-soft: #98989d;
+  --color-ink-muted: #8e8e93;
+  --color-ink-faint: #48484a;
+  --color-heading: #f5f5f7;
+  --color-window: #1c1c1e;
+  --color-sidebar: #232325;
+  --color-surface: #2c2c2e;
+  --color-hairline: #3a3a3c;
+  --color-slate-100: #2c2c2e;
+  --color-slate-200: #3a3a3c;
+  --color-slate-300: #48484a;
+  --grid-zebra: #262628;
+  --grid-hover: #2c2c2e;
+  --grid-selected: rgba(10, 132, 255, 0.24);
+  --grid-line: #3a3a3c;
+  --grid-head: #232325;
+  --grid-focus: #0a84ff;
+  --grid-focus-bg: rgba(10, 132, 255, 0.12);
+}
+[data-theme="dark"] body {
+  background: var(--color-window);
+  color: #f5f5f7;
+}
+[data-theme="dark"] .cm-editor {
+  background: #1c1c1e;
+}
+[data-theme="dark"] .cm-gutters {
+  background: #232325 !important;
+  border-right-color: #3a3a3c !important;
+  color: #6e6e73 !important;
 }

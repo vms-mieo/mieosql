@@ -9,30 +9,27 @@ export function Toasts() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed right-3 bottom-8 z-[100] flex w-[340px] flex-col gap-2">
+    <div className="pointer-events-none fixed right-4 bottom-8 z-[100] flex w-[340px] flex-col gap-2">
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`pointer-events-auto flex items-start gap-2 rounded border px-3 py-2 shadow-lg backdrop-blur ${
-            t.level === "error"
-              ? "border-rose-300 bg-rose-50/95 text-rose-800"
-              : t.level === "success"
-                ? "border-emerald-300 bg-emerald-50/95 text-emerald-800"
-                : "border-slate-300 bg-white/95 text-slate-700"
-          }`}
+          className="pointer-events-auto flex items-start gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.14)]"
         >
           {t.level === "error" ? (
-            <AlertCircle size={14} className="mt-0.5 shrink-0" />
+            <AlertCircle size={14} className="mt-0.5 shrink-0 text-rose-500" />
           ) : t.level === "success" ? (
-            <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+            <CheckCircle2
+              size={14}
+              className="mt-0.5 shrink-0 text-emerald-500"
+            />
           ) : (
-            <Info size={14} className="mt-0.5 shrink-0" />
+            <Info size={14} className="mt-0.5 shrink-0 text-slate-400" />
           )}
-          <span className="flex-1 text-[11px] leading-snug break-words whitespace-pre-wrap">
+          <span className="flex-1 text-[13px] leading-snug break-words whitespace-pre-wrap text-slate-800">
             {t.text}
           </span>
           <button
-            className="shrink-0 rounded p-0.5 opacity-60 hover:bg-black/5 hover:opacity-100"
+            className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-600"
             onClick={() => dismiss(t.id)}
           >
             <X size={12} />

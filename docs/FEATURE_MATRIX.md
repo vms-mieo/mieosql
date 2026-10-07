@@ -28,7 +28,7 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 | SSL/TLS (Require / Verify-CA / Verify-Full, client cert) | ✅ v0.1 ssl_mode; 🔜 client cert & CA file (P1) |
 | HTTP Tunnel | P4 |
 | Proxy (HTTP/SOCKS5) | P3 |
-| Import/Export danh sách connection | P1 |
+| Import/Export danh sách connection | ✅ v0.4 — workspace bundle (JSON, **không chứa mật khẩu**), import có overwrite/skip |
 | Test connection, chỉnh sửa connection properties | ✅ v0.1 API |
 | Quản lý user/role của server (GRANT…) | P2 (chỉ hiển thị/tạo user — engine-specific SQL) |
 
@@ -40,8 +40,8 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 | Table designer (tạo/sửa cột, index, FK, comment) | P1 (sinh DDL + apply transaction) |
 | View/Routine/Trigger designer | P1–P2 |
 | Generate SQL script của object | 🔜 P1 (MySQL `SHOW CREATE`, SQLite `sqlite_master.sql`; Postgres dùng catalog — P1.5) |
-| Data Dictionary (xuất tài liệu schema) | P2 (tái dùng schema API + export HTML/Markdown) |
-| Tìm kiếm object toàn server (Find in Database) | P1 |
+| Data Dictionary (xuất tài liệu schema) | ✅ v0.4 — Markdown/HTML (columns/indexes/FK/DDL, comment = glossary) |
+| Tìm kiếm object toàn server (Find in Database) | ✅ v0.4 — object + column + definition, Contains/Prefix/Whole word/Regex, case-sensitive |
 
 ## 3. Query & Editor
 
@@ -50,13 +50,14 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 | Query editor, nhiều tab/kết nối | ✅ v0.2 (CodeMirror 6, dialect theo engine, Ln/Col) |
 | Execute, **kết quả stream theo batch** | ✅ v0.1 (BE) + v0.2 (grid) |
 | Huỷ query đang chạy | ✅ v0.2 (token; hard-cancel `KILL`/`pg_cancel_backend` — P1) |
-| Parameter binding (`?` / `$1`) | ✅ v0.1 (prepared mode, bind từ JSON value) |
+| Parameter binding (`?` / `$1`) | ✅ v0.1 (prepared mode) + v0.4 **dialog nhập tham số** khi SQL có placeholder |
 | Multi-statement script | 🔜 P1 (SQL splitter an toàn + chạy tuần tự) |
-| Explain / Execution plan | 🔜 P2 (EXPLAIN + visualize ở FE) |
+| Explain / Execution plan | ✅ v0.4 — **Visual Explain** (cây chi phí, MySQL JSON / PG JSON+ANALYZE / SQLite QUERY PLAN, raw view) |
 | Query history | ✅ v0.2 (panel History, click mở lại query) |
 | Snippet / Saved queries | ✅ v0.2 snippets tĩnh; 🔜 P2 snippets tự lưu |
-| Code Insight / Autocomplete / Refactor | P2 (CodeMirror completion + schema) |
-| Visual Query Builder (kéo thả) | P3 (FE + AST trung gian) |
+| Code Insight / Autocomplete / Refactor | ✅ v0.4 — completion schema-aware, hover, **rename symbol**, **beautify/minify** |
+| Visual Query Builder (kéo thả) | ✅ v0.4 (light: chọn bảng/cột/filter/order/limit → SQL); kéo-thả đồ hoạ đầy đủ — P3 |
+| Result pinning | ✅ v0.4 — ghim result khỏi bị cap theo tab |
 | AI Assistant (NL → SQL, giải thích query) | P4 |
 
 ## 4. Data Grid & Editing
@@ -69,7 +70,7 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 | Export kết quả | ✅ v0.2 — copy CSV / JSON lines (file export + save dialog — P1) |
 | Sửa inline, thêm/xoá dòng, commit | 🔜 P1 (diff-based UPDATE/DELETE theo PK, trả về FE) |
 | Raw data view (hex/text editor cho BLOB) | P2 (value model đã giữ Bytes base64) |
-| Column profiling / data masking | P3 |
+| Column profiling / data masking | ✅ v0.4 — **masked export** (redact/fake/hash/random, rule theo cột); column profiling — P3 |
 
 ## 5. Data Transfer / Sync / Dump
 
@@ -77,15 +78,15 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 |---|---|
 | Import wizard (CSV/TXT/JSON/XML/Excel…) | 🔜 P1 CSV/JSON (thuần Rust), P2 Excel/XML |
 | Export (CSV/TXT/JSON/XML/SQL/HTML/Markdown) | ✅ v0.3 — **CSV, Text(TSV), JSON, JSON Lines, SQL INSERTs, Excel (XLSX)** + save dialog, streaming server-side (không giới hạn bởi FE buffer) |
-| Data Transfer (copy dữ liệu giữa 2 connection khác engine) | P2 (đọc stream bên này → ghi prepared bên kia, có mapping) |
-| Data Synchronization (2 chiều, so sánh) | P3 |
-| Structure Synchronization (diff schema → script) | P3 |
+| Data Transfer (copy dữ liệu giữa 2 connection khác engine) | ✅ v0.4 — streaming batch, prepared inserts, 4 mode (create/append/truncate/drop-create), warning per value |
+| Data Synchronization (2 chiều, so sánh) | ✅ v0.4 v1 — diff theo key (INSERT/UPDATE/DELETE), sample limit + statement cap, preview + apply; 2 chiều/conflict handling — P3 |
+| Structure Synchronization (diff schema → script) | ✅ v0.4 — columns/indexes/tables, ALTER đúng engine, preview + apply transaction; FK report-only — P3 |
 | Backup / Restore (dump & restore SQL) | P2 |
-| Data Generation (sinh dữ liệu test) | P3 |
+| Data Generation (sinh dữ liệu test) | ✅ v0.4 — 21 strategy, auto heuristic, seed tái lập, preview/execute |
 | Automation / Scheduler (job định kỳ) | P4 (host OS scheduler hoặc daemon in-process) |
 | Server Monitor (CPU/RAM/session list) | P3 |
-| BI dashboard / chart | P4 (FE-heavy) |
-| ER Model / Data Modeler | P4 |
+| BI dashboard / chart | ✅ v0.4 v1 — tile bar/line/pie/table (SVG thuần), `{{param}}`, auto-refresh, localStorage; nâng cao — P4 |
+| ER Model / Data Modeler | ✅ v0.4 v1 — ERD read-only từ FK (pan/zoom/search, export SVG/PNG); chỉnh sửa model — P4 |
 
 ## 6. Nền tảng & Đóng gói
 

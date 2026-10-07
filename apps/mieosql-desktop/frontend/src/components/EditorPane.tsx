@@ -5,6 +5,13 @@ import { basicSetup } from "codemirror";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 import type { Engine, Scope } from "../lib/bindings";
+import {
+  formatSql,
+  identifierAt,
+  identifierOccurrences,
+  minifySql,
+} from "../lib/sql-format";
+import { insightExtensions } from "../lib/sql-insight";
 
 export type EditorHandle = {
   getText: () => string;
@@ -24,6 +31,61 @@ function dialectFor(engine: Engine | null | undefined) {
   }
 }
 
+/**
+ * Replace the whole document while keeping the cursor at (roughly) the same
+ * line/column — used by beautify / minify.
+ */
+function applyDoc(view: EditorView, next: string): void {
+  const { state } = view;
+  const head = state.selection.main.head;
+  const line = state.doc.lineAt(head);
+  const lineNumber = line.number;
+  const col = head - line.from;
+  const lines = next.split("\n");
+  const targetLine = Math.min(lineNumber, lines.length);
+  let pos = 0;
+  for (let i = 0; i < targetLine - 1; i++) pos += (lines[i]?.length ?? 0) + 1;
+  pos += Math.min(col, lines[targetLine - 1]?.length ?? 0);
+  view.dispatch({
+    changes: { from: 0, to: state.doc.length, insert: next },
+    selection: { anchor: Math.min(pos, next.length) },
+    scrollIntoView: true,
+  });
+}
+
+/**
+ * Rename the identifier at the selection/cursor: prompts for a new name and
+ * replaces every word-boundary occurrence (case-sensitive) in one transaction.
+ * Strings, quoted identifiers and comments are skipped.
+ */
+function renameSymbol(view: EditorView, engine: Engine | null): void {
+  const { state } = view;
+  const selection = state.selection.main;
+  const text = state.doc.toString();
+  let word: string | null = null;
+  if (!selection.empty) {
+    const selected = state.doc.sliceString(selection.from, selection.to).trim();
+    if (/^[A-Za-z_][A-Za-z0-9_$]*$/.test(selected)) word = selected;
+  } else {
+    word = identifierAt(engine, text, selection.head)?.text ?? null;
+  }
+  if (!word) return;
+
+  const next = window.prompt(`Rename "${word}" to:`, word);
+  if (!next || next === word) return;
+  if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(next)) {
+    window.alert(`"${next}" is not a valid SQL identifier.`);
+    return;
+  }
+  const occurrences = identifierOccurrences(engine, text, word);
+  if (occurrences.length === 0) return;
+  view.dispatch({
+    changes: occurrences.map((o) => ({ from: o.from, to: o.to, insert: next })),
+    userEvent: "rename",
+  });
+  view.focus();
+}
+
 type Props = {
   initialDoc: string;
   engine: Engine | null;
@@ -40,20 +102,28 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
   { initialDoc, engine, sessionId, scope, onRun, onChange, onCursor },
   ref,
 ) {
-  // Reserved for the Code Insight workstream (completion/hover/rename).
-  void sessionId;
-  void scope;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const dialectCompartment = useRef(new Compartment());
+  const insightCompartment = useRef(new Compartment());
   const callbacks = useRef({ onRun, onChange, onCursor });
   callbacks.current = { onRun, onChange, onCursor };
   const engineRef = useRef(engine);
   engineRef.current = engine;
+  const sessionRef = useRef(sessionId);
+  sessionRef.current = sessionId;
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
   const initialDocRef = useRef(initialDoc);
 
   useEffect(() => {
     if (!hostRef.current) return;
+    const formatNow = (view: EditorView) =>
+      applyDoc(view, formatSql(engineRef.current, view.state.doc.toString()));
+    const minifyNow = (view: EditorView) =>
+      applyDoc(view, minifySql(engineRef.current, view.state.doc.toString()));
+    const renameNow = (view: EditorView) => renameSymbol(view, engineRef.current);
+
     const view = new EditorView({
       parent: hostRef.current,
       state: EditorState.create({
@@ -62,6 +132,9 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
           basicSetup,
           dialectCompartment.current.of(
             sql({ dialect: dialectFor(engineRef.current) }),
+          ),
+          insightCompartment.current.of(
+            insightExtensions(engineRef.current, sessionRef.current, () => scopeRef.current),
           ),
           Prec.highest(
             keymap.of([
@@ -72,8 +145,48 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
                   return true;
                 },
               },
+              {
+                key: "Shift-Alt-f",
+                run: (v) => {
+                  formatNow(v);
+                  return true;
+                },
+              },
+              {
+                key: "Shift-Alt-m",
+                run: (v) => {
+                  minifyNow(v);
+                  return true;
+                },
+              },
+              {
+                key: "F2",
+                run: (v) => {
+                  renameNow(v);
+                  return true;
+                },
+              },
             ]),
           ),
+          // macOS turns Option+Shift+F/M into special characters, so the keymap
+          // above never sees them — catch the physical keys here instead.
+          EditorView.domEventHandlers({
+            keydown: (event, v) => {
+              if (event.defaultPrevented) return false;
+              if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) {
+                return false;
+              }
+              if (event.code === "KeyF") {
+                formatNow(v);
+                return true;
+              }
+              if (event.code === "KeyM") {
+                minifyNow(v);
+                return true;
+              }
+              return false;
+            },
+          }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) callbacks.current.onChange(u.state.doc.toString());
             if (u.selectionSet || u.docChanged) {
@@ -103,6 +216,43 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
       ),
     });
   }, [engine]);
+
+  // Rebuild schema-aware completion/hover when the connection or scope changes.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: insightCompartment.current.reconfigure(
+        insightExtensions(engine, sessionId, () => scopeRef.current),
+      ),
+    });
+  }, [engine, sessionId, scope?.database, scope?.schema]);
+
+  // Menu/toolbar events (Edit → Format/Minify/Rename).
+  useEffect(() => {
+    const onFormat = () => {
+      const view = viewRef.current;
+      if (!view) return;
+      applyDoc(view, formatSql(engineRef.current, view.state.doc.toString()));
+    };
+    const onMinify = () => {
+      const view = viewRef.current;
+      if (!view) return;
+      applyDoc(view, minifySql(engineRef.current, view.state.doc.toString()));
+    };
+    const onRename = () => {
+      const view = viewRef.current;
+      if (view) renameSymbol(view, engineRef.current);
+    };
+    window.addEventListener("mieosql:format-sql", onFormat);
+    window.addEventListener("mieosql:minify-sql", onMinify);
+    window.addEventListener("mieosql:rename-symbol", onRename);
+    return () => {
+      window.removeEventListener("mieosql:format-sql", onFormat);
+      window.removeEventListener("mieosql:minify-sql", onMinify);
+      window.removeEventListener("mieosql:rename-symbol", onRename);
+    };
+  }, []);
 
   useImperativeHandle(
     ref,

@@ -13,7 +13,7 @@ export type GridApi = {
 };
 export type CellRef = { row: number; col: number };
 
-const ROW_H = 22;
+const ROW_H = 32;
 const GUTTER_W = 48;
 const MIN_COL_W = 64;
 const MAX_COL_W = 720;
@@ -334,10 +334,10 @@ export function ResultGrid({ result, matchIndices, onViewCell, onApi }: Props) {
         {/* header */}
         <div
           className="sticky top-0 z-10 flex border-b border-slate-300 bg-[#f1f5f9]"
-          style={{ height: 24 }}
+          style={{ height: 32 }}
         >
           <div
-            className="flex shrink-0 items-center justify-center border-r border-slate-300 text-[10px] text-slate-400"
+            className="flex shrink-0 items-center justify-center border-r border-slate-300 text-[11px] text-slate-400"
             style={{ width: GUTTER_W }}
           >
             #
@@ -353,11 +353,11 @@ export function ResultGrid({ result, matchIndices, onViewCell, onApi }: Props) {
                 onClick={() => cycleSort(i)}
                 title={`${col.name} — ${col.native_type} · click to sort`}
               >
-                <span className="min-w-0 truncate text-[11px] font-semibold text-slate-700">
+                <span className="min-w-0 truncate text-[12px] font-medium text-slate-700">
                   {col.name}
                 </span>
                 <span
-                  className={`ml-auto shrink-0 text-[9px] font-medium ${badgeTone(col.kind)}`}
+                  className={`ml-auto shrink-0 text-[11px] font-medium ${badgeTone(col.kind)}`}
                 >
                   {kindBadge(col.kind)}
                 </span>
@@ -392,7 +392,7 @@ export function ResultGrid({ result, matchIndices, onViewCell, onApi }: Props) {
                 style={{ top: i * ROW_H, height: ROW_H, minWidth: totalWidth }}
               >
                 <div
-                  className="flex shrink-0 cursor-pointer items-center justify-center border-r border-b border-[#eef2f7] bg-[#f6f8fb] text-[10px] text-slate-400 select-none"
+                  className="flex shrink-0 cursor-pointer items-center justify-center border-r border-b border-[#eef2f7] bg-[#f6f8fb] text-[11px] text-slate-400 select-none"
                   style={{ width: GUTTER_W }}
                   onClick={() => setSel({ row: i, col: sel?.col ?? 0 })}
                 >

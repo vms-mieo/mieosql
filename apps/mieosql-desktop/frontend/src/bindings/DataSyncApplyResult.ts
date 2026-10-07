@@ -3,4 +3,9 @@
 /**
  * Outcome of applying a data sync.
  */
-export type DataSyncApplyResult = { inserted: number, updated: number, deleted: number, failed: number, errors: Array<string>, elapsed_ms: number, truncated: number, };
+export type DataSyncApplyResult = { inserted: number, updated: number, deleted: number, failed: number, errors: Array<string>, elapsed_ms: number, 
+/**
+ * Number of changes not applied because the statement list was capped
+ * (1+ when the sample itself was truncated).
+ */
+truncated: number, };

@@ -5,8 +5,10 @@ import {
   Database,
   Eye,
   FileCode2,
+  Folder,
   Loader2,
   Plug,
+  Plus,
   RefreshCw,
   Search,
   Table2,
@@ -47,20 +49,6 @@ function folderKey(sid: string, db: string, schema: string, kind: string) {
   return `${sid}|${db}|${schema}|${kind}`;
 }
 
-function engineColor(engine: Engine): string {
-  switch (engine) {
-    case "postgres":
-      return "text-sky-600";
-    case "mysql":
-    case "mariadb":
-      return "text-orange-500";
-    case "sqlite":
-      return "text-cyan-600";
-    default:
-      return "text-slate-500";
-  }
-}
-
 function TreeRow({
   depth,
   caret,
@@ -88,18 +76,20 @@ function TreeRow({
 }) {
   return (
     <div
-      className={`group flex cursor-pointer items-center gap-1 rounded px-1 py-[2px] ${
+      className={`group flex h-6 cursor-default items-center gap-1 rounded-md pr-1 text-[13px] ${
         selected
-          ? "bg-sky-100/80 text-sky-900"
-          : "text-slate-600 hover:bg-slate-200/70"
+          ? "bg-accent/[0.12] text-slate-900"
+          : "text-slate-700 hover:bg-slate-900/[0.04]"
       }`}
-      style={{ paddingLeft: 4 + depth * 14 }}
+      style={{ paddingLeft: 4 + depth * 13 }}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
     >
       <button
         className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded ${
-          caret ? "text-slate-400 hover:bg-slate-300/60" : "invisible"
+          caret
+            ? "text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-600"
+            : "invisible"
         }`}
         onClick={(e) => {
           e.stopPropagation();
@@ -266,7 +256,7 @@ export function Sidebar() {
       {
         kind: "table",
         label: "Tables",
-        icon: <Table2 size={12} className="text-sky-500" />,
+        icon: <Table2 size={12} className="text-slate-500" />,
       },
       {
         kind: "view",
@@ -289,7 +279,7 @@ export function Sidebar() {
             loading={objects === "loading"}
             icon={folder.icon}
             label={
-              <span className="text-slate-600">
+              <span className="text-slate-700">
                 {folder.label}
                 {Array.isArray(objects) && (
                   <span className="text-slate-400"> ({shown.length})</span>
@@ -311,7 +301,7 @@ export function Sidebar() {
                 depth={depth + 1}
                 icon={
                   folder.kind === "table" ? (
-                    <Table2 size={11} className="text-sky-500/80" />
+                    <Table2 size={11} className="text-slate-500" />
                   ) : (
                     <Eye size={11} className="text-slate-400" />
                   )
@@ -320,7 +310,7 @@ export function Sidebar() {
                 label={<span className="text-slate-700">{obj.name}</span>}
                 trailing={
                   obj.rows_estimate !== undefined && obj.rows_estimate !== null ? (
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[11px] text-slate-400">
                       {obj.rows_estimate.toLocaleString()}
                     </span>
                   ) : undefined
@@ -350,7 +340,7 @@ export function Sidebar() {
             ))}
           {isOpen && Array.isArray(objects) && shown.length === 0 && (
             <div
-              className="px-1 py-[2px] text-[10px] text-slate-400"
+              className="px-1 py-[2px] text-[13px] text-slate-400"
               style={{ paddingLeft: 4 + (depth + 1) * 14 }}
             >
               No objects
@@ -373,12 +363,12 @@ export function Sidebar() {
           caret
           expanded={isOpen}
           loading={hasSchemas && schemas === "loading"}
-          icon={<Database size={12} className={engineColor(session.engine)} />}
+          icon={<Database size={12} className="text-slate-500" />}
           label={
             <span className="font-medium text-slate-700">
               {db.name}
               {db.is_system && (
-                <span className="ml-1 text-[9px] text-slate-400">system</span>
+                <span className="ml-1 text-[13px] text-slate-400">system</span>
               )}
             </span>
           }
@@ -399,7 +389,7 @@ export function Sidebar() {
                     depth={depth + 1}
                     caret
                     expanded={schemaOpen}
-                    icon={<span className="text-[10px] text-teal-600">▸</span>}
+                    icon={<Folder size={12} className="text-slate-400" />}
                     label={
                       <span className="font-medium text-slate-600">
                         {schema.name}
@@ -432,26 +422,20 @@ export function Sidebar() {
           caret
           expanded={isOpen}
           loading={databases === "loading"}
-          icon={<Plug size={12} className="text-emerald-500" />}
+          icon={<Plug size={12} className="text-slate-500" />}
           label={
-            <span
-              className={`font-semibold ${
-                store.activeSessionId === session.id
-                  ? "text-sky-800"
-                  : "text-slate-800"
-              }`}
-            >
+            <span className="font-medium text-slate-900">
               {session.name}
             </span>
           }
           selected={store.activeSessionId === session.id}
           trailing={
-            <span className="flex items-center gap-1">
-              <span className="rounded bg-teal-100/70 px-1 text-[9px] font-medium text-teal-700">
+            <span className="flex items-center gap-0.5">
+              <span className="rounded bg-slate-900/[0.06] px-1 text-[10.5px] font-medium text-slate-600">
                 {badge}
               </span>
               <button
-                className="hidden rounded p-0.5 text-slate-400 group-hover:inline hover:text-sky-600"
+                className="hidden h-5 w-5 place-items-center rounded-md text-slate-400 group-hover:grid hover:bg-slate-900/[0.06] hover:text-slate-600"
                 title="New query"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -461,7 +445,7 @@ export function Sidebar() {
                 <FileCode2 size={11} />
               </button>
               <button
-                className="hidden rounded p-0.5 text-slate-400 group-hover:inline hover:text-rose-600"
+                className="hidden h-5 w-5 place-items-center rounded-md text-slate-400 group-hover:grid hover:bg-slate-900/[0.06] hover:text-rose-600"
                 title="Disconnect"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -482,7 +466,7 @@ export function Sidebar() {
           (Array.isArray(databases) ? (
             databases.filter((d) => filterMatch(d.name)).map((db) => renderDatabase(session, db, 1))
           ) : databases === "loading" ? (
-            <div className="px-4 py-0.5 text-[10px] text-slate-400">
+            <div className="px-4 py-0.5 text-[13px] text-slate-400">
               Loading databases…
             </div>
           ) : null)}
@@ -505,96 +489,99 @@ export function Sidebar() {
   );
 
   return (
-    <aside className="flex w-[248px] shrink-0 flex-col border-r border-[#cbd5e1] bg-[#f8fafc]">
+    <aside className="flex w-[240px] shrink-0 flex-col bg-sidebar">
       {/* search */}
-      <div className="flex shrink-0 items-center gap-1 bg-[#eef2f7] px-2 py-1.5">
-        <div className="flex flex-1 items-center rounded bg-white px-2 py-0.5 ring-1 ring-slate-200">
-          <Search size={12} className="mr-1 text-slate-400" />
+      <div className="flex shrink-0 items-center gap-1 px-2 pt-2 pb-1">
+        <div className="flex h-7 flex-1 items-center rounded-md bg-slate-900/[0.05] px-2">
+          <Search size={12} className="mr-1.5 shrink-0 text-slate-500" />
           <input
-            className="w-full border-none bg-transparent p-0 text-[11px] text-slate-700 placeholder:text-slate-400 focus:outline-none"
-            placeholder="Search database objects…"
+            className="w-full border-none bg-transparent p-0 text-[13px] text-slate-900 placeholder:text-slate-500 focus:outline-none"
+            placeholder="Search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           {query && (
-            <button onClick={() => setQuery("")} className="text-slate-400 hover:text-slate-600">
+            <button
+              onClick={() => setQuery("")}
+              className="text-slate-400 hover:text-slate-600"
+            >
               <X size={11} />
             </button>
           )}
         </div>
         <button
-          className="rounded p-1 text-slate-500 hover:bg-white hover:text-slate-700"
+          className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-700"
           title="Reload tree"
           onClick={() => setCache(EMPTY_CACHE)}
         >
-          <RefreshCw size={12} />
+          <RefreshCw size={13} strokeWidth={1.8} />
         </button>
       </div>
 
       {/* tree */}
-      <div className="custom-scrollbar flex-1 overflow-y-auto p-1 text-[11px] select-none">
+      <div className="custom-scrollbar flex-1 overflow-y-auto px-2 pb-2 text-[13px] select-none">
+        {(store.sessions.length > 0 || disconnected.length > 0) && (
+          <div className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
+            Connections
+          </div>
+        )}
         {store.sessions.length === 0 && disconnected.length === 0 && (
-          <div className="px-2 py-4 text-center text-slate-400">
-            No connections yet.
+          <div className="flex flex-col items-center px-3 pt-10 text-center">
+            <div className="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-slate-400">
+              <Plug size={16} strokeWidth={1.6} />
+            </div>
+            <div className="mt-3 text-[13px] font-medium text-slate-700">
+              No Connections
+            </div>
+            <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
+              Connect to a database to get started.
+            </p>
             <button
-              className="mt-2 block w-full rounded bg-sky-600 py-1 font-medium text-white hover:bg-sky-700"
+              className="mt-3 flex items-center gap-1 rounded-md px-2.5 py-1 text-[13px] font-medium text-accent hover:bg-accent/10"
               onClick={() => store.setConnectionModal(true)}
             >
-              New Connection…
+              <Plus size={13} strokeWidth={1.8} />
+              New Connection
             </button>
           </div>
         )}
         {store.sessions.map(renderSession)}
-        {disconnected.length > 0 && (
-          <>
-            <div className="mt-2 px-1 py-0.5 text-[9px] font-semibold tracking-wider text-slate-400 uppercase">
-              Connections
-            </div>
-            {disconnected.map((profile) => (
-              <TreeRow
-                key={profile.id}
-                depth={0}
-                icon={<Unplug size={11} className="text-slate-400" />}
-                label={<span className="text-slate-500">{profile.name}</span>}
-                onDoubleClick={() => void store.openSession(profile.id)}
-                trailing={
-                  <button
-                    className="hidden rounded p-0.5 text-slate-400 group-hover:inline hover:text-emerald-600"
-                    title="Connect"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void store.openSession(profile.id).catch((err) => {
-                        store.toast("error", errorText(err));
-                      });
-                    }}
-                  >
-                    <Plug size={11} />
-                  </button>
-                }
-                onClick={() => store.setConnectionModal(true, profile.id)}
-              />
-            ))}
-          </>
-        )}
+        {disconnected.map((profile) => (
+          <TreeRow
+            key={profile.id}
+            depth={0}
+            icon={<Unplug size={11} className="text-slate-400" />}
+            label={<span className="text-slate-600">{profile.name}</span>}
+            onDoubleClick={() => void store.openSession(profile.id)}
+            trailing={
+              <button
+                className="hidden h-5 w-5 place-items-center rounded-md text-slate-400 group-hover:grid hover:bg-slate-900/[0.06] hover:text-slate-600"
+                title="Connect"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void store.openSession(profile.id).catch((err) => {
+                    store.toast("error", errorText(err));
+                  });
+                }}
+              >
+                <Plug size={11} />
+              </button>
+            }
+            onClick={() => store.setConnectionModal(true, profile.id)}
+          />
+        ))}
       </div>
 
       {/* footer */}
-      <div className="flex shrink-0 items-center justify-between bg-[#eef2f7] px-2 py-1 text-[10px] text-slate-500">
-        <span className="flex items-center gap-1 truncate">
-          <span
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              activeSession ? "bg-emerald-500" : "bg-slate-300"
-            }`}
-          />
-          {activeProfile
-            ? `Host: ${activeProfile.host ?? activeProfile.file ?? "—"}`
-            : "No connection"}
+      <div className="flex h-6 shrink-0 items-center gap-1.5 px-3 text-[11px] text-slate-500">
+        <span
+          className={`inline-block h-1.5 w-1.5 rounded-full ${
+            activeSession ? "bg-emerald-500" : "bg-slate-300"
+          }`}
+        />
+        <span className="truncate">
+          {activeProfile ? activeProfile.name : "No connection"}
         </span>
-        {activeProfile && (
-          <span className="font-code">
-            {activeProfile.port ? `Port: ${activeProfile.port}` : ""}
-          </span>
-        )}
       </div>
     </aside>
   );

@@ -23,7 +23,7 @@ Nguyên tắc: mỗi phase là một cột mốc **dùng được**, ưu tiên c
 - [x] Connection modal (test connection, SSL mode, engine roadmap-aware)
 - [x] Tauri capabilities + custom titlebar + CI frontend job
 
-## P1 — "Dùng được hằng ngày" (kế tiếp)
+## P1 — "Dùng được hằng ngày" (một phần đã xong trong Feature Pack v1)
 
 - [ ] **SSH tunnel** (password / key / agent, `russh`) + jump host + UI fields
 - [ ] SSL nâng cao: CA file, client cert, skip-verify có cảnh báo
@@ -31,38 +31,59 @@ Nguyên tắc: mỗi phase là một cột mốc **dùng được**, ưu tiên c
 - [ ] Multi-statement script: SQL splitter an toàn (quote/comment/$do$) + chạy tuần tự, dừng khi lỗi
 - [ ] Hard-cancel: `KILL QUERY` (MySQL), `pg_cancel_backend` (Postgres)
 - [ ] Data grid editing: diff-based UPDATE/DELETE theo PK + preview SQL (FE + BE)
-- [x] **Export kết quả ra file ✅ v0.3**: CSV / Text(TSV) / JSON / JSON Lines / SQL INSERTs / **Excel (XLSX)** — chạy lại query server-side, streaming ra đĩa (không qua IPC, không giới hạn buffer FE), save dialog, tự xoá file lỗi dở
+- [x] **Export kết quả ra file ✅ v0.3**: CSV / Text(TSV) / JSON / JSON Lines / SQL INSERTs / **Excel (XLSX)**
 - [ ] Import file (CSV/JSON) — P1
-- [ ] Explain plan (FE visualizer) + Beautify SQL + Saved queries
-- [ ] Find in database (tìm object/tên cột); routine/trigger/sequence trong explorer; DDL Postgres
+- [x] **Explain plan (FE visualizer) ✅ v0.4** (tree + cost bars + raw) + **Beautify/Minify SQL ✅ v0.4**
+- [x] **Find in database ✅ v0.4** (object + column + definition, 4 match mode); routine/trigger/sequence trong explorer — còn P1; DDL Postgres — còn P1
 - [ ] CI: ký/notarize macOS, phát hành artifact
+
+## Feature Pack v1 — Code Insight · Data Tools · Sync · Modeling · BI ✅ (v0.4)
+
+> Chi tiết hợp đồng: [FEATURE_PACK_V1.md](FEATURE_PACK_V1.md)
+
+- [x] **Code Insight**: autocomplete schema-aware, hover info, snippets, **rename symbol**, **beautify/minify**, **query builder** (light)
+- [x] **Parameter queries**: dialog nhập tham số `?` / `$n` khi chạy; **result pinning**
+- [x] **Database-wide Search**: object/column/definition, Contains/Prefix/Whole word/Regex, case-sensitive
+- [x] **Visual Explain**: MySQL (`FORMAT=JSON`), Postgres (`FORMAT JSON` + ANALYZE), SQLite (`QUERY PLAN`) → cây chi phí
+- [x] **Data Dictionary**: export Markdown/HTML (columns/indexes/FK/DDL, glossary từ comment)
+- [x] **Data Generation**: 21 strategy, auto heuristic theo tên/kiểu, seed tái lập, preview SQL / execute
+- [x] **Data Masking**: export kết quả với rule che (redact/fake/hash/random…), báo cáo unmatched
+- [x] **Structure Sync**: diff 2 database/schema → script ALTER (columns/indexes/tables), preview + apply có transaction
+- [x] **Data Sync**: diff theo key (INSERT/UPDATE/DELETE), sample limit + statement cap, preview + apply
+- [x] **Data Transfer**: copy bảng cross-engine (streaming batch, 4 mode: create/append/truncate/drop-create)
+- [x] **Schema Snapshot**: 1 call đủ tables+columns+indexes+FKs (nuôi ERD + autocomplete)
+- [x] **ER Diagram (v1, read-only)**: layout theo FK, pan/zoom, search, export SVG/PNG
+- [x] **BI Dashboard (v1)**: tile chart bar/line/pie/table (SVG thuần), `{{param}}`, auto-refresh, lưu localStorage
+- [x] **Collaboration v1**: workspace bundle export/import connection metadata (không chứa mật khẩu)
 
 ## P2 — Ngang tầm công cụ chuyên nghiệp
 
 - [ ] MongoDB + Redis driver (NoSQL: document tree, key browser, command console)
-- [ ] Import/Export Excel/XML/Markdown/HTML; Data Transfer giữa 2 connection (cross-engine)
+- [ ] Import/Export Excel/XML/Markdown/HTML
 - [ ] Backup/Restore (dump SQL + restore có progress)
-- [ ] Snippets/saved queries, session restore sau khi tắt app
-- [ ] Code Insight: autocomplete dựa trên schema + keyword; object search
-- [ ] Explain plan + visualize (FE)
+- [ ] Snippets/saved queries tự lưu, session restore sau khi tắt app
+- [ ] Code Insight nâng cao: go-to-definition, diagnostics, completion theo alias/join chính xác
+- [ ] Explain nâng cao: so sánh 2 plan, gợi ý index
 - [ ] OS Keychain cho vault
-- [ ] Connection group/folder/color (FE + store)
+- [ ] Connection group/folder/color (store + FE)
+- [ ] Data grid editing + raw data view (BLOB hex/text)
 
 ## P3 — Nâng cao
 
-- [ ] Clone database giữa 2 connection (structure + data + có dry-run)
-- [ ] Structure Synchronization (diff schema → script)
-- [ ] Data Synchronization 2 chiều (so sánh, conflict handling)
+- [ ] Clone database giữa 2 connection (structure + data + dry-run) — tái dùng Structure/Data Sync + Transfer
+- [ ] Sync nâng cao: FK constraints, defaults/identity, conflict handling 2 chiều, resume
 - [ ] Proxy HTTP/SOCKS5; Oracle (đóng gói OCI — chú ý single-file constraint)
 - [ ] Server monitor (session list, kill session, process list)
-- [ ] Data generation (fake data theo rule)
-- [ ] Column profiling, data masking
+- [ ] Column profiling; masking nâng cao (rule presets, áp trực tiếp khi transfer)
+- [ ] Automation/scheduler cho sync/transfer/generation
 
 ## P4 — Mở rộng hệ sinh thái
 
-- [ ] Snowflake (REST), HTTP Tunnel, Automation/scheduler, BI dashboard (FE), ER Modeler (FE)
+- [ ] Snowflake (REST), HTTP Tunnel
+- [ ] ER Modeler đầy đủ: chỉnh sửa model, logical/physical, naming convention, Data Vault 2.0
+- [ ] BI nâng cao: dynamic parameters phong phú, auto tile layout, page navigation, alignment tools, data profiling
 - [ ] AI Assistant (NL→SQL, explain, tối ưu query)
-- [ ] Cloud sync profiles/snippets (optional, mã hoá end-to-end)
+- [ ] Cloud sync profiles/snippets/BI (optional, mã hoá end-to-end) — thay thế workspace bundle file-based
 
 ## Nguyên tắc kỹ thuật xuyên suốt
 

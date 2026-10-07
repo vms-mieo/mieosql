@@ -185,8 +185,8 @@ export function ConnectionModal() {
   };
 
   const inputCls =
-    "w-full rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-800 focus:border-sky-400 focus:outline-none";
-  const labelCls = "mb-0.5 block text-[10px] font-medium text-slate-500 uppercase tracking-wide";
+    "w-full rounded border border-slate-300 bg-white px-2 py-1 text-[13px] text-slate-800 focus:border-sky-400 focus:outline-none";
+  const labelCls = "mb-0.5 block text-[12px] font-medium text-slate-500 uppercase tracking-wide";
 
   return (
     <div
@@ -200,7 +200,7 @@ export function ConnectionModal() {
         <div className="flex h-10 items-center justify-between border-b border-slate-200 px-3">
           <div className="flex items-center gap-2">
             <Plug size={15} className="text-sky-600" />
-            <span className="text-[13px] font-semibold text-slate-800">
+            <span className="text-[15px] font-semibold text-slate-800">
               {editing ? "Connection Properties" : "New Connection"}
             </span>
           </div>
@@ -322,14 +322,14 @@ export function ConnectionModal() {
             </div>
           </div>
 
-          <p className="text-[10px] leading-relaxed text-slate-400">
+          <p className="text-[11px] leading-relaxed text-slate-400">
             Credentials are stored in an encrypted vault (XChaCha20-Poly1305,
             separate master key). SSH tunnels arrive in phase P1.
           </p>
 
           {testResult && (
             <div
-              className={`rounded border px-3 py-2 text-[11px] ${
+              className={`rounded border px-3 py-2 text-[12px] ${
                 testResult.ok
                   ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                   : "border-rose-200 bg-rose-50 text-rose-700"
@@ -345,7 +345,7 @@ export function ConnectionModal() {
           <div>
             {editing && (
               <button
-                className="flex items-center gap-1 rounded px-2 py-1 text-[11px] text-rose-600 hover:bg-rose-50"
+                className="flex items-center gap-1 rounded px-2 py-1 text-[13px] text-rose-600 hover:bg-rose-50"
                 onClick={onDelete}
               >
                 <Trash2 size={12} /> Delete
@@ -354,7 +354,7 @@ export function ConnectionModal() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1 text-[13px] text-slate-700 hover:bg-slate-100 disabled:opacity-50"
               onClick={onTest}
               disabled={testing}
             >
@@ -366,7 +366,7 @@ export function ConnectionModal() {
               Test Connection
             </button>
             <button
-              className="flex items-center gap-1.5 rounded bg-sky-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded bg-sky-600 px-3 py-1 text-[13px] font-medium text-white hover:bg-sky-700 disabled:opacity-50"
               onClick={onSave}
               disabled={saving}
             >

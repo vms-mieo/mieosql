@@ -17,7 +17,11 @@ import { WorkspaceDialog } from "./WorkspaceDialog";
 
 export function FeatureDialogs() {
   const dialog = useStore((s) => s.featureDialog);
+  const paramDialog = useStore((s) => s.paramDialog);
   const close = useStore((s) => s.closeFeatureDialog);
+  // The parameter dialog is driven by `paramDialog` state (set by
+  // `requestRun` when placeholders are found), not by `featureDialog`.
+  if (paramDialog) return <ParamRunDialog onClose={close} />;
   if (!dialog) return null;
   switch (dialog) {
     case "search":

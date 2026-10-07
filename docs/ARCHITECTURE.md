@@ -127,3 +127,30 @@ commit vào repo, CI diff kiểm tra lệch).
   (`core:default` + window minimize/maximize/close/start-dragging).
 - **Precision**: `BIGINT`/`UINT` trong `Value` serialize dạng **string**; counter metadata
   (`rows`, `elapsed_ms`, `batch_index`, …) là `number` (ts-rs override `#[ts(type = "number")]`).
+
+### Typography (desktop developer tool)
+
+Hệ thống typography nằm ở `frontend/src/styles.css` dưới dạng token (`@theme` + biến CSS):
+
+| Vai trò | Size / weight |
+|---|---|
+| Application / page title | 18px / 600 (line-height 1.25) |
+| Section title | 15px / 600 |
+| Subsection | 13px / 600 |
+| Body · sidebar · button · tab | 13px (button/tab 500) |
+| Table text · table header | 13px · 12px / 500 |
+| Form label · input | 12px / 500 · 13px |
+| Caption · badge · tooltip | 11px · 11px / 500 · 12px |
+| SQL / JSON / log (mono) | 12–13px, line-height 1.45 |
+
+- **Font**: sans = system stack (`-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, …`);
+  mono = `"SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace`.
+  Không dùng font decorative/rounded/CDN.
+- **Data grid (Excel-like)**: row **32px**, header **32px**, zebra + hover + selection,
+  type badge 11px/500, số căn phải mono, `[NULL]` nghiêng, virtualized.
+- **Text colors**: ink `#1F2937` · soft `#6B7280` · muted `#9CA3AF` · faint `#D1D5DB` ·
+  heading `#111827` (khai báo trong token `--color-ink*`).
+- **Dark mode**: palette spec (`#111827` bg · `#1F2937` panel · `#F3F4F6` text ·
+  `#9CA3AF` secondary · `#374151` border) đã khai báo sẵn qua `[data-theme="dark"]`;
+  việc chuyển surfaces sang biến theme là bước tiếp theo khi cần bật dark mode.
+- Debug handle: `window.__mieosql` expose store để inspect từ devtools.

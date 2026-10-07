@@ -15,6 +15,16 @@ export type PlaceholderInfo = {
   position: number;
 };
 
+/** Explicit parameter type chosen in the parameter dialog. */
+export type ParamType = "auto" | "text" | "int" | "decimal" | "bool" | "null";
+
+/**
+ * Marker used to smuggle an explicit type through `store.runWithParams`
+ * (whose signature only carries raw strings). NUL cannot be typed into an
+ * input, so it is safe as a sentinel.
+ */
+const TYPE_MARK = "\u0000";
+
 type ScanState =
   | "normal"
   | "single"
@@ -90,10 +100,7 @@ export function findPlaceholders(
         }
         // `$tag$` / `$$` → dollar-quoted string start
         let k = i + 1;
-        while (
-          k < sql.length &&
-          /[A-Za-z0-9_]/.test(sql[k]!)
-        ) {
+        while (k < sql.length && /[A-Za-z0-9_]/.test(sql[k]!)) {
           k++;
         }
         if (k < sql.length && sql[k] === "$") {
@@ -155,20 +162,82 @@ export function findPlaceholders(
   return out;
 }
 
-/** Bind raw input strings to the placeholders found in `sql`. */
+/**
+ * Bind raw input strings to the placeholders found in `sql`.
+ *
+ * For Postgres the parameter array is positional (`$n` → slot `n-1`), so
+ * repeated/out-of-order placeholders still bind correctly. The `values` array
+ * is aligned with the order of `findPlaceholders(...)` (unique indices).
+ */
 export function bindPlaceholders(
   engine: Engine | null,
   sql: string,
   values: Array<string | null>,
 ): { sql: string; params: Value[] } {
   const infos = findPlaceholders(engine, sql);
-  const params: Value[] = infos.map((_, i) => valueFromInput(values[i] ?? null));
+  const params: Value[] = [];
+  if (engine === "postgres") {
+    const seen = new Set<number>();
+    let slot = 0;
+    for (const info of infos) {
+      if (seen.has(info.index)) continue;
+      seen.add(info.index);
+      params[info.index - 1] = valueFromInput(values[slot] ?? null);
+      slot++;
+    }
+    for (let i = 0; i < params.length; i++) {
+      if (params[i] === undefined) params[i] = { t: "null" };
+    }
+  } else {
+    for (let i = 0; i < infos.length; i++) {
+      params.push(valueFromInput(values[i] ?? null));
+    }
+  }
   return { sql, params };
 }
 
+/** Encode a dialog input together with its explicit type (auto is a passthrough). */
+export function encodeTypedInput(raw: string, type: ParamType): string {
+  if (type === "auto") return raw;
+  if (type === "null") return `${TYPE_MARK}null:`;
+  return `${TYPE_MARK}${type}:${raw}`;
+}
+
 /** Heuristic conversion of a raw input string into a typed `Value`. */
-export function valueFromInput(raw: string | null): Value {
-  if (raw === null || raw === "") return { t: "null" };
+export function valueFromInput(raw: string | null, type?: ParamType): Value {
+  if (raw !== null && raw.startsWith(TYPE_MARK)) {
+    const sep = raw.indexOf(":", 1);
+    const encoded = raw.slice(1, sep) as ParamType;
+    return valueFromTyped(raw.slice(sep + 1), encoded);
+  }
+  return valueFromTyped(raw, type ?? "auto");
+}
+
+function valueFromTyped(raw: string | null, type: ParamType): Value {
+  if (type === "null") return { t: "null" };
+  if (raw === null || (raw === "" && type === "auto")) return { t: "null" };
+  switch (type) {
+    case "text":
+      return { t: "text", v: raw };
+    case "int":
+      return /^-?\d+$/.test(raw) && Number.isSafeInteger(Number(raw))
+        ? { t: "int", v: raw }
+        : { t: "text", v: raw };
+    case "decimal":
+      return /^-?\d+(\.\d+)?$/.test(raw)
+        ? { t: "decimal", v: raw }
+        : { t: "text", v: raw };
+    case "bool": {
+      const lower = raw.toLowerCase();
+      if (lower === "true" || lower === "1") return { t: "bool", v: true };
+      if (lower === "false" || lower === "0") return { t: "bool", v: false };
+      return { t: "text", v: raw };
+    }
+    case "auto":
+    default:
+      break;
+  }
+  // auto
   if (raw === "true" || raw === "false") return { t: "bool", v: raw === "true" };
   if (/^-?\d+$/.test(raw) && Number.isSafeInteger(Number(raw))) {
     return { t: "int", v: raw };

@@ -68,7 +68,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#eceff1] text-slate-800">
+    <div className="flex h-full flex-col overflow-hidden bg-window text-slate-800">
       <TitleBar />
       <MenuBar />
       <Ribbon />
@@ -77,7 +77,7 @@ export default function App() {
         {ready ? (
           <Workspace />
         ) : (
-          <section className="grid flex-1 place-items-center bg-white text-slate-400">
+          <section className="grid flex-1 place-items-center bg-surface text-slate-400">
             Starting backend…
           </section>
         )}

@@ -91,7 +91,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
           {tab.results.map((r, i) => (
             <button
               key={r.queryId}
-              className={`relative flex h-full items-center gap-1.5 px-3 text-[11px] ${
+              className={`relative flex h-full items-center gap-1.5 px-3 text-[13px] ${
                 i === tab.activeResult && subTab === "result"
                   ? "bg-white font-medium text-sky-700"
                   : "text-slate-500 hover:bg-white/60 hover:text-slate-700"
@@ -128,7 +128,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
             </button>
           ))}
           <button
-            className={`flex h-full items-center gap-1.5 px-3 text-[11px] ${
+            className={`flex h-full items-center gap-1.5 px-3 text-[13px] ${
               subTab === "messages"
                 ? "bg-white font-medium text-sky-700"
                 : "text-slate-500 hover:bg-white/60 hover:text-slate-700"
@@ -139,7 +139,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
             Messages
             {messageCount > 0 && (
               <span
-                className={`rounded-full px-1 text-[9px] ${
+                className={`rounded-full px-1 text-[11px] ${
                   errorCount > 0
                     ? "bg-rose-100 text-rose-700"
                     : "bg-slate-200 text-slate-600"
@@ -150,7 +150,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
             )}
           </button>
           <button
-            className={`flex h-full items-center gap-1.5 px-3 text-[11px] ${
+            className={`flex h-full items-center gap-1.5 px-3 text-[13px] ${
               subTab === "status"
                 ? "bg-white font-medium text-sky-700"
                 : "text-slate-500 hover:bg-white/60 hover:text-slate-700"
@@ -161,7 +161,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
             Status
           </button>
         </div>
-        <div className="flex items-center gap-2 pr-1 text-[10px] text-slate-500">
+        <div className="flex items-center gap-2 pr-1 text-[13px] text-slate-500">
           {result && (
             <>
               {result.status === "running" ? (
@@ -198,7 +198,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
       </div>
 
       {/* toolbar */}
-      <div className="flex h-[30px] shrink-0 items-center justify-between bg-[#f1f5f9] px-2 text-[11px]">
+      <div className="flex h-[30px] shrink-0 items-center justify-between bg-[#f1f5f9] px-2 text-[13px]">
         <div className="flex items-center gap-1.5">
           <button
             className="rounded p-1 text-slate-500 hover:bg-white hover:text-slate-700 disabled:opacity-40"
@@ -269,7 +269,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
           <div className="ml-1 flex items-center rounded bg-white px-2 py-0.5 ring-1 ring-slate-200">
             <Filter size={11} className="mr-1 text-slate-400" />
             <input
-              className="w-44 border-none bg-transparent p-0 text-[11px] placeholder:text-slate-400 focus:outline-none"
+              className="w-44 border-none bg-transparent p-0 text-[13px] placeholder:text-slate-400 focus:outline-none"
               placeholder="Filter loaded rows…"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -277,7 +277,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-500">
+          <span className="text-[13px] text-slate-500">
             {matchIndices
               ? `${matchIndices.length.toLocaleString()} / ${(result?.rows.length ?? 0).toLocaleString()} rows`
               : `${(result?.rows.length ?? 0).toLocaleString()} rows`}
@@ -385,27 +385,27 @@ function ErrorPanel({
       <div className="flex items-start gap-2 rounded border border-rose-200 bg-white p-3">
         <AlertTriangle size={16} className="mt-0.5 shrink-0 text-rose-500" />
         <div className="min-w-0">
-          <div className="font-code text-[11px] text-rose-600">{error.code}</div>
+          <div className="font-code text-[12px] text-rose-600">{error.code}</div>
           <div className="mt-0.5 text-[12px] font-medium text-slate-800">
             {error.message}
           </div>
           {error.detail && (
-            <div className="mt-1 font-code text-[11px] whitespace-pre-wrap text-slate-600">
+            <div className="mt-1 font-code text-[12px] whitespace-pre-wrap text-slate-600">
               {error.detail}
             </div>
           )}
           {error.hint && (
-            <div className="mt-1 text-[11px] text-slate-500">
+            <div className="mt-1 text-[13px] text-slate-500">
               Hint: {error.hint}
             </div>
           )}
           {error.db_code && (
-            <div className="mt-1 font-code text-[10px] text-slate-400">
+            <div className="mt-1 font-code text-[12px] text-slate-400">
               code: {error.db_code}
             </div>
           )}
           <button
-            className="mt-2 text-[11px] text-sky-600 hover:underline"
+            className="mt-2 text-[13px] text-sky-600 hover:underline"
             onClick={onShowMessages}
           >
             Open Messages tab
@@ -423,7 +423,7 @@ function MessagesView({
   onClear: () => void;
 }) {
   return (
-    <div className="custom-scrollbar flex-1 overflow-auto bg-white p-3 font-code text-[11px]">
+    <div className="custom-scrollbar flex-1 overflow-auto bg-white p-3 font-code text-[12px]">
       {messages.length === 0 && (
         <div className="text-slate-400">Nothing here yet.</div>
       )}
@@ -438,7 +438,7 @@ function MessagesView({
                 : "text-slate-600"
           }`}
         >
-          <span className="w-[52px] shrink-0 text-[10px] text-slate-400">
+          <span className="w-[52px] shrink-0 text-[13px] text-slate-400">
             {new Date(m.at).toLocaleTimeString()}
           </span>
           <span className="whitespace-pre-wrap">
@@ -474,7 +474,7 @@ function StatusView({ tab, result }: { tab: Tab; result?: ResultSet }) {
   ];
   return (
     <div className="custom-scrollbar flex-1 overflow-auto bg-white p-4">
-      <div className="grid grid-cols-[180px_1fr] gap-x-4 gap-y-1.5 text-[11px]">
+      <div className="grid grid-cols-[180px_1fr] gap-x-4 gap-y-1.5 text-[13px]">
         {rows.map(([k, v]) => (
           <div key={k} className="contents">
             <div className="text-slate-500">{k}</div>

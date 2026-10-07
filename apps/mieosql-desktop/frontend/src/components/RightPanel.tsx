@@ -4,6 +4,7 @@ import {
   Copy,
   FileCode2,
   KeyRound,
+  RefreshCw,
   Table2,
   Trash2,
 } from "lucide-react";
@@ -19,8 +20,8 @@ export function RightPanel() {
   const tab = store.rightTab;
 
   return (
-    <aside className="flex w-[272px] shrink-0 flex-col border-l border-[#cbd5e1] bg-[#f8fafc]">
-      <div className="flex h-[30px] shrink-0 items-center border-b border-slate-200 bg-[#eef2f7] px-1 text-[11px] select-none">
+    <aside className="flex w-[280px] shrink-0 flex-col bg-sidebar">
+      <div className="flex h-9 shrink-0 items-end border-b border-slate-200/80 px-2 select-none">
         {(
           [
             ["object", "Object"],
@@ -30,14 +31,17 @@ export function RightPanel() {
         ).map(([key, label]) => (
           <button
             key={key}
-            className={`flex-1 rounded-t py-1 text-center ${
+            className={`relative flex-1 pb-1.5 text-center text-[12.5px] transition-colors ${
               tab === key
-                ? "bg-white font-medium text-sky-700 shadow-sm"
+                ? "font-medium text-slate-900"
                 : "text-slate-500 hover:text-slate-700"
             }`}
             onClick={() => store.setRightTab(key)}
           >
             {label}
+            {tab === key && (
+              <span className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-accent" />
+            )}
           </button>
         ))}
       </div>
@@ -92,7 +96,7 @@ function ObjectInspector() {
 
   if (!selected) {
     return (
-      <div className="flex flex-1 items-center justify-center p-4 text-center text-[11px] text-slate-400">
+      <div className="flex flex-1 items-center justify-center p-6 text-center text-[12px] leading-relaxed text-slate-500">
         Select a table in the connection tree to inspect its columns and indexes.
       </div>
     );
@@ -119,15 +123,15 @@ function ObjectInspector() {
 
   return (
     <div className="custom-scrollbar flex-1 overflow-y-auto p-3 text-[11px]">
-      <div className="flex items-start gap-2">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-500 text-white shadow-sm">
+      <div className="flex items-start gap-2.5">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-white">
           <Table2 size={17} />
         </div>
-        <div className="min-w-0">
-          <div className="truncate text-[12px] font-bold text-slate-800">
+        <div className="min-w-0 pt-0.5">
+          <div className="truncate text-[15px] font-semibold text-slate-900">
             {selected.table}
           </div>
-          <div className="text-[10px] text-slate-400">
+          <div className="text-[11px] text-slate-500">
             {selected.kind}
             {selected.scope.schema ? ` · ${selected.scope.schema}` : ""}
             {selected.scope.database ? ` · ${selected.scope.database}` : ""}
@@ -137,7 +141,7 @@ function ObjectInspector() {
 
       <div className="mt-3 flex gap-1.5">
         <button
-          className="flex items-center gap-1 rounded bg-sky-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-sky-700"
+          className="flex h-7 items-center gap-1 rounded-md bg-accent px-2.5 text-[12.5px] font-medium text-white hover:bg-accent-hover"
           onClick={() =>
             store.openTable(selected.sessionId, selected.scope, selected.table)
           }
@@ -145,13 +149,13 @@ function ObjectInspector() {
           Open Data
         </button>
         <button
-          className="flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[10px] text-slate-600 hover:bg-slate-100"
+          className="flex h-7 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 text-[12.5px] text-slate-700 hover:bg-slate-50"
           onClick={() => void openDdl()}
         >
           <FileCode2 size={11} /> DDL
         </button>
         <button
-          className="flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[10px] text-slate-600 hover:bg-slate-100"
+          className="grid h-7 w-7 place-items-center rounded-md border border-slate-300 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
           onClick={() => {
             void copyText(selected.table).then((ok) =>
               store.toast(ok ? "success" : "error", ok ? "Copied" : "Copy failed"),
@@ -163,7 +167,7 @@ function ObjectInspector() {
       </div>
 
       {session && (
-        <div className="mt-3 space-y-1 border-t border-slate-200 pt-2 text-[10px] text-slate-500">
+        <div className="mt-3 space-y-1 border-t border-slate-200/80 pt-2 text-[12px] text-slate-500">
           <div>
             Engine: <span className="text-slate-700">{session.engine}</span>
           </div>
@@ -178,34 +182,34 @@ function ObjectInspector() {
         </div>
       )}
 
-      <div className="mt-3 border-t border-slate-200 pt-2">
-        <div className="mb-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+      <div className="mt-3 border-t border-slate-200/80 pt-2">
+        <div className="mb-1.5 text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
           Columns
         </div>
-        {error && <div className="text-[10px] text-rose-600">{error}</div>}
+        {error && <div className="text-[11px] text-rose-600">{error}</div>}
         {!columns && !error && (
-          <div className="text-[10px] text-slate-400">Loading…</div>
+          <div className="text-[11px] text-slate-500">Loading…</div>
         )}
         {columns && (
           <div className="space-y-0.5">
             {columns.map((c) => (
               <div
                 key={c.name}
-                className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-slate-100"
+                className="flex items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-slate-900/[0.04]"
               >
                 {c.is_primary_key ? (
                   <KeyRound size={10} className="shrink-0 text-amber-500" />
                 ) : (
                   <span className="w-[10px] shrink-0" />
                 )}
-                <span className="min-w-0 flex-1 truncate font-code text-[10px] text-slate-700">
+                <span className="min-w-0 flex-1 truncate font-code text-[12px] text-slate-700">
                   {c.name}
                 </span>
-                <span className="shrink-0 text-[9px] text-slate-400">
+                <span className="shrink-0 text-[11px] text-slate-400">
                   {kindBadge(c.data_type)}
                 </span>
                 {!c.nullable && (
-                  <span className="shrink-0 rounded bg-slate-200 px-1 text-[8px] text-slate-500">
+                  <span className="shrink-0 rounded bg-slate-900/[0.06] px-1 text-[10.5px] text-slate-600">
                     NN
                   </span>
                 )}
@@ -216,28 +220,28 @@ function ObjectInspector() {
       </div>
 
       {indexes.length > 0 && (
-        <div className="mt-3 border-t border-slate-200 pt-2">
-          <div className="mb-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+        <div className="mt-3 border-t border-slate-200/80 pt-2">
+          <div className="mb-1.5 text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
             Indexes
           </div>
           {indexes.map((idx) => (
             <div key={idx.name} className="px-1 py-0.5">
               <div className="flex items-center gap-1">
-                <span className="truncate font-code text-[10px] text-slate-700">
+                <span className="truncate font-code text-[12px] text-slate-700">
                   {idx.name}
                 </span>
                 {idx.is_primary && (
-                  <span className="rounded bg-amber-100 px-1 text-[8px] text-amber-700">
+                  <span className="rounded bg-amber-100 px-1 text-[10.5px] font-medium text-amber-700">
                     PK
                   </span>
                 )}
                 {!idx.is_primary && idx.is_unique && (
-                  <span className="rounded bg-sky-100 px-1 text-[8px] text-sky-700">
+                  <span className="rounded bg-accent/10 px-1 text-[10.5px] font-medium text-accent">
                     UNIQUE
                   </span>
                 )}
               </div>
-              <div className="truncate text-[9px] text-slate-400">
+              <div className="truncate text-[11px] text-slate-500">
                 ({idx.columns.join(", ")})
               </div>
             </div>
@@ -255,21 +259,21 @@ function ObjectInspector() {
 function HistoryList() {
   const store = useStore();
   return (
-    <div className="custom-scrollbar flex-1 overflow-y-auto p-2 text-[11px]">
-      <div className="mb-1 flex items-center justify-between px-1">
-        <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-          Recent executions
+    <div className="custom-scrollbar flex-1 overflow-y-auto px-2 pb-2 text-[11px]">
+      <div className="flex items-center justify-between pt-2 pb-1 pl-1">
+        <span className="text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
+          Recent
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
-            className="rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+            className="grid h-5 w-5 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-600"
             title="Refresh"
             onClick={() => void store.refreshHistory()}
           >
-            ↻
+            <RefreshCw size={11} />
           </button>
           <button
-            className="rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-rose-600"
+            className="grid h-5 w-5 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-rose-600"
             title="Clear history"
             onClick={() => void store.clearHistory()}
           >
@@ -278,7 +282,7 @@ function HistoryList() {
         </div>
       </div>
       {store.history.length === 0 && (
-        <div className="p-2 text-[10px] text-slate-400">
+        <div className="p-2 text-[12px] leading-relaxed text-slate-500">
           Executed queries will show up here.
         </div>
       )}
@@ -304,12 +308,12 @@ function HistoryItem({ entry }: { entry: HistoryEntry }) {
   const ago = formatAgo(new Date(entry.started_at).getTime());
   return (
     <div
-      className="group cursor-pointer space-y-0.5 rounded p-1.5 hover:bg-slate-100"
+      className="group cursor-default space-y-0.5 rounded-md p-2 hover:bg-slate-900/[0.04]"
       onClick={open}
       title="Open in a new query tab"
     >
       <div className="flex items-center justify-between">
-        <span className={`flex items-center gap-1 text-[10px] font-semibold ${statusColor}`}>
+        <span className={`flex items-center gap-1 text-[11px] font-semibold ${statusColor}`}>
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
           {entry.status === "ok"
             ? "OK"
@@ -320,12 +324,12 @@ function HistoryItem({ entry }: { entry: HistoryEntry }) {
             {entry.elapsed_ms}ms
           </span>
         </span>
-        <span className="text-[9px] text-slate-400">{ago}</span>
+        <span className="text-[11px] text-slate-400">{ago}</span>
       </div>
-      <div className="truncate font-code text-[10px] text-slate-600">
+      <div className="truncate font-code text-[12px] text-slate-700">
         {entry.sql.replace(/\s+/g, " ").slice(0, 90)}
       </div>
-      <div className="flex items-center justify-between text-[9px] text-slate-400">
+      <div className="flex items-center justify-between text-[11px] text-slate-400">
         <span>
           {entry.rows.toLocaleString()} rows
           {entry.rows_affected > 0
@@ -338,7 +342,7 @@ function HistoryItem({ entry }: { entry: HistoryEntry }) {
         </span>
       </div>
       {entry.error && (
-        <div className="truncate text-[9px] text-rose-500">
+        <div className="truncate text-[11px] text-rose-500">
           {entry.error.message}
         </div>
       )}
@@ -388,18 +392,18 @@ const SNIPPETS: { label: string; sql: string }[] = [
 function Snippets() {
   const store = useStore();
   return (
-    <div className="custom-scrollbar flex-1 overflow-y-auto p-2 text-[11px]">
-      <div className="mb-1 px-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+    <div className="custom-scrollbar flex-1 overflow-y-auto px-2 pb-2 text-[11px]">
+      <div className="px-1 pt-2 pb-1 text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
         Quick SQL snippets
       </div>
       {SNIPPETS.map((s) => (
         <div
           key={s.label}
-          className="group flex cursor-pointer items-center justify-between gap-2 rounded p-1.5 hover:bg-slate-100"
+          className="group flex cursor-default items-center justify-between gap-2 rounded-md p-2 hover:bg-slate-900/[0.04]"
           onClick={() => store.newQueryTab(null, s.sql)}
           title="Open in a new query tab"
         >
-          <span className="truncate text-slate-700">{s.label}</span>
+          <span className="truncate text-[12.5px] text-slate-700">{s.label}</span>
           <Copy
             size={11}
             className="shrink-0 text-slate-400 opacity-0 group-hover:opacity-100"

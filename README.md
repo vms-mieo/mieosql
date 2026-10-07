@@ -2,7 +2,7 @@
 
 A Navicat-class, multi-engine database client. **Rust core + TypeScript UI, one single executable per OS** (macOS / Linux / Windows).
 
-> **Trạng thái: v0.2 — Backend v0.1 + Frontend theo design (React/TypeScript).** UI 3 cột theo mockup Navicat Premium Lite: cây connection → editor SQL → **grid kết quả kiểu Excel** (header cột + type badge, sort, resize, filter, virtualized, copy/export), inspector object, history, snippets, transactions, status bar. Tauri 2 IPC + TS bindings tự sinh.
+> **Trạng thái: v0.4 — Backend v0.1 + Frontend theo design + Feature Pack v1 (Code Insight, DB-wide Search, Visual Explain, Data Tools, Sync, Transfer, ERD, BI).** UI 3 cột theo mockup Navicat Premium Lite: cây connection → editor SQL → **grid kết quả kiểu Excel** (header cột + type badge, sort, resize, filter, virtualized, copy/export), inspector object, history, snippets, transactions, status bar. Tauri 2 IPC + TS bindings tự sinh.
 
 ## Tính năng
 
@@ -13,6 +13,7 @@ A Navicat-class, multi-engine database client. **Rust core + TypeScript UI, one 
 - **Introspection**: databases, schemas (PG), tables/views/matviews/sequences, columns, indexes, FK, DDL.
 - **Value model** lossless: BIGINT/decimal đi dạng string (không mất precision > 2^53), bytes base64, datetime RFC3339, Postgres array.
 - **History** (JSONL + RAM), **TS bindings tự sinh** (ts-rs).
+- **Feature Pack v1 (v0.4)**: DB-wide Search (object/column/definition, 4 match mode) · **Visual Explain** (MySQL/PG/SQLite → cây chi phí) · **Data Dictionary** (Markdown/HTML) · **Data Generation** (21 strategy, seed tái lập) · **Masked Export** · **Structure Sync** + **Data Sync** (diff → script → apply) · **Data Transfer** cross-engine (streaming batch) · **Schema Snapshot** · **Workspace bundle** (chia sẻ connection, không chứa mật khẩu) · `fetch_rows`/`write_*_file` cho FE.
 
 **Frontend (TypeScript)**
 - **Data grid kiểu Excel**: cột rõ ràng với type badge (INT/STR/DEC/DATE/JSON…), cột `#` số dòng, sort theo cột, **resize cột** (double-click = auto-fit), zebra + selection, NULL kiểu `[NULL]`, số căn phải, **virtualized** (mượt với 100k+ dòng), filter client-side, copy cell/row (Ctrl+C), double-click = xem full value (JSON pretty, base64 note).
@@ -23,6 +24,7 @@ A Navicat-class, multi-engine database client. **Rust core + TypeScript UI, one 
 - **History & Snippets** panel; transaction controls; Limit selector (100…No limit); copy CSV/JSON.
 - **Export kết quả ra file**: CSV · Text (TSV) · JSON · JSON Lines · SQL INSERTs · **Excel (XLSX)** — query chạy lại server-side và stream thẳng ra đĩa (kết quả lớn bao nhiêu cũng xuất được, không đi qua IPC), save dialog chọn nơi lưu, file dở dang tự xoá khi lỗi.
 - Custom titlebar + cửa sổ; toàn bộ offline (không CDN).
+- **Feature Pack v1 (v0.4)**: **Code Insight** (autocomplete schema-aware, hover, rename symbol, beautify/minify) · **parameter query dialog** + **result pinning** · **light Query Builder** · **Find in Database** dialog · **Visual Explain** panel · Data Generation / Masked Export / Data Dictionary dialogs · Structure/Data Sync + Data Transfer dialogs · **ER Diagram** (pan/zoom, export SVG/PNG) · **BI Dashboard** (tile chart SVG thuần, `{{param}}`, auto-refresh).
 
 ## Kiến trúc
 
@@ -30,7 +32,7 @@ A Navicat-class, multi-engine database client. **Rust core + TypeScript UI, one 
 ┌───────────────────────── apps/mieosql-desktop (Tauri 2) ─────────────────────────┐
 │  React 19 + Vite + Tailwind 4 + CodeMirror 6     (frontend/, TS)                 │
 │        ⇅ invoke() / events "mieosql://query"                                     │
-│  commands.rs — 29 IPC commands                                                   │
+│  commands.rs — 47 IPC commands                                                   │
 ├──────────────────────────────────────────────────────────────────────────────────┤
 │  mieosql-api     DTO + Api facade + export-ts                                    │
 │  mieosql-engine  sessions · vault · profile store · query history · cancel       │
@@ -40,7 +42,7 @@ A Navicat-class, multi-engine database client. **Rust core + TypeScript UI, one 
         apps/mieosql-cli ← consumer thứ 2 của cùng một API
 ```
 
-Chi tiết: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Đối chiếu Navicat: [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) · Lộ trình: [docs/ROADMAP.md](docs/ROADMAP.md)
+Chi tiết: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Đối chiếu Navicat: [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) · Lộ trình: [docs/ROADMAP.md](docs/ROADMAP.md) · Feature Pack v1: [docs/FEATURE_PACK_V1.md](docs/FEATURE_PACK_V1.md)
 
 ## Bắt đầu nhanh
 

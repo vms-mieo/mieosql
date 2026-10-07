@@ -817,7 +817,11 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
-  closeParamDialog: () => set({ paramDialog: null }),
+  closeParamDialog: () =>
+    set((s) => ({
+      paramDialog: null,
+      featureDialog: s.featureDialog === "params" ? null : s.featureDialog,
+    })),
 
   togglePin: (tabId, index) =>
     set((s) => ({
@@ -947,4 +951,19 @@ function pushMessage(
         : tab,
     ),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Debug handle: lets developers (and support) inspect and drive the store from
+// the webview devtools, e.g. `__mieosql.getState().tabs`.
+// ---------------------------------------------------------------------------
+
+declare global {
+  interface Window {
+    __mieosql?: typeof useStore;
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.__mieosql = useStore;
 }
