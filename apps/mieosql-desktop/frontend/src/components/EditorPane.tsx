@@ -1,5 +1,10 @@
-import { MySQL, PostgreSQL, SQLite, sql } from "@codemirror/lang-sql";
-import { Compartment, EditorState, Prec } from "@codemirror/state";
+import { MSSQL, MySQL, PostgreSQL, SQLite, sql } from "@codemirror/lang-sql";
+import {
+  Compartment,
+  EditorState,
+  Prec,
+  type Extension,
+} from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
@@ -19,15 +24,26 @@ export type EditorHandle = {
   focus: () => void;
 };
 
-function dialectFor(engine: Engine | null | undefined) {
+/**
+ * Language support for the editor. SQL engines get a matching dialect;
+ * document / key-value / broker engines (MongoDB, Redis, Kafka) use native
+ * query languages, so they stay plain text (no `sql()` extension).
+ */
+function dialectExtension(engine: Engine | null | undefined): Extension {
   switch (engine) {
     case "mysql":
     case "mariadb":
-      return MySQL;
+      return sql({ dialect: MySQL });
     case "sqlite":
-      return SQLite;
+      return sql({ dialect: SQLite });
+    case "sql_server":
+      return sql({ dialect: MSSQL });
+    case "mongodb":
+    case "redis":
+    case "kafka":
+      return [];
     default:
-      return PostgreSQL;
+      return sql({ dialect: PostgreSQL });
   }
 }
 
@@ -130,9 +146,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
         doc: initialDocRef.current,
         extensions: [
           basicSetup,
-          dialectCompartment.current.of(
-            sql({ dialect: dialectFor(engineRef.current) }),
-          ),
+          dialectCompartment.current.of(dialectExtension(engineRef.current)),
           insightCompartment.current.of(
             insightExtensions(engineRef.current, sessionRef.current, () => scopeRef.current),
           ),
@@ -212,7 +226,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
     if (!view) return;
     view.dispatch({
       effects: dialectCompartment.current.reconfigure(
-        sql({ dialect: dialectFor(engine) }),
+        dialectExtension(engine),
       ),
     });
   }, [engine]);

@@ -8,6 +8,7 @@ export type { ConnectionProfile } from "@bindings/ConnectionProfile";
 export type { DatabaseRef } from "@bindings/DatabaseRef";
 export type { DataTypeKind } from "@bindings/DataTypeKind";
 export type { Engine } from "@bindings/Engine";
+export type { EngineKind } from "@bindings/EngineKind";
 export type { ErrorCode } from "@bindings/ErrorCode";
 export type { ErrorInfo } from "@bindings/ErrorInfo";
 export type { ExportFormat } from "@bindings/ExportFormat";

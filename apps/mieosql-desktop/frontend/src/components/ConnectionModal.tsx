@@ -3,11 +3,21 @@ import { Database, HardDrive, Loader2, Plug, Trash2, X } from "lucide-react";
 
 import type { Engine, ProfileInput, SslMode } from "../lib/bindings";
 import { api, errorText } from "../lib/api";
+import {
+  ENGINE_GROUPS,
+  ENGINE_META,
+  enginesInGroup,
+  presetFor,
+  presetsForEngine,
+  type EnginePreset,
+} from "../lib/engines";
 import { useStore } from "../lib/store";
 
 type FormState = {
   name: string;
   engine: Engine;
+  /** Cloud preset flavor (`ProfileInput.variant`); `null` for a plain engine. */
+  variant: string | null;
   host: string;
   port: string;
   user: string;
@@ -16,28 +26,8 @@ type FormState = {
   database: string;
   file: string;
   sslMode: SslMode;
-};
-
-const ENGINE_OPTIONS: { value: Engine; label: string; enabled: boolean }[] = [
-  { value: "postgres", label: "PostgreSQL", enabled: true },
-  { value: "mysql", label: "MySQL", enabled: true },
-  { value: "mariadb", label: "MariaDB", enabled: true },
-  { value: "sqlite", label: "SQLite (file)", enabled: true },
-  { value: "sql_server", label: "SQL Server — roadmap P1", enabled: false },
-  { value: "mongodb", label: "MongoDB — roadmap P2", enabled: false },
-  { value: "redis", label: "Redis — roadmap P2", enabled: false },
-  { value: "oracle", label: "Oracle — roadmap P3", enabled: false },
-  { value: "snowflake", label: "Snowflake — roadmap P4", enabled: false },
-];
-
-const DEFAULT_PORTS: Partial<Record<Engine, number>> = {
-  postgres: 5432,
-  mysql: 3306,
-  mariadb: 3306,
-  sql_server: 1433,
-  mongodb: 27017,
-  redis: 6379,
-  oracle: 1521,
+  /** Preset/engine parameters sent as `ProfileInput.params`. */
+  params: Record<string, string>;
 };
 
 const SSL_MODES: { value: SslMode; label: string }[] = [
@@ -52,14 +42,16 @@ function emptyForm(): FormState {
   return {
     name: "",
     engine: "postgres",
+    variant: null,
     host: "127.0.0.1",
-    port: "5432",
+    port: String(ENGINE_META.postgres.defaultPort ?? ""),
     user: "",
     password: "",
     passwordTouched: false,
     database: "",
     file: "",
     sslMode: "prefer",
+    params: {},
   };
 }
 
@@ -85,6 +77,7 @@ export function ConnectionModal() {
       setForm({
         name: editing.name,
         engine: editing.engine,
+        variant: editing.variant ?? null,
         host: editing.host ?? "",
         port: editing.port ? String(editing.port) : "",
         user: editing.username ?? "",
@@ -93,6 +86,7 @@ export function ConnectionModal() {
         database: editing.database ?? "",
         file: editing.file ?? "",
         sslMode: editing.ssl_mode,
+        params: { ...editing.params },
       });
     } else {
       setForm(emptyForm());
@@ -103,18 +97,62 @@ export function ConnectionModal() {
   if (!open) return null;
 
   const isFile = form.engine === "sqlite";
+  const meta = ENGINE_META[form.engine];
+  const presets = presetsForEngine(form.engine);
+  const activePreset = presetFor(form.engine, form.variant);
+  const hostPlaceholder =
+    activePreset?.defaults.hostPlaceholder ??
+    meta.hostPlaceholder ??
+    "127.0.0.1";
+  const databasePlaceholder = isFile
+    ? "main (optional)"
+    : (activePreset?.defaults.databaseHint ??
+      meta.databasePlaceholder ??
+      "default database (optional)");
 
   const set = (patch: Partial<FormState>) =>
     setForm((f) => ({ ...f, ...patch }));
 
   const changeEngine = (engine: Engine) => {
-    const currentDefault = DEFAULT_PORTS[form.engine];
+    const currentDefault = ENGINE_META[form.engine].defaultPort;
     const keepPort =
       form.port !== "" && Number(form.port) !== (currentDefault ?? -1);
     set({
       engine,
-      port: keepPort ? form.port : String(DEFAULT_PORTS[engine] ?? ""),
-      sslMode: engine === "sqlite" ? "disable" : form.sslMode,
+      variant: null,
+      params: {},
+      port: keepPort ? form.port : String(ENGINE_META[engine].defaultPort ?? ""),
+      sslMode:
+        engine === "sqlite"
+          ? "disable"
+          : form.engine === "sqlite"
+            ? "prefer"
+            : form.sslMode,
+    });
+  };
+
+  const applyPreset = (preset: EnginePreset | null) => {
+    if (!preset) {
+      // Clear the chip: back to the plain engine with its defaults.
+      set({
+        variant: null,
+        params: {},
+        port: String(ENGINE_META[form.engine].defaultPort ?? ""),
+        sslMode: form.engine === "sqlite" ? "disable" : "prefer",
+      });
+      return;
+    }
+    const { defaults } = preset;
+    set({
+      engine: preset.engine,
+      variant: preset.variant,
+      port: String(
+        defaults.port ?? ENGINE_META[preset.engine].defaultPort ?? "",
+      ),
+      sslMode:
+        defaults.ssl_mode ??
+        (preset.engine === "sqlite" ? "disable" : "prefer"),
+      params: { ...(defaults.params ?? {}) },
     });
   };
 
@@ -122,6 +160,7 @@ export function ConnectionModal() {
     id: editing ? editing.id : undefined,
     name: form.name.trim() || "Unnamed",
     engine: form.engine,
+    variant: form.variant ?? undefined,
     host: isFile ? undefined : form.host.trim() || undefined,
     port: isFile
       ? undefined
@@ -131,7 +170,7 @@ export function ConnectionModal() {
     username: isFile ? undefined : form.user.trim() || undefined,
     database: form.database.trim() || undefined,
     file: isFile ? form.file.trim() || undefined : undefined,
-    params: {},
+    params: isFile ? {} : { ...form.params },
     ssl_mode: isFile ? "disable" : form.sslMode,
     ssh: undefined,
     color: undefined,
@@ -232,13 +271,57 @@ export function ConnectionModal() {
               value={form.engine}
               onChange={(e) => changeEngine(e.target.value as Engine)}
             >
-              {ENGINE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value} disabled={!o.enabled}>
-                  {o.label}
-                </option>
+              {ENGINE_GROUPS.map((group) => (
+                <optgroup key={group} label={group}>
+                  {enginesInGroup(group).map((o) => (
+                    <option
+                      key={o.engine}
+                      value={o.engine}
+                      disabled={!o.implemented}
+                    >
+                      {o.implemented ? o.label : `${o.label} — ${o.roadmap}`}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
+
+          {presets.length > 0 && (
+            <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+              <label className={labelCls}>Cloud preset</label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {presets.map((preset) =>
+                  activePreset?.id === preset.id ? (
+                    <span
+                      key={preset.id}
+                      title={`Variant: ${preset.variant}`}
+                      className="inline-flex h-6 items-center gap-1 rounded-md border border-accent/40 bg-accent/10 pr-1 pl-2 text-[11.5px] font-medium text-accent"
+                    >
+                      {preset.label}
+                      <button
+                        type="button"
+                        title="Clear preset"
+                        className="grid h-4 w-4 place-items-center rounded text-accent hover:bg-accent/15"
+                        onClick={() => applyPreset(null)}
+                      >
+                        <X size={10} strokeWidth={1.8} />
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className="h-6 rounded-md border border-slate-300 bg-white px-2 text-[11.5px] text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      onClick={() => applyPreset(preset)}
+                    >
+                      {preset.label}
+                    </button>
+                  ),
+                )}
+              </div>
+            </div>
+          )}
 
           {isFile ? (
             <div className="grid grid-cols-[130px_1fr] items-center gap-3">
@@ -260,6 +343,7 @@ export function ConnectionModal() {
                 <input
                   className={inputCls}
                   value={form.host}
+                  placeholder={hostPlaceholder}
                   onChange={(e) => set({ host: e.target.value })}
                 />
               </div>
@@ -317,11 +401,21 @@ export function ConnectionModal() {
               <input
                 className={inputCls}
                 value={form.database}
-                placeholder={isFile ? "main (optional)" : "default database (optional)"}
+                placeholder={databasePlaceholder}
                 onChange={(e) => set({ database: e.target.value })}
               />
             </div>
           </div>
+
+          {!isFile && meta.hints.length > 0 && (
+            <div className="space-y-0.5">
+              {meta.hints.map((hint) => (
+                <p key={hint} className="text-[11px] leading-relaxed text-slate-400">
+                  {hint}
+                </p>
+              ))}
+            </div>
+          )}
 
           <p className="text-[11px] leading-relaxed text-slate-400">
             Credentials are stored in an encrypted vault (XChaCha20-Poly1305,
