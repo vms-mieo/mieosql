@@ -14,6 +14,7 @@ import type { ProfileInput } from "@bindings/ProfileInput";
 import type { QueryEvent, QueryStats, Scope, ServerInfo, SessionInfo, Value } from "./bindings";
 import { api, errorText } from "./api";
 import { formatBytes } from "./format";
+import { bindPlaceholders, findPlaceholders } from "./sql-params";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,6 +34,8 @@ export type ResultSet = {
   truncated: boolean;
   /** true when the cap on buffered rows cut the result data (all rows still counted). */
   rowsDropped: boolean;
+  /** Pinned results survive the per-tab result cap and are kept around. */
+  pinned?: boolean;
 };
 
 export type LogMessage = {
@@ -44,7 +47,7 @@ export type LogMessage = {
 
 export type Tab = {
   id: string;
-  kind: "query" | "table" | "objects";
+  kind: "query" | "table" | "objects" | "feature";
   title: string;
   sessionId: string | null;
   /** query tabs: last known editor content */
@@ -53,6 +56,9 @@ export type Tab = {
   scope?: Scope;
   table?: string;
   objectKind?: ObjectKind;
+  /** feature tabs: id in the feature registry + opening props */
+  featureId?: string;
+  featureProps?: Record<string, unknown>;
   results: ResultSet[];
   activeResult: number;
   messages: LogMessage[];
@@ -178,7 +184,7 @@ type State = {
   setActiveSession: (sessionId: string) => void;
 
   // query execution
-  runQuery: (tabId: string, sqlOverride?: string) => Promise<void>;
+  runQuery: (tabId: string, sqlOverride?: string, params?: Value[]) => Promise<void>;
   runPreview: (tabId: string) => Promise<void>;
   cancelQuery: (queryId: string) => Promise<void>;
   stopActive: () => Promise<void>;
@@ -189,6 +195,27 @@ type State = {
     resultIndex: number,
     format: ExportFormat,
   ) => Promise<void>;
+  togglePin: (tabId: string, index: number) => void;
+
+  // feature pack v1
+  featureDialog: string | null;
+  openFeatureDialog: (id: string) => void;
+  closeFeatureDialog: () => void;
+  openFeatureTab: (
+    featureId: string,
+    title: string,
+    props?: Record<string, unknown>,
+  ) => string;
+  explainActiveQuery: (sessionId: string, sql: string) => void;
+  /** Run `sql`, asking for parameter values first when placeholders exist. */
+  requestRun: (tabId: string, sqlOverride?: string) => Promise<void>;
+  runWithParams: (
+    tabId: string,
+    sql: string,
+    values: Array<string | null>,
+  ) => Promise<void>;
+  paramDialog: { tabId: string; sql: string } | null;
+  closeParamDialog: () => void;
 
   // transactions
   beginTransaction: (sessionId: string) => Promise<void>;
@@ -226,6 +253,8 @@ export const useStore = create<State>((set, get) => ({
   selected: null,
   rightTab: "history",
   connectionModal: { open: false, profileId: null },
+  featureDialog: null,
+  paramDialog: null,
   limit: loadLimit(),
   limitOptions: LIMIT_OPTIONS,
   cursor: { line: 1, col: 1 },
@@ -436,7 +465,7 @@ export const useStore = create<State>((set, get) => ({
 
   // -------------------------------------------------------------- queries
 
-  runQuery: async (tabId, sqlOverride) => {
+  runQuery: async (tabId, sqlOverride, params) => {
     const state = get();
     const tab = state.tabs.find((t) => t.id === tabId);
     if (!tab) return;
@@ -450,7 +479,7 @@ export const useStore = create<State>((set, get) => ({
 
     try {
       const limit = state.limit;
-      const queryId = await api.startQuery(sessionId, sql, [], {
+      const queryId = await api.startQuery(sessionId, sql, params ?? [], {
         mode: "prepared",
         fetch_size: 512,
         max_rows: limit > 0 ? limit : null,
@@ -705,6 +734,105 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
+  // --------------------------------------------------------- feature pack v1
+
+  openFeatureDialog: (id) => set({ featureDialog: id }),
+
+  closeFeatureDialog: () => set({ featureDialog: null }),
+
+  openFeatureTab: (featureId, title, props) => {
+    const state = get();
+    const active = state.tabs.find((t) => t.id === state.activeTabId);
+    const tab: Tab = {
+      id: uid(),
+      kind: "feature",
+      title,
+      sessionId: active?.sessionId ?? state.activeSessionId,
+      sql: "",
+      results: [],
+      activeResult: 0,
+      messages: [],
+      running: false,
+      runStartedAt: null,
+      featureId,
+      featureProps: props,
+    };
+    set({ tabs: [...state.tabs, tab], activeTabId: tab.id });
+    return tab.id;
+  },
+
+  explainActiveQuery: (sessionId, sql) => {
+    const state = get();
+    const engine = state.sessions.find((s) => s.id === sessionId)?.engine;
+    state.openFeatureTab("explain", "Explain", {
+      sessionId,
+      sql,
+      analyze: engine === "postgres",
+    });
+  },
+
+  requestRun: async (tabId, sqlOverride) => {
+    const state = get();
+    const tab = state.tabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    const sql = (sqlOverride ?? tab.sql).trim();
+    if (!sql) return;
+    const engine =
+      state.sessions.find((s) => s.id === tab.sessionId)?.engine ?? null;
+    if (findPlaceholders(engine, sql).length > 0) {
+      set({ paramDialog: { tabId, sql } });
+      return;
+    }
+    await state.runQuery(tabId, sql);
+  },
+
+  runWithParams: async (tabId, sql, values) => {
+    const state = get();
+    const tab = state.tabs.find((t) => t.id === tabId);
+    if (!tab?.sessionId) {
+      state.toast("error", "No active connection for this tab");
+      return;
+    }
+    const engine =
+      state.sessions.find((s) => s.id === tab.sessionId)?.engine ?? null;
+    const bound = bindPlaceholders(engine, sql, values);
+    set({ paramDialog: null });
+    try {
+      const limit = state.limit;
+      const queryId = await api.startQuery(
+        tab.sessionId,
+        bound.sql,
+        bound.params,
+        {
+          mode: "prepared",
+          fetch_size: 512,
+          max_rows: limit > 0 ? limit : null,
+          timeout_ms: null,
+        },
+      );
+      attachResult(set, get, tabId, queryId, bound.sql);
+    } catch (err) {
+      pushMessage(set, tabId, "error", errorText(err));
+      state.toast("error", errorText(err));
+    }
+  },
+
+  closeParamDialog: () => set({ paramDialog: null }),
+
+  togglePin: (tabId, index) =>
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === tabId
+          ? {
+              ...t,
+              results: t.results.map((r, i) =>
+                i === index ? { ...r, pinned: !r.pinned } : r,
+              ),
+            }
+          : t,
+      ),
+    })),
+
   // ------------------------------------------------------------------ misc
 
   refreshHistory: async () => {
@@ -765,11 +893,15 @@ function attachResult(
         truncated: false,
         rowsDropped: false,
       };
-      const results = [...tab.results, rs].slice(-MAX_RESULTS_PER_TAB);
+      const appended = [...tab.results, rs];
+      const keep = new Set<ResultSet>();
+      for (const r of appended) if (r.pinned) keep.add(r);
+      for (const r of appended.slice(-MAX_RESULTS_PER_TAB)) keep.add(r);
+      const results = appended.filter((r) => keep.has(r));
       return {
         ...tab,
         results,
-        activeResult: results.length - 1,
+        activeResult: results.indexOf(rs),
         running: true,
         runStartedAt: Date.now(),
         messages: [

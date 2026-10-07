@@ -140,6 +140,27 @@ export function MenuBar() {
             disabled: activeTab?.kind !== "query",
             onClick: () => dispatch("mieosql:focus-editor"),
           },
+          { kind: "separator" },
+          {
+            kind: "item",
+            label: "Format SQL",
+            shortcut: "Shift+Alt+F",
+            disabled: activeTab?.kind !== "query",
+            onClick: () => dispatch("mieosql:format-sql"),
+          },
+          {
+            kind: "item",
+            label: "Minify SQL",
+            disabled: activeTab?.kind !== "query",
+            onClick: () => dispatch("mieosql:minify-sql"),
+          },
+          {
+            kind: "item",
+            label: "Rename Symbol…",
+            shortcut: "F2",
+            disabled: activeTab?.kind !== "query",
+            onClick: () => dispatch("mieosql:rename-symbol"),
+          },
         ]}
       />
       <Menu
@@ -188,6 +209,70 @@ export function MenuBar() {
             onClick: () => {
               if (session) void store.rollbackTransaction(session.id);
             },
+          },
+          { kind: "separator" },
+          {
+            kind: "item",
+            label: "Find in Database…",
+            shortcut: "Ctrl+Shift+F",
+            onClick: () => store.openFeatureDialog("search"),
+          },
+          {
+            kind: "item",
+            label: "Generate Test Data…",
+            disabled: !session,
+            onClick: () => store.openFeatureDialog("datagen"),
+          },
+          {
+            kind: "item",
+            label: "Export with Data Masking…",
+            disabled: !activeTab || activeTab.results.length === 0,
+            onClick: () => store.openFeatureDialog("mask"),
+          },
+          {
+            kind: "item",
+            label: "Data Dictionary…",
+            disabled: !session,
+            onClick: () => store.openFeatureDialog("docs"),
+          },
+          { kind: "separator" },
+          {
+            kind: "item",
+            label: "Structure Synchronization…",
+            onClick: () => store.openFeatureDialog("structure-sync"),
+          },
+          {
+            kind: "item",
+            label: "Data Synchronization…",
+            onClick: () => store.openFeatureDialog("data-sync"),
+          },
+          {
+            kind: "item",
+            label: "Data Transfer…",
+            onClick: () => store.openFeatureDialog("transfer"),
+          },
+          { kind: "separator" },
+          {
+            kind: "item",
+            label: "ER Diagram",
+            disabled: !session,
+            onClick: () => {
+              if (session)
+                store.openFeatureTab("erd", "ER Diagram", {
+                  sessionId: session.id,
+                });
+            },
+          },
+          {
+            kind: "item",
+            label: "BI Dashboard",
+            onClick: () => store.openFeatureTab("bi", "Dashboard"),
+          },
+          { kind: "separator" },
+          {
+            kind: "item",
+            label: "Team Workspace (share connections)…",
+            onClick: () => store.openFeatureDialog("workspace"),
           },
         ]}
       />

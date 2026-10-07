@@ -1,10 +1,13 @@
 import {
+  BarChart3,
   Database,
   Eye,
   FileCode2,
   Info,
+  Network,
   Plug,
   RefreshCw,
+  Search,
   Table2,
   UserRound,
   Wrench,
@@ -132,6 +135,13 @@ export function Ribbon() {
         />
         <div className="mx-1 h-8 w-px bg-slate-300" />
         <RibbonButton
+          icon={<Search size={18} strokeWidth={1.8} />}
+          label="Search"
+          accent="text-indigo-500"
+          title="Find objects and columns across the database"
+          onClick={() => store.openFeatureDialog("search")}
+        />
+        <RibbonButton
           icon={<Table2 size={18} strokeWidth={1.8} />}
           label="Query List"
           accent="text-orange-500"
@@ -139,10 +149,32 @@ export function Ribbon() {
           onClick={() => store.setRightTab("history")}
         />
         <RibbonButton
+          icon={<Network size={18} strokeWidth={1.8} />}
+          label="ERD"
+          accent="text-fuchsia-600"
+          title="Entity-relationship diagram of the selected scope"
+          disabled={!session}
+          onClick={() => {
+            if (session)
+              store.openFeatureTab("erd", "ER Diagram", {
+                sessionId: session.id,
+              });
+          }}
+        />
+        <RibbonButton
+          icon={<BarChart3 size={18} strokeWidth={1.8} />}
+          label="Dashboard"
+          accent="text-cyan-600"
+          title="Create charts from query results"
+          onClick={() => store.openFeatureTab("bi", "Dashboard")}
+        />
+        <RibbonButton
           icon={<Wrench size={18} strokeWidth={1.8} />}
-          label="Tools"
-          disabled
-          title="Import/Export, Backup — roadmap P1"
+          label="Data Tools"
+          disabled={!session}
+          accent="text-amber-600"
+          title="Data generation, masking, data dictionary, sync & transfer — see the Tools menu"
+          onClick={() => store.openFeatureDialog("datagen")}
         />
         <RibbonButton
           icon={<UserRound size={18} strokeWidth={1.8} />}

@@ -2259,6 +2259,7 @@ dependencies = [
  "chrono",
  "mieosql-core",
  "mieosql-engine",
+ "regex",
  "rust_xlsxwriter",
  "serde",
  "serde_json",

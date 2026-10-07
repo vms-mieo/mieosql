@@ -12,6 +12,7 @@ import { StatusBar } from "./components/StatusBar";
 import { TitleBar } from "./components/TitleBar";
 import { Toasts } from "./components/Toasts";
 import { Workspace } from "./components/Workspace";
+import { FeatureDialogs } from "./features/dialogs";
 
 export default function App() {
   const ready = useStore((s) => s.ready);
@@ -84,6 +85,7 @@ export default function App() {
       </main>
       <StatusBar />
       <ConnectionModal />
+      <FeatureDialogs />
       <Toasts />
     </div>
   );

@@ -4,6 +4,37 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MieoSQL</title>
+    <script>
+      // Boot error overlay: a blank window is turned into a readable report.
+      (function () {
+        function show(tag, detail) {
+          try {
+            var pre = document.getElementById("boot-error");
+            if (!pre) {
+              pre = document.createElement("pre");
+              pre.id = "boot-error";
+              pre.style.cssText =
+                "position:fixed;left:0;right:0;bottom:0;max-height:45vh;overflow:auto;" +
+                "margin:0;padding:12px 16px;background:#1e293b;color:#fda4af;" +
+                "font:12px/1.5 ui-monospace,Menlo,monospace;z-index:99999;white-space:pre-wrap";
+              (document.body || document.documentElement).appendChild(pre);
+            }
+            pre.textContent += "[" + tag + "] " + detail + "\n";
+          } catch (_) {}
+        }
+        window.addEventListener("error", function (e) {
+          show(
+            "error",
+            (e.message || e.error || "unknown") +
+              (e.filename ? "\n  at " + e.filename + ":" + e.lineno + ":" + e.colno : ""),
+          );
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          var r = e.reason;
+          show("unhandled", (r && (r.message || r)) + (r && r.stack ? "\n" + r.stack : ""));
+        });
+      })();
+    </script>
   </head>
   <body class="h-full overflow-hidden">
     <div class="h-full" id="root"></div>

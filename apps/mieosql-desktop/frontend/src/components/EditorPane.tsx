@@ -4,7 +4,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
-import type { Engine } from "../lib/bindings";
+import type { Engine, Scope } from "../lib/bindings";
 
 export type EditorHandle = {
   getText: () => string;
@@ -27,15 +27,22 @@ function dialectFor(engine: Engine | null | undefined) {
 type Props = {
   initialDoc: string;
   engine: Engine | null;
+  /** Session the tab is bound to (schema-aware insight uses this). */
+  sessionId?: string | null;
+  /** Scope of the tab, when known (schema-aware insight uses this). */
+  scope?: Scope | null;
   onRun: () => void;
   onChange: (text: string) => void;
   onCursor: (line: number, col: number) => void;
 };
 
 export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
-  { initialDoc, engine, onRun, onChange, onCursor },
+  { initialDoc, engine, sessionId, scope, onRun, onChange, onCursor },
   ref,
 ) {
+  // Reserved for the Code Insight workstream (completion/hover/rename).
+  void sessionId;
+  void scope;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const dialectCompartment = useRef(new Compartment());

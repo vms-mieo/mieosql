@@ -1,8 +1,21 @@
 //! MieoSQL desktop application (Tauri 2).
 //!
 //! The Rust side of the shell: opens the engine, exposes the API as Tauri
-//! commands and streams query events to the webview. The TypeScript frontend
-//! lives in `frontend/` and is wired in by the design phase.
+//! commands and streams query events to the webview.
+//!
+//! ## Frontend loading
+//!
+//! The frontend bundle (`frontend/dist`) is **always embedded** in the binary
+//! (debug and release alike), so the app never depends on a dev server.
+//!
+//! For frontend work with hot-reload, use the separate dev config:
+//!
+//! ```text
+//! cd apps/mieosql-desktop
+//! cargo tauri dev --config tauri.dev.conf.json
+//! ```
+//!
+//! which points the webview at the vite dev server on `http://localhost:5173`.
 
 // Prevents an additional console window on Windows in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -11,6 +24,7 @@ mod commands;
 
 use mieosql_api::Api;
 use mieosql_engine::{Engine, EngineConfig};
+use tauri::Manager;
 
 /// Shared application state injected into every command.
 pub struct AppState {
@@ -63,7 +77,89 @@ fn main() {
             commands::cancel_query,
             commands::list_history,
             commands::clear_history,
+            commands::smoke_report,
+            // Feature pack v1: search / explain / docs / datagen / masking /
+            // sync / transfer / snapshot / workspace / files
+            commands::search_database,
+            commands::explain_query,
+            commands::export_documentation,
+            commands::generate_data,
+            commands::export_result_masked,
+            commands::structure_sync_plan,
+            commands::apply_sync_statements,
+            commands::data_sync_plan,
+            commands::apply_data_sync,
+            commands::transfer_table,
+            commands::schema_snapshot,
+            commands::export_workspace,
+            commands::import_workspace,
+            commands::fetch_rows,
+            commands::write_text_file,
+            commands::write_binary_file,
         ])
+        .setup(move |app| {
+            // `WebviewUrl::App` resolves against the app URL: the embedded
+            // assets normally, or the configured devUrl when running with
+            // `cargo tauri dev --config tauri.dev.conf.json`.
+            tauri::WebviewWindowBuilder::new(
+                app,
+                "main",
+                tauri::WebviewUrl::App("index.html".into()),
+            )
+            .title("MieoSQL")
+            .inner_size(1360.0, 860.0)
+            .min_inner_size(1024.0, 640.0)
+            .resizable(true)
+            .decorations(false)
+            .build()?;
+
+            // Optional end-to-end render probe (`MIEOSQL_SMOKE_CHECK=1`):
+            // asks the frontend to report what it rendered back over IPC.
+            if std::env::var("MIEOSQL_SMOKE_CHECK").is_ok() {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    for attempt in 1..=4 {
+                        let wait = if attempt == 1 { 2 } else { 3 };
+                        tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+                        match handle.get_webview_window("main") {
+                            Some(window) => {
+                                let _ = window.eval(SMOKE_SCRIPT);
+                            }
+                            None => {
+                                println!("[smoke] no main window");
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running MieoSQL");
 }
+
+/// JS probe: reports render state back through the `smoke_report` command.
+const SMOKE_SCRIPT: &str = r#"(function () {
+  function report(info) {
+    try {
+      window.__TAURI_INTERNALS__.invoke("smoke_report", {
+        text: JSON.stringify(info),
+      });
+    } catch (_) {}
+  }
+  try {
+    var root = document.getElementById("root");
+    var header = document.querySelector("header");
+    var footer = document.querySelector("footer");
+    report({
+      href: location.href,
+      rootLength: root ? root.innerHTML.length : -1,
+      headerText: header ? header.innerText.split("\n").slice(0, 2).join(" / ") : "",
+      footerText: footer ? footer.innerText.split("\n").slice(0, 3).join(" / ") : "",
+      title: document.title,
+    });
+  } catch (e) {
+    report({ error: String(e) });
+  }
+})();"#;

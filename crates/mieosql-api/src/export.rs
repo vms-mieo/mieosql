@@ -313,7 +313,7 @@ fn xlsx_err(e: rust_xlsxwriter::XlsxError) -> MieoError {
 // ---------------------------------------------------------------------------
 
 /// Plain text rendering for CSV/TSV (no placeholder strings, NULL = empty).
-fn cell_text(value: &Value) -> String {
+pub(crate) fn cell_text(value: &Value) -> String {
     match value {
         Value::Null => String::new(),
         Value::Bool(b) => b.to_string(),
@@ -396,7 +396,7 @@ fn csv_line(cells: &[String], delimiter: char) -> String {
 }
 
 /// SQL literal, engine-aware (bytes → hex literal).
-fn sql_literal(engine: Engine, value: &Value) -> String {
+pub(crate) fn sql_literal(engine: Engine, value: &Value) -> String {
     match value {
         Value::Null => "NULL".to_string(),
         Value::Bool(b) => if *b { "TRUE" } else { "FALSE" }.to_string(),

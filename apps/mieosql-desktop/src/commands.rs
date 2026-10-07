@@ -320,3 +320,171 @@ pub fn list_history(state: State<'_, AppState>, limit: Option<usize>) -> Vec<His
 pub fn clear_history(state: State<'_, AppState>) {
     state.api.clear_history()
 }
+
+// ---------------------------------------------------------------------------
+// Diagnostics
+// ---------------------------------------------------------------------------
+
+/// Render probe used by `MIEOSQL_SMOKE_CHECK=1` (and CI smoke tests).
+#[tauri::command]
+pub fn smoke_report(text: String) {
+    println!("[smoke] {text}");
+}
+
+// ---------------------------------------------------------------------------
+// Feature pack v1: search / explain / docs / data tools / sync / transfer /
+// snapshot / workspace. Command bodies are thin adapters over `Api`.
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn search_database(
+    state: State<'_, AppState>,
+    session_id: String,
+    request: mieosql_api::search::SearchRequest,
+) -> Result<mieosql_api::search::SearchResponse, ApiError> {
+    state.api.search_database(session_id, request).await
+}
+
+#[tauri::command]
+pub async fn explain_query(
+    state: State<'_, AppState>,
+    session_id: String,
+    sql: String,
+    analyze: bool,
+) -> Result<mieosql_api::explain::ExplainPlan, ApiError> {
+    state.api.explain_query(session_id, sql, analyze).await
+}
+
+#[tauri::command]
+pub async fn export_documentation(
+    state: State<'_, AppState>,
+    session_id: String,
+    options: mieosql_api::docs::DocOptions,
+    path: String,
+) -> Result<mieosql_api::docs::DocSummary, ApiError> {
+    state
+        .api
+        .export_documentation(session_id, options, path)
+        .await
+}
+
+#[tauri::command]
+pub async fn generate_data(
+    state: State<'_, AppState>,
+    session_id: String,
+    request: mieosql_api::datagen::GenRequest,
+) -> Result<mieosql_api::datagen::GenResult, ApiError> {
+    state.api.generate_data(session_id, request).await
+}
+
+#[tauri::command]
+pub async fn export_result_masked(
+    state: State<'_, AppState>,
+    session_id: String,
+    request: mieosql_api::masking::MaskExportRequest,
+) -> Result<mieosql_api::masking::MaskExportResult, ApiError> {
+    state.api.export_result_masked(session_id, request).await
+}
+
+#[tauri::command]
+pub async fn structure_sync_plan(
+    state: State<'_, AppState>,
+    request: mieosql_api::sync::StructureSyncRequest,
+) -> Result<mieosql_api::sync::StructureSyncPlan, ApiError> {
+    state.api.structure_sync_plan(request).await
+}
+
+#[tauri::command]
+pub async fn apply_sync_statements(
+    state: State<'_, AppState>,
+    session_id: String,
+    statements: Vec<String>,
+) -> Result<mieosql_api::sync::SyncApplyResult, ApiError> {
+    state
+        .api
+        .apply_sync_statements(session_id, statements)
+        .await
+}
+
+#[tauri::command]
+pub async fn data_sync_plan(
+    state: State<'_, AppState>,
+    request: mieosql_api::sync::DataSyncRequest,
+) -> Result<mieosql_api::sync::DataSyncPlan, ApiError> {
+    state.api.data_sync_plan(request).await
+}
+
+#[tauri::command]
+pub async fn apply_data_sync(
+    state: State<'_, AppState>,
+    request: mieosql_api::sync::DataSyncRequest,
+) -> Result<mieosql_api::sync::DataSyncApplyResult, ApiError> {
+    state.api.apply_data_sync(request).await
+}
+
+#[tauri::command]
+pub async fn transfer_table(
+    state: State<'_, AppState>,
+    request: mieosql_api::transfer::TransferRequest,
+) -> Result<mieosql_api::transfer::TransferResult, ApiError> {
+    state.api.transfer_table(request).await
+}
+
+#[tauri::command]
+pub async fn schema_snapshot(
+    state: State<'_, AppState>,
+    session_id: String,
+    scope: Scope,
+    include_views: bool,
+    max_tables: Option<u32>,
+) -> Result<mieosql_api::snapshot::SchemaSnapshot, ApiError> {
+    state
+        .api
+        .schema_snapshot(session_id, scope, include_views, max_tables)
+        .await
+}
+
+#[tauri::command]
+pub fn export_workspace(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<mieosql_api::workspace::WorkspaceBundle, ApiError> {
+    state.api.export_workspace(path)
+}
+
+#[tauri::command]
+pub fn import_workspace(
+    state: State<'_, AppState>,
+    path: String,
+    overwrite: bool,
+) -> Result<mieosql_api::workspace::ImportSummary, ApiError> {
+    state.api.import_workspace(path, overwrite)
+}
+
+#[tauri::command]
+pub async fn fetch_rows(
+    state: State<'_, AppState>,
+    session_id: String,
+    sql: String,
+    max_rows: Option<u32>,
+) -> Result<mieosql_api::fetch::CollectedRows, ApiError> {
+    state.api.fetch_rows(session_id, sql, max_rows).await
+}
+
+#[tauri::command]
+pub fn write_text_file(
+    state: State<'_, AppState>,
+    path: String,
+    contents: String,
+) -> Result<(), ApiError> {
+    state.api.write_text_file(path, contents)
+}
+
+#[tauri::command]
+pub fn write_binary_file(
+    state: State<'_, AppState>,
+    path: String,
+    base64_data: String,
+) -> Result<(), ApiError> {
+    state.api.write_binary_file(path, base64_data)
+}

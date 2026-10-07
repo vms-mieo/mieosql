@@ -7,6 +7,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ApiError } from "@bindings/ApiError";
 import type { Capabilities } from "@bindings/Capabilities";
 import type { ColumnDef } from "@bindings/ColumnDef";
+import type { CollectedRows } from "@bindings/CollectedRows";
 import type { ConnectionProfile } from "@bindings/ConnectionProfile";
 import type { DatabaseRef } from "@bindings/DatabaseRef";
 import type { ExportFormat } from "@bindings/ExportFormat";
@@ -25,6 +26,26 @@ import type { Scope } from "@bindings/Scope";
 import type { ServerInfo } from "@bindings/ServerInfo";
 import type { SessionInfo } from "@bindings/SessionInfo";
 import type { Value } from "@bindings/Value";
+import type { DataSyncApplyResult } from "@bindings/DataSyncApplyResult";
+import type { DataSyncPlan } from "@bindings/DataSyncPlan";
+import type { DataSyncRequest } from "@bindings/DataSyncRequest";
+import type { DocOptions } from "@bindings/DocOptions";
+import type { DocSummary } from "@bindings/DocSummary";
+import type { ExplainPlan } from "@bindings/ExplainPlan";
+import type { GenRequest } from "@bindings/GenRequest";
+import type { GenResult } from "@bindings/GenResult";
+import type { ImportSummary } from "@bindings/ImportSummary";
+import type { MaskExportRequest } from "@bindings/MaskExportRequest";
+import type { MaskExportResult } from "@bindings/MaskExportResult";
+import type { SchemaSnapshot } from "@bindings/SchemaSnapshot";
+import type { SearchRequest } from "@bindings/SearchRequest";
+import type { SearchResponse } from "@bindings/SearchResponse";
+import type { StructureSyncPlan } from "@bindings/StructureSyncPlan";
+import type { StructureSyncRequest } from "@bindings/StructureSyncRequest";
+import type { SyncApplyResult } from "@bindings/SyncApplyResult";
+import type { TransferRequest } from "@bindings/TransferRequest";
+import type { TransferResult } from "@bindings/TransferResult";
+import type { WorkspaceBundle } from "@bindings/WorkspaceBundle";
 
 export type { ApiError, ExportFormat, ExportStats, PreviewStart, QueryEvent, Value };
 
@@ -133,6 +154,54 @@ export const api = {
   listHistory: (limit?: number) =>
     invoke<HistoryEntry[]>("list_history", { limit: limit ?? null }),
   clearHistory: () => invoke<void>("clear_history"),
+
+  // ------------------------------------------------- feature pack v1
+  searchDatabase: (sessionId: string, request: SearchRequest) =>
+    invoke<SearchResponse>("search_database", { sessionId, request }),
+  explainQuery: (sessionId: string, sql: string, analyze: boolean) =>
+    invoke<ExplainPlan>("explain_query", { sessionId, sql, analyze }),
+  exportDocumentation: (sessionId: string, options: DocOptions, path: string) =>
+    invoke<DocSummary>("export_documentation", { sessionId, options, path }),
+  generateData: (sessionId: string, request: GenRequest) =>
+    invoke<GenResult>("generate_data", { sessionId, request }),
+  exportResultMasked: (sessionId: string, request: MaskExportRequest) =>
+    invoke<MaskExportResult>("export_result_masked", { sessionId, request }),
+  structureSyncPlan: (request: StructureSyncRequest) =>
+    invoke<StructureSyncPlan>("structure_sync_plan", { request }),
+  applySyncStatements: (sessionId: string, statements: string[]) =>
+    invoke<SyncApplyResult>("apply_sync_statements", { sessionId, statements }),
+  dataSyncPlan: (request: DataSyncRequest) =>
+    invoke<DataSyncPlan>("data_sync_plan", { request }),
+  applyDataSync: (request: DataSyncRequest) =>
+    invoke<DataSyncApplyResult>("apply_data_sync", { request }),
+  transferTable: (request: TransferRequest) =>
+    invoke<TransferResult>("transfer_table", { request }),
+  schemaSnapshot: (
+    sessionId: string,
+    scope: Scope,
+    includeViews = false,
+    maxTables?: number | null,
+  ) =>
+    invoke<SchemaSnapshot>("schema_snapshot", {
+      sessionId,
+      scope,
+      includeViews,
+      maxTables: maxTables ?? null,
+    }),
+  exportWorkspace: (path: string) =>
+    invoke<WorkspaceBundle>("export_workspace", { path }),
+  importWorkspace: (path: string, overwrite: boolean) =>
+    invoke<ImportSummary>("import_workspace", { path, overwrite }),
+  fetchRows: (sessionId: string, sql: string, maxRows?: number | null) =>
+    invoke<CollectedRows>("fetch_rows", {
+      sessionId,
+      sql,
+      maxRows: maxRows ?? null,
+    }),
+  writeTextFile: (path: string, contents: string) =>
+    invoke<void>("write_text_file", { path, contents }),
+  writeBinaryFile: (path: string, base64Data: string) =>
+    invoke<void>("write_binary_file", { path, base64Data }),
 
   // ----------------------------------------------------------------- events
   onQueryEvent: (

@@ -14,6 +14,7 @@ import {
   FileText,
   Filter,
   Grid3x3,
+  Pin,
   RotateCw,
   ScrollText,
   Terminal,
@@ -65,7 +66,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
 
   const rerun = () => {
     if (tab.kind === "table") void store.runPreview(tab.id);
-    else void store.runQuery(tab.id);
+    else if (result?.sql) void store.requestRun(tab.id, result.sql);
   };
 
   const copyData = (kind: "csv" | "json") => {
@@ -108,6 +109,21 @@ export function ResultPanel({ tab }: { tab: Tab }) {
               <span className="text-slate-400">
                 ({r.rows.length.toLocaleString()}
                 {r.status === "running" ? "…" : " rows"})
+              </span>
+              <span
+                role="button"
+                title={r.pinned ? "Unpin result" : "Pin result"}
+                className={`rounded p-0.5 ${
+                  r.pinned
+                    ? "text-sky-600"
+                    : "text-slate-300 hover:text-slate-500"
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  store.togglePin(tab.id, i);
+                }}
+              >
+                <Pin size={10} />
               </span>
             </button>
           ))}

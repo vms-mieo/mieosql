@@ -49,11 +49,20 @@ Chi tiết: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Đối chiếu Navic
 cargo test                                   # integration test SQLite (không cần server)
 ./scripts/demo-sqlite.sh                     # demo end-to-end qua CLI
 
-# Desktop app (FE đã build sẵn trong frontend/dist; hoặc tự build lại)
-cd apps/mieosql-desktop/frontend && npm install && npm run dev   # dev: vite :5173
+# Desktop app — binary LUÔN nhúng sẵn FE, không phụ thuộc dev server
+cd apps/mieosql-desktop/frontend && npm install && npm run build
+cargo build -p mieosql-desktop && ./target/debug/mieosql-desktop
+
+# Kiểm tra render (in ra DOM trong webview thật):
+MIEOSQL_SMOKE_CHECK=1 ./target/debug/mieosql-desktop
+
+# Dev FE với hot-reload (HMR) — cần tauri-cli:
 cargo install tauri-cli --version "^2"
-cd apps/mieosql-desktop && cargo tauri dev     # mở app (tự chạy npm dev)
-cargo tauri build                              # đóng gói .dmg / .AppImage / .exe
+cd apps/mieosql-desktop
+cargo tauri dev --config tauri.dev.conf.json     # vite :5173 + app trỏ vào đó
+
+# Đóng gói 1 file (.dmg / .AppImage / .exe) — tự build FE trước:
+cd apps/mieosql-desktop && cargo tauri build
 ```
 
 Khi sửa Rust DTO, sinh lại TS bindings (FE đọc từ `frontend/src/bindings`):

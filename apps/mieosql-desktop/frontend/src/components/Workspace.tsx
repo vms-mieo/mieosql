@@ -5,6 +5,7 @@ import {
   Eraser,
   FileCode2,
   GitBranch,
+  Layers,
   ListTree,
   Save,
   Square,
@@ -17,6 +18,7 @@ import type { ObjectRef } from "../lib/bindings";
 import { api, errorText } from "../lib/api";
 import type { Tab } from "../lib/store";
 import { useStore } from "../lib/store";
+import { FeatureHost } from "../features/registry";
 import { EditorPane, type EditorHandle } from "./EditorPane";
 import { ResultPanel } from "./ResultPanel";
 
@@ -66,7 +68,7 @@ export function Workspace() {
     if (!tab || tab.kind !== "query") return;
     const text = editorRef.current?.getText() ?? tab.sql;
     store.setSql(tab.id, text);
-    void store.runQuery(tab.id, text);
+    void store.requestRun(tab.id, text);
   };
 
   const onEditorChange = (text: string) => {
@@ -100,6 +102,15 @@ export function Workspace() {
           <QueryToolbar
             tab={activeTab}
             onRun={runActive}
+            onExplain={() => {
+              if (!activeTab.sessionId) return;
+              const text = (editorRef.current?.getText() ?? activeTab.sql).trim();
+              if (!text) return;
+              store.explainActiveQuery(activeTab.sessionId, text);
+            }}
+            onBeautify={() =>
+              window.dispatchEvent(new CustomEvent("mieosql:format-sql"))
+            }
             onClear={() => {
               editorRef.current?.setText("");
               store.setSql(activeTab.id, "");
@@ -111,6 +122,8 @@ export function Workspace() {
                 ref={editorRef}
                 initialDoc={activeTab.sql}
                 engine={activeSession?.engine ?? null}
+                sessionId={activeTab.sessionId}
+                scope={activeTab.scope ?? null}
                 onRun={runActive}
                 onChange={onEditorChange}
                 onCursor={store.setCursor}
@@ -145,6 +158,8 @@ export function Workspace() {
       )}
 
       {activeTab?.kind === "objects" && <ObjectsView tab={activeTab} />}
+
+      {activeTab?.kind === "feature" && <FeatureHost tab={activeTab} />}
     </section>
   );
 }
@@ -156,6 +171,8 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
       <FileCode2 size={11} className="text-orange-500" />
     ) : tab.kind === "table" ? (
       <Table2 size={11} className="text-sky-500" />
+    ) : tab.kind === "feature" ? (
+      <Layers size={11} className="text-violet-500" />
     ) : (
       <ListTree size={11} className="text-emerald-600" />
     );
@@ -202,10 +219,14 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
 function QueryToolbar({
   tab,
   onRun,
+  onExplain,
+  onBeautify,
   onClear,
 }: {
   tab: Tab;
   onRun: () => void;
+  onExplain: () => void;
+  onBeautify: () => void;
   onClear: () => void;
 }) {
   const store = useStore();
@@ -273,18 +294,27 @@ function QueryToolbar({
           </>
         )}
 
-        <button className={toolBtn} disabled title="Explain plan — roadmap P1">
+        <button
+          className={toolBtn}
+          disabled={!tab.sessionId || !!runningResult}
+          title="Visual explain (runs EXPLAIN)"
+          onClick={onExplain}
+        >
           <ListTree size={13} className="text-sky-600" />
           Explain
         </button>
-        <button className={toolBtn} disabled title="Format SQL — roadmap P1">
+        <button
+          className={toolBtn}
+          title="Format SQL (Shift+Alt+F)"
+          onClick={onBeautify}
+        >
           <Wand2 size={13} className="text-teal-600" />
           Beautify
         </button>
         <button
           className={toolBtn}
-          disabled
-          title="Visual query builder — roadmap P3"
+          title="Visual query builder"
+          onClick={() => store.openFeatureDialog("builder")}
         >
           <Braces size={13} className="text-violet-500" />
           Builder
