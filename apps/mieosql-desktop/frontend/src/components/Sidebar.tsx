@@ -6,11 +6,16 @@ import {
   Eye,
   FileCode2,
   Folder,
+  Layers,
+  ListOrdered,
   Loader2,
   Plug,
   Plus,
+  Radio,
   RefreshCw,
   Search,
+  Settings,
+  Star,
   Table2,
   Unplug,
   X,
@@ -18,6 +23,7 @@ import {
 
 import { api, errorText } from "../lib/api";
 import type {
+  ConnectionProfile,
   DatabaseRef,
   Engine,
   ObjectKind,
@@ -39,6 +45,18 @@ type Cache = {
 
 const EMPTY_CACHE: Cache = { databases: {}, schemas: {}, objects: {} };
 
+const FAVORITES_KEY = "mieosql.favorites.v1";
+
+function loadFavorites(): Set<string> {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return new Set(Array.isArray(parsed) ? (parsed as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
 function dbKey(sid: string, db: string) {
   return `${sid}|${db}`;
 }
@@ -49,11 +67,47 @@ function folderKey(sid: string, db: string, schema: string, kind: string) {
   return `${sid}|${db}|${schema}|${kind}`;
 }
 
+const ENGINE_LABEL: Record<Engine, string> = {
+  mysql: "MySQL",
+  mariadb: "MariaDB",
+  postgres: "PostgreSQL",
+  sqlite: "SQLite",
+  sql_server: "SQL Server",
+  mongodb: "MongoDB",
+  redis: "Redis",
+  kafka: "Kafka",
+  oracle: "Oracle",
+  snowflake: "Snowflake",
+};
+
+/** Message brokers get their own "Messaging" section in the tree. */
+function isBroker(engine: Engine): boolean {
+  return engine === "kafka";
+}
+
+function engineIcon(engine: Engine): React.ReactNode {
+  return engine === "kafka" ? <Radio size={12} /> : <Plug size={12} />;
+}
+
+function objectIcon(kind: ObjectKind, size = 11): React.ReactNode {
+  switch (kind) {
+    case "view":
+      return <Eye size={size} />;
+    case "materialized_view":
+      return <Layers size={size} />;
+    case "sequence":
+      return <ListOrdered size={size} />;
+    default:
+      return <Table2 size={size} />;
+  }
+}
+
 function TreeRow({
   depth,
   caret,
   icon,
   label,
+  subtitle,
   trailing,
   expanded,
   selected,
@@ -66,6 +120,7 @@ function TreeRow({
   caret?: boolean;
   icon: React.ReactNode;
   label: React.ReactNode;
+  subtitle?: React.ReactNode;
   trailing?: React.ReactNode;
   expanded?: boolean;
   selected?: boolean;
@@ -76,9 +131,11 @@ function TreeRow({
 }) {
   return (
     <div
-      className={`group flex h-6 cursor-default items-center gap-1 rounded-md pr-1 text-[13px] ${
+      className={`group flex min-h-6 cursor-default items-center gap-1 rounded-md pr-1 ${
+        subtitle ? "py-[3px]" : "py-px"
+      } ${
         selected
-          ? "bg-accent/[0.12] text-slate-900"
+          ? "bg-accent/[0.12] text-accent"
           : "text-slate-700 hover:bg-slate-900/[0.04]"
       }`}
       style={{ paddingLeft: 4 + depth * 13 }}
@@ -105,9 +162,24 @@ function TreeRow({
           <ChevronRight size={11} />
         )}
       </button>
-      <span className="shrink-0">{icon}</span>
-      <span className="flex-1 truncate">{label}</span>
+      <span className={`shrink-0 ${selected ? "text-accent" : "text-slate-500"}`}>
+        {icon}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col leading-tight">
+        <span className="truncate text-[13px]">{label}</span>
+        {subtitle && (
+          <span className="truncate text-[11px] text-slate-500">{subtitle}</span>
+        )}
+      </span>
       {trailing}
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-2 pt-3 pb-1 text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
+      {children}
     </div>
   );
 }
@@ -117,12 +189,27 @@ export function Sidebar() {
   const [cache, setCache] = useState<Cache>(EMPTY_CACHE);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
+  const [favorites, setFavorites] = useState<Set<string>>(loadFavorites);
 
   const toggle = useCallback((key: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const toggleFavorite = useCallback((profileId: string) => {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(profileId)) next.delete(profileId);
+      else next.add(profileId);
+      try {
+        localStorage.setItem(FAVORITES_KEY, JSON.stringify([...next]));
+      } catch {
+        /* storage unavailable */
+      }
       return next;
     });
   }, []);
@@ -226,7 +313,7 @@ export function Sidebar() {
     }
   }, [expanded, cache, store.sessions, loadDatabases, loadSchemas, loadObjects]);
 
-  // Refresh tree event (from the ribbon / File menu).
+  // Refresh tree event (from the toolbar / File menu).
   useEffect(() => {
     const handler = () => setCache(EMPTY_CACHE);
     window.addEventListener("mieosql:refresh-tree", handler);
@@ -246,23 +333,42 @@ export function Sidebar() {
 
   // -------------------------------------------------------------- render
 
+  const starButton = (profileId: string | null | undefined) => {
+    if (!profileId) return undefined;
+    const fav = favorites.has(profileId);
+    return (
+      <button
+        className={`${fav ? "grid" : "hidden group-hover:grid"} h-5 w-5 shrink-0 place-items-center rounded-md hover:bg-slate-900/[0.06]`}
+        title={fav ? "Remove from favorites" : "Add to favorites"}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleFavorite(profileId);
+        }}
+      >
+        <Star
+          size={11}
+          className={fav ? "fill-amber-400 text-amber-500" : "text-slate-400"}
+        />
+      </button>
+    );
+  };
+
   const renderFolders = (
     session: SessionInfo,
     db: string | null,
     schema: string | null,
     depth: number,
   ) => {
-    const folders: { kind: ObjectKind; label: string; icon: React.ReactNode }[] = [
-      {
-        kind: "table",
-        label: "Tables",
-        icon: <Table2 size={12} className="text-slate-500" />,
-      },
-      {
-        kind: "view",
-        label: "Views",
-        icon: <Eye size={12} className="text-slate-500" />,
-      },
+    const folders: { kind: ObjectKind; label: string }[] = [
+      { kind: "table", label: "Tables" },
+      { kind: "view", label: "Views" },
+      // PostgreSQL exposes these through the same introspection query today.
+      ...(session.engine === "postgres"
+        ? [
+            { kind: "materialized_view" as ObjectKind, label: "Mat. Views" },
+            { kind: "sequence" as ObjectKind, label: "Sequences" },
+          ]
+        : []),
     ];
     return folders.map((folder) => {
       const fk = folderKey(session.id, db ?? "", schema ?? "", folder.kind);
@@ -277,9 +383,9 @@ export function Sidebar() {
             caret
             expanded={isOpen}
             loading={objects === "loading"}
-            icon={folder.icon}
+            icon={objectIcon(folder.kind, 12)}
             label={
-              <span className="text-slate-700">
+              <span>
                 {folder.label}
                 {Array.isArray(objects) && (
                   <span className="text-slate-400"> ({shown.length})</span>
@@ -299,15 +405,9 @@ export function Sidebar() {
               <TreeRow
                 key={`${fk}|${obj.name}`}
                 depth={depth + 1}
-                icon={
-                  folder.kind === "table" ? (
-                    <Table2 size={11} className="text-slate-500" />
-                  ) : (
-                    <Eye size={11} className="text-slate-400" />
-                  )
-                }
+                icon={objectIcon(obj.kind, 11)}
                 selected={isSelected(session.id, db, schema, obj.name)}
-                label={<span className="text-slate-700">{obj.name}</span>}
+                label={<span>{obj.name}</span>}
                 trailing={
                   obj.rows_estimate !== undefined && obj.rows_estimate !== null ? (
                     <span className="text-[11px] text-slate-400">
@@ -341,7 +441,7 @@ export function Sidebar() {
           {isOpen && Array.isArray(objects) && shown.length === 0 && (
             <div
               className="px-1 py-[2px] text-[13px] text-slate-400"
-              style={{ paddingLeft: 4 + (depth + 1) * 14 }}
+              style={{ paddingLeft: 4 + (depth + 1) * 13 }}
             >
               No objects
             </div>
@@ -363,12 +463,14 @@ export function Sidebar() {
           caret
           expanded={isOpen}
           loading={hasSchemas && schemas === "loading"}
-          icon={<Database size={12} className="text-slate-500" />}
+          icon={<Database size={12} />}
           label={
-            <span className="font-medium text-slate-700">
+            <span className="font-medium">
               {db.name}
               {db.is_system && (
-                <span className="ml-1 text-[13px] text-slate-400">system</span>
+                <span className="ml-1 text-[11px] font-normal text-slate-400">
+                  system
+                </span>
               )}
             </span>
           }
@@ -389,12 +491,8 @@ export function Sidebar() {
                     depth={depth + 1}
                     caret
                     expanded={schemaOpen}
-                    icon={<Folder size={12} className="text-slate-400" />}
-                    label={
-                      <span className="font-medium text-slate-600">
-                        {schema.name}
-                      </span>
-                    }
+                    icon={<Folder size={12} />}
+                    label={<span className="font-medium">{schema.name}</span>}
                     onClick={() => toggle(sk)}
                   />
                   {schemaOpen &&
@@ -422,18 +520,16 @@ export function Sidebar() {
           caret
           expanded={isOpen}
           loading={databases === "loading"}
-          icon={<Plug size={12} className="text-slate-500" />}
-          label={
-            <span className="font-medium text-slate-900">
-              {session.name}
-            </span>
-          }
+          icon={engineIcon(session.engine)}
+          label={<span className="font-medium">{session.name}</span>}
+          subtitle={ENGINE_LABEL[session.engine]}
           selected={store.activeSessionId === session.id}
           trailing={
             <span className="flex items-center gap-0.5">
               <span className="rounded bg-slate-900/[0.06] px-1 text-[10.5px] font-medium text-slate-600">
                 {badge}
               </span>
+              {starButton(session.profile_id)}
               <button
                 className="hidden h-5 w-5 place-items-center rounded-md text-slate-400 group-hover:grid hover:bg-slate-900/[0.06] hover:text-slate-600"
                 title="New query"
@@ -466,11 +562,56 @@ export function Sidebar() {
           (Array.isArray(databases) ? (
             databases.filter((d) => filterMatch(d.name)).map((db) => renderDatabase(session, db, 1))
           ) : databases === "loading" ? (
-            <div className="px-4 py-0.5 text-[13px] text-slate-400">
+            <div className="px-4 py-0.5 text-[12px] text-slate-500">
               Loading databases…
             </div>
           ) : null)}
       </div>
+    );
+  };
+
+  const renderProfile = (profile: ConnectionProfile) => {
+    const session = store.sessions.find((s) => s.profile_id === profile.id);
+    return (
+      <TreeRow
+        key={`p-${profile.id}`}
+        depth={0}
+        caret={false}
+        icon={session ? engineIcon(profile.engine) : <Unplug size={11} />}
+        label={<span>{profile.name}</span>}
+        subtitle={ENGINE_LABEL[profile.engine]}
+        selected={!!session && store.activeSessionId === session.id}
+        trailing={
+          <span className="flex items-center gap-0.5">
+            {starButton(profile.id)}
+            {!session && (
+              <button
+                className="hidden h-5 w-5 place-items-center rounded-md text-slate-400 group-hover:grid hover:bg-slate-900/[0.06] hover:text-slate-600"
+                title="Connect"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void store.openSession(profile.id).catch((err) => {
+                    store.toast("error", errorText(err));
+                  });
+                }}
+              >
+                <Plug size={11} />
+              </button>
+            )}
+          </span>
+        }
+        onDoubleClick={() => {
+          if (!session) {
+            void store.openSession(profile.id).catch((err) => {
+              store.toast("error", errorText(err));
+            });
+          }
+        }}
+        onClick={() => {
+          if (session) store.setActiveSession(session.id);
+          else store.setConnectionModal(true, profile.id);
+        }}
+      />
     );
   };
 
@@ -481,6 +622,15 @@ export function Sidebar() {
     (p) => !connectedProfileIds.has(p.id),
   );
 
+  const dbSessions = store.sessions.filter((s) => !isBroker(s.engine));
+  const brokerSessions = store.sessions.filter((s) => isBroker(s.engine));
+  const dbProfiles = disconnected.filter((p) => !isBroker(p.engine));
+  const brokerProfiles = disconnected.filter((p) => isBroker(p.engine));
+
+  const favoriteProfiles = store.profiles.filter((p) => favorites.has(p.id));
+
+  const hasConnections = store.sessions.length > 0 || disconnected.length > 0;
+
   const activeSession = store.sessions.find(
     (s) => s.id === store.activeSessionId,
   );
@@ -489,7 +639,7 @@ export function Sidebar() {
   );
 
   return (
-    <aside className="flex w-[240px] shrink-0 flex-col bg-sidebar">
+    <aside className="flex w-[240px] shrink-0 flex-col border-r border-hairline bg-sidebar">
       {/* search */}
       <div className="flex shrink-0 items-center gap-1 px-2 pt-2 pb-1">
         <div className="flex h-7 flex-1 items-center rounded-md bg-slate-900/[0.05] px-2">
@@ -514,18 +664,13 @@ export function Sidebar() {
           title="Reload tree"
           onClick={() => setCache(EMPTY_CACHE)}
         >
-          <RefreshCw size={13} strokeWidth={1.8} />
+          <RefreshCw size={13} strokeWidth={1.6} />
         </button>
       </div>
 
       {/* tree */}
       <div className="custom-scrollbar flex-1 overflow-y-auto px-2 pb-2 text-[13px] select-none">
-        {(store.sessions.length > 0 || disconnected.length > 0) && (
-          <div className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
-            Connections
-          </div>
-        )}
-        {store.sessions.length === 0 && disconnected.length === 0 && (
+        {!hasConnections && (
           <div className="flex flex-col items-center px-3 pt-10 text-center">
             <div className="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-slate-400">
               <Plug size={16} strokeWidth={1.6} />
@@ -540,36 +685,45 @@ export function Sidebar() {
               className="mt-3 flex items-center gap-1 rounded-md px-2.5 py-1 text-[13px] font-medium text-accent hover:bg-accent/10"
               onClick={() => store.setConnectionModal(true)}
             >
-              <Plus size={13} strokeWidth={1.8} />
+              <Plus size={13} strokeWidth={1.6} />
               New Connection
             </button>
           </div>
         )}
-        {store.sessions.map(renderSession)}
-        {disconnected.map((profile) => (
-          <TreeRow
-            key={profile.id}
-            depth={0}
-            icon={<Unplug size={11} className="text-slate-400" />}
-            label={<span className="text-slate-600">{profile.name}</span>}
-            onDoubleClick={() => void store.openSession(profile.id)}
-            trailing={
-              <button
-                className="hidden h-5 w-5 place-items-center rounded-md text-slate-400 group-hover:grid hover:bg-slate-900/[0.06] hover:text-slate-600"
-                title="Connect"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void store.openSession(profile.id).catch((err) => {
-                    store.toast("error", errorText(err));
-                  });
-                }}
-              >
-                <Plug size={11} />
-              </button>
-            }
-            onClick={() => store.setConnectionModal(true, profile.id)}
-          />
-        ))}
+
+        {favoriteProfiles.length > 0 && (
+          <>
+            <SectionLabel>Favorites</SectionLabel>
+            {favoriteProfiles.map(renderProfile)}
+          </>
+        )}
+
+        {hasConnections && (
+          <>
+            <SectionLabel>Connections</SectionLabel>
+            {dbSessions.map(renderSession)}
+            {dbProfiles.map(renderProfile)}
+          </>
+        )}
+
+        {(brokerSessions.length > 0 || brokerProfiles.length > 0) && (
+          <>
+            <SectionLabel>Messaging</SectionLabel>
+            {brokerSessions.map(renderSession)}
+            {brokerProfiles.map(renderProfile)}
+          </>
+        )}
+      </div>
+
+      {/* settings */}
+      <div className="shrink-0 border-t border-slate-300/60 px-2 py-1.5">
+        <button
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-[13px] text-slate-600 hover:bg-slate-900/[0.04] hover:text-slate-800"
+          onClick={() => store.toast("info", "Settings — coming soon")}
+        >
+          <Settings size={13} strokeWidth={1.6} />
+          Settings
+        </button>
       </div>
 
       {/* footer */}

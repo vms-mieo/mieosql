@@ -1544,6 +1544,34 @@ fn map_kind(engine: Engine, kind: &DataTypeKind, col: &ColumnDef) -> String {
             DataTypeKind::Bytes => "BLOB".into(),
             _ => "TEXT".into(),
         },
+        Engine::SqlServer => match kind {
+            DataTypeKind::Bool => "BIT".into(),
+            DataTypeKind::Int => "BIGINT".into(),
+            // SQL Server has no unsigned integers; DECIMAL(20,0) holds any u64.
+            DataTypeKind::UInt => "DECIMAL(20,0)".into(),
+            DataTypeKind::Float => "FLOAT".into(),
+            DataTypeKind::Decimal => match col.numeric_precision {
+                Some(p) => match col.numeric_scale {
+                    Some(s) => format!("DECIMAL({p},{s})"),
+                    None => format!("DECIMAL({p})"),
+                },
+                None => "DECIMAL(38,10)".into(),
+            },
+            DataTypeKind::Text => "NVARCHAR(MAX)".into(),
+            DataTypeKind::Bytes => "VARBINARY(MAX)".into(),
+            DataTypeKind::Date => "DATE".into(),
+            DataTypeKind::Time => "TIME".into(),
+            DataTypeKind::DateTime => "DATETIME2".into(),
+            DataTypeKind::TimestampTz => "DATETIMEOFFSET".into(),
+            DataTypeKind::Json => "NVARCHAR(MAX)".into(),
+            DataTypeKind::Uuid => "UNIQUEIDENTIFIER".into(),
+            DataTypeKind::Bit => "VARBINARY(MAX)".into(),
+            DataTypeKind::Interval => "NVARCHAR(64)".into(),
+            DataTypeKind::Enum | DataTypeKind::Set => "NVARCHAR(MAX)".into(),
+            DataTypeKind::Geometry => "VARBINARY(MAX)".into(),
+            DataTypeKind::Array(_) => "NVARCHAR(MAX)".into(),
+            DataTypeKind::Unknown => "NVARCHAR(MAX)".into(),
+        },
         // Engines beyond the implemented SQL drivers keep the native type.
         _ => {
             if col.native_type.trim().is_empty() {

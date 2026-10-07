@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import {
   ChevronRight,
+  Code2,
   Copy,
   FileCode2,
+  History,
   KeyRound,
+  PanelRight,
   RefreshCw,
   Table2,
   Trash2,
@@ -20,24 +23,29 @@ export function RightPanel() {
   const tab = store.rightTab;
 
   return (
-    <aside className="flex w-[280px] shrink-0 flex-col bg-sidebar">
+    <aside className="flex w-[280px] shrink-0 flex-col border-l border-hairline bg-inspector">
       <div className="flex h-9 shrink-0 items-end border-b border-slate-200/80 px-2 select-none">
         {(
           [
-            ["object", "Object"],
-            ["history", "History"],
-            ["snippets", "Snippets"],
+            ["object", "Object", PanelRight],
+            ["history", "History", History],
+            ["snippets", "Snippets", Code2],
           ] as const
-        ).map(([key, label]) => (
+        ).map(([key, label, Icon]) => (
           <button
             key={key}
-            className={`relative flex-1 pb-1.5 text-center text-[12.5px] transition-colors ${
+            className={`relative flex flex-1 items-center justify-center gap-1.5 pb-1.5 text-[12.5px] transition-colors ${
               tab === key
                 ? "font-medium text-slate-900"
                 : "text-slate-500 hover:text-slate-700"
             }`}
             onClick={() => store.setRightTab(key)}
           >
+            <Icon
+              size={12}
+              strokeWidth={1.6}
+              className={tab === key ? "" : "text-slate-400"}
+            />
             {label}
             {tab === key && (
               <span className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-accent" />
@@ -326,8 +334,11 @@ function HistoryItem({ entry }: { entry: HistoryEntry }) {
         </span>
         <span className="text-[11px] text-slate-400">{ago}</span>
       </div>
-      <div className="truncate font-code text-[12px] text-slate-700">
-        {entry.sql.replace(/\s+/g, " ").slice(0, 90)}
+      <div className="flex min-w-0 items-center gap-1.5">
+        <FileCode2 size={11} className="shrink-0 text-slate-400" />
+        <span className="truncate font-code text-[12px] text-slate-700">
+          {entry.sql.replace(/\s+/g, " ").slice(0, 90)}
+        </span>
       </div>
       <div className="flex items-center justify-between text-[11px] text-slate-400">
         <span>

@@ -206,6 +206,7 @@ export function ConnectionModal() {
           </div>
           <button
             className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-600"
+            title="Close"
             onClick={() => store.setConnectionModal(false)}
           >
             <X size={14} strokeWidth={1.7} />

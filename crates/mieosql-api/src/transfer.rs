@@ -698,6 +698,32 @@ fn target_type_for(engine: Engine, col: &ColumnDef) -> String {
             DataTypeKind::Bytes => "BLOB".to_string(),
             _ => "TEXT".to_string(),
         },
+        Engine::SqlServer => match &col.data_type {
+            DataTypeKind::Bool => "BIT".to_string(),
+            DataTypeKind::Int => "BIGINT".to_string(),
+            // SQL Server has no unsigned integers; DECIMAL(20,0) holds any u64.
+            DataTypeKind::UInt => "DECIMAL(20,0)".to_string(),
+            DataTypeKind::Float => "FLOAT".to_string(),
+            DataTypeKind::Decimal => match (col.numeric_precision, col.numeric_scale) {
+                (Some(p), Some(s)) => format!("DECIMAL({p},{s})"),
+                (Some(p), None) => format!("DECIMAL({p})"),
+                _ => "DECIMAL(38,10)".to_string(),
+            },
+            DataTypeKind::Text => "NVARCHAR(MAX)".to_string(),
+            DataTypeKind::Bytes => "VARBINARY(MAX)".to_string(),
+            DataTypeKind::Date => "DATE".to_string(),
+            DataTypeKind::Time => "TIME".to_string(),
+            DataTypeKind::DateTime => "DATETIME2".to_string(),
+            DataTypeKind::TimestampTz => "DATETIMEOFFSET".to_string(),
+            DataTypeKind::Json => "NVARCHAR(MAX)".to_string(),
+            DataTypeKind::Uuid => "UNIQUEIDENTIFIER".to_string(),
+            DataTypeKind::Bit => "VARBINARY(MAX)".to_string(),
+            DataTypeKind::Interval => "NVARCHAR(64)".to_string(),
+            DataTypeKind::Enum | DataTypeKind::Set => "NVARCHAR(MAX)".to_string(),
+            DataTypeKind::Geometry => "VARBINARY(MAX)".to_string(),
+            DataTypeKind::Array(_) => "NVARCHAR(MAX)".to_string(),
+            DataTypeKind::Unknown => "NVARCHAR(MAX)".to_string(),
+        },
         _ => "TEXT".to_string(),
     }
 }

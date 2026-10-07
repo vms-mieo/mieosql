@@ -25,12 +25,18 @@ function ToolbarButton({
 }) {
   return (
     <button
-      className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-900/[0.05] disabled:pointer-events-none disabled:text-slate-300"
+      className="group flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-900/[0.05] hover:text-slate-900 disabled:pointer-events-none disabled:text-slate-300"
       disabled={disabled}
       onClick={onClick}
       title={title ?? label}
     >
-      <span className={disabled ? "text-slate-300" : "text-slate-500"}>
+      <span
+        className={
+          disabled
+            ? "text-slate-300"
+            : "text-slate-600 group-hover:text-slate-900"
+        }
+      >
         {icon}
       </span>
       {label}
@@ -128,6 +134,12 @@ export function Ribbon() {
     },
     {
       kind: "item",
+      label: "Settings — coming soon",
+      disabled: true,
+      onClick: () => {},
+    },
+    {
+      kind: "item",
       label: `About MieoSQL (${store.apiVersion || "…"})`,
       onClick: () =>
         store.toast("info", `MieoSQL backend ${store.apiVersion || "…"}`),
@@ -137,20 +149,20 @@ export function Ribbon() {
   return (
     <section className="flex h-12 shrink-0 items-center gap-1 bg-window px-3">
       <ToolbarButton
-        icon={<Plus size={16} strokeWidth={1.8} />}
+        icon={<Plus size={16} strokeWidth={1.5} />}
         label="Connection"
         title="New connection"
         onClick={() => store.setConnectionModal(true)}
       />
       <ToolbarButton
-        icon={<FileCode2 size={16} strokeWidth={1.8} />}
+        icon={<FileCode2 size={16} strokeWidth={1.5} />}
         label="New Query"
         title="New query (⌘N)"
         onClick={() => store.newQueryTab()}
       />
       <div className="mx-1.5 h-5 w-px bg-slate-300/70" />
       <ToolbarButton
-        icon={<RefreshCw size={15} strokeWidth={1.8} />}
+        icon={<RefreshCw size={15} strokeWidth={1.5} />}
         label="Refresh"
         title="Reload connections and object tree"
         onClick={() => {
@@ -159,7 +171,7 @@ export function Ribbon() {
         }}
       />
       <ToolbarButton
-        icon={<Search size={15} strokeWidth={1.8} />}
+        icon={<Search size={15} strokeWidth={1.5} />}
         label="Search"
         title="Find objects and columns across the database"
         onClick={() => store.openFeatureDialog("search")}
@@ -170,13 +182,13 @@ export function Ribbon() {
           <button
             className={`grid h-7 w-7 place-items-center rounded-md transition-colors ${
               open
-                ? "bg-slate-900/[0.07] text-slate-700"
-                : "text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-700"
+                ? "bg-slate-900/[0.05] text-accent"
+                : "text-slate-600 hover:bg-slate-900/[0.05] hover:text-slate-900"
             }`}
             title="More actions"
             onClick={toggle}
           >
-            <MoreHorizontal size={17} strokeWidth={1.8} />
+            <MoreHorizontal size={16} strokeWidth={1.5} />
           </button>
         )}
       />

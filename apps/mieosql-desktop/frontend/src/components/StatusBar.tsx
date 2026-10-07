@@ -1,3 +1,5 @@
+import { Plug } from "lucide-react";
+
 import { useStore } from "../lib/store";
 
 export function StatusBar() {
@@ -30,12 +32,15 @@ export function StatusBar() {
           </span>
         </span>
         <span className="text-slate-300">·</span>
-        <span className="truncate">
-          {session ? session.name : "No connection"}
-          {serverInfo
-            ? ` (${serverInfo.engine} ${shortVersion(serverInfo.version)})`
-            : ""}
-          {session?.database ? ` · ${session.database}` : ""}
+        <span className="flex min-w-0 items-center gap-1">
+          <Plug size={11} strokeWidth={1.6} className="shrink-0 text-slate-400" />
+          <span className="truncate">
+            {session ? session.name : "No connection"}
+            {serverInfo
+              ? ` (${serverInfo.engine} ${shortVersion(serverInfo.version)})`
+              : ""}
+            {session?.database ? ` · ${session.database}` : ""}
+          </span>
         </span>
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
@@ -53,7 +58,7 @@ export function StatusBar() {
               session?.in_transaction ? "bg-amber-500" : "bg-slate-300"
             }`}
           />
-          {session?.in_transaction ? "Transaction open" : "Autocommit"}
+          {session?.in_transaction ? "Transaction open" : "Auto Commit: ON"}
         </span>
         <span className="text-slate-300">·</span>
         <span className="font-code">

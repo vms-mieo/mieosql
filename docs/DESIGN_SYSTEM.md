@@ -8,7 +8,8 @@ Không glassmorphism, không gradient, không floating cards, không neon.
 | Token (Tailwind) | Giá trị | Dùng cho |
 |---|---|---|
 | `bg-window` | `#F5F5F7` | nền cửa sổ, toolbar |
-| `bg-sidebar` | `#F2F2F7` | sidebar, inspector, status bar |
+| `bg-sidebar` | `#F2F2F7` | sidebar, status bar |
+| `bg-inspector` | `#F7F7F9` | inspector phải |
 | `bg-surface` | `#FFFFFF` | content, editor, grid |
 | `bg-accent` / `text-accent` | `#007AFF` | action chính, selection, focus, link |
 | `bg-accent-hover` | `#0066D6` | hover của action chính |
@@ -49,24 +50,25 @@ Sidebar 240px · inspector 280px. Spacing 4 / 8 / 12 / 16 / 24 / 32.
 
 ## Nguyên tắc bắt buộc
 
-1. **Chỉ 1 màu accent** (`accent` = Apple Blue). Icon mặc định `text-slate-500`; active/hover mới dùng accent.
-2. **Không gradient** (trừ không có gì).
-3. **Icon một màu** — 16–18px chrome, 12–14px trong panel, `strokeWidth` 1.6–1.8. Màu semantic (`emerald/amber/rose`) chỉ dành cho *status dot / badge trạng thái*, không cho icon trang trí.
-4. **Ưu tiên tương phản nền thay cho border** — chỉ dùng border 1px `hairline` hoặc `slate-200` khi thật cần (table lines, divider panel).
-5. **Không để mọi action cùng nổi bật** — primary action duy nhất dùng `bg-accent`; còn lại là text/icon button `hover:bg-black/[0.05]`.
-6. **Hover style chuẩn**: `hover:bg-slate-900/[0.05]`; selected: `bg-accent/10` hoặc `bg-accent/15` (không đổ accent đặc, trừ primary button).
-7. **Shadow tối thiểu**: menu/dropdown/modal `shadow-lg`/`shadow-xl`; panel và toolbar không shadow.
-8. **SQL/JSON/Kafka message luôn `font-code`**.
-9. **Không thêm border trên sidebar/inspector** — phân tách bằng nền `bg-sidebar` vs `bg-surface`.
+1. **Chỉ 1 màu accent** (`accent` = Apple Blue). Icon mặc định `text-slate-600` (#6E6E73); hover `text-slate-900` (#1D1D1F); active/selected `text-accent` (#007AFF); disabled `text-slate-300` (#C7C7CC → #D2D2D7). Icon trang trí không bao giờ mang màu khác.
+2. **Không gradient.**
+3. **Icon một hệ outline (lucide)** — toolbar 16–18px stroke **1.5**; panel/tree 11–14px stroke 1.6–1.8. Cùng visual weight, không trộn filled/outline/emoji.
+4. **Màu có ý nghĩa, không trang trí** — gray = bình thường; accent = selected/active/primary; emerald = connected/OK; amber = warning/key; rose = error/destructive.
+5. **Bốn lớp nền tạo depth** — Window `#F5F5F7` · Sidebar `#F2F2F7` · Inspector `#F7F7F9` · Surface/Editor `#FFFFFF`.
+6. **Separation**: giữ border 1px `hairline` giữa Sidebar | Content | Inspector; các chỗ còn lại ưu tiên tương phản nền thay vì border.
+7. **Không để mọi action cùng nổi bật** — primary action duy nhất dùng `bg-accent`; còn lại là text/icon button `hover:bg-slate-900/[0.05]`.
+8. **Shadow tối thiểu**: menu/dropdown/modal `shadow-lg`/`shadow-xl`; panel và toolbar không shadow.
+9. **SQL/JSON/Kafka message luôn `font-code`**.
 10. **Focus**: `focus:outline-none` + ring accent (`focus:ring-2 focus:ring-accent/40`), input radius `rounded-md`.
 
 ## Component recipes
 
-- **Toolbar button**: `flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-slate-700 hover:bg-slate-900/[0.05]`; icon 16px `text-slate-500`; primary CTA `bg-accent text-white hover:bg-accent-hover`.
+- **Toolbar button**: `flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-slate-700 hover:bg-slate-900/[0.05]`; icon 16px stroke 1.5 `text-slate-600 group-hover:text-slate-900`; primary CTA `bg-accent text-white hover:bg-accent-hover`.
 - **Icon button**: `grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-700`.
-- **Sidebar row**: `h-6 rounded-md px-2 text-[13px] text-slate-700`; hover `bg-slate-900/[0.04]`; selected `bg-accent/[0.12] text-slate-900`.
-- **Section header**: `px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500`.
-- **Inspector tabs**: `h-8 text-[12.5px]`; active `text-slate-900` + `border-b-2 border-accent`; inactive `text-slate-500`.
+- **Sidebar row**: `min-h-6 rounded-md px-2 text-[13px] text-slate-700`; icon `text-slate-500`; hover `bg-slate-900/[0.04]`; selected `bg-accent/[0.12] text-accent` (icon + label xanh).
+- **Sidebar sections**: `FAVORITES` · `CONNECTIONS` · `MESSAGING` (chỉ hiện khi có kết nối thuộc nhóm), header `text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500`.
+- **Session row**: 2 dòng — tên 13px/500 + engine 11px `text-slate-500`; badge version neutral.
+- **Inspector tabs**: `h-8 text-[12.5px]`, icon 12px, active `text-slate-900` + `border-b-2 border-accent`; inactive `text-slate-500`.
 - **Primary button**: `h-7 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover`.
 - **Secondary button**: `h-7 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50`.
 - **Badge**: `rounded px-1 text-[10.5px] font-semibold` — neutral `bg-slate-900/[0.06] text-slate-600`; semantic chỉ khi là trạng thái.

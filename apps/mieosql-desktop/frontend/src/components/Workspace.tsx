@@ -2,12 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Braces,
   CirclePlay,
+  Database,
   Eraser,
   FileCode2,
   GitBranch,
   Layers,
   ListTree,
   Plus,
+  Plug,
+  Radio,
   RefreshCw,
   Save,
   Square,
@@ -82,7 +85,7 @@ export function Workspace() {
   };
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col bg-surface">
+    <section className="flex min-w-0 flex-1 flex-col bg-window">
       {/* Tab bar */}
       <div className="flex h-[34px] shrink-0 items-center gap-1 overflow-x-auto bg-sidebar px-2">
         {store.tabs.map((tab) => (
@@ -567,9 +570,16 @@ function ObjectsView({ tab }: { tab: Tab }) {
 function EmptyState() {
   const store = useStore();
   const hasSessions = store.sessions.length > 0;
+  const engines = [
+    { label: "PostgreSQL", icon: <Database size={12} strokeWidth={1.6} /> },
+    { label: "MySQL", icon: <Database size={12} strokeWidth={1.6} /> },
+    { label: "MariaDB", icon: <Database size={12} strokeWidth={1.6} /> },
+    { label: "SQLite", icon: <Database size={12} strokeWidth={1.6} /> },
+    { label: "Kafka", icon: <Radio size={12} strokeWidth={1.6} /> },
+  ];
   return (
-    <div className="grid flex-1 place-items-center bg-surface">
-      <div className="max-w-[400px] text-center">
+    <div className="grid flex-1 place-items-center">
+      <div className="max-w-[420px] text-center">
         <div className="mx-auto grid h-10 w-10 place-items-center rounded-[10px] bg-accent text-[17px] font-semibold text-white">
           M
         </div>
@@ -579,26 +589,31 @@ function EmptyState() {
         <p className="mt-1.5 text-[13px] text-slate-500">
           {hasSessions
             ? "Open a new query, or double-click a table in the sidebar to browse its data."
-            : "Connect your database to get started."}
+            : "Connect your data and get started."}
         </p>
         {!hasSessions && (
-          <p className="mt-3 text-[12px] text-slate-400">
-            PostgreSQL · MySQL · MariaDB · SQLite
-          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11.5px] text-slate-500">
+            {engines.map((e) => (
+              <span key={e.label} className="flex items-center gap-1">
+                <span className="text-slate-400">{e.icon}</span>
+                {e.label}
+              </span>
+            ))}
+          </div>
         )}
         <div className="mt-5 flex flex-col items-center gap-1">
           <button
-            className="flex h-8 items-center gap-1.5 rounded-md bg-accent px-4 text-[13px] font-medium text-white hover:bg-accent-hover"
+            className="flex h-9 items-center gap-1.5 rounded-md bg-accent px-5 text-[13px] font-medium text-white hover:bg-accent-hover"
             onClick={() => store.setConnectionModal(true)}
           >
-            <Plus size={14} strokeWidth={1.8} />
+            <Plug size={14} strokeWidth={1.6} />
             New Connection
           </button>
           <button
             className="mt-1 flex h-7 items-center gap-1.5 rounded-md px-3 text-[12.5px] text-accent hover:bg-accent/10"
             onClick={() => store.newQueryTab()}
           >
-            <FileCode2 size={13} strokeWidth={1.8} />
+            <FileCode2 size={13} strokeWidth={1.6} />
             New Query
             <span className="font-code text-[11px] text-slate-400">⌘N</span>
           </button>
