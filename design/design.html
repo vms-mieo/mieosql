@@ -1,0 +1,1666 @@
+<!-- Navicat Premium Lite - SQL Query Editor -->
+<!DOCTYPE html>
+
+<html class="h-full select-none" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Navicat Premium Lite</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style data-purpose="desktop-typography">
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.35;
+      color: #1e293b;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+<style data-purpose="custom-badges">
+    .badge-ent {
+      position: absolute;
+      top: -2px;
+      right: -6px;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: white;
+      font-size: 8px;
+      font-weight: 800;
+      padding: 0.5px 3px;
+      border-radius: 3px;
+      line-height: 1;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+  </style>
+<meta content="web_dashboard" name="shell-type"/></head>
+<body class="h-full flex flex-col bg-[#eceff1] overflow-hidden text-slate-800">
+<!-- BEGIN: WindowTitleBar -->
+<!-- Top Native-like Desktop Titlebar -->
+<header class="h-[30px] bg-[#2d3748] text-slate-200 flex items-center justify-between px-2.5 text-xs select-none shrink-0" data-purpose="titlebar">
+<div class="flex items-center space-x-2">
+<!-- Navicat Icon -->
+<div class="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-[10px] text-white font-black shadow-inner">
+        N
+      </div>
+<span class="text-slate-100 font-medium tracking-wide">Navicat Premium Lite</span>
+</div>
+<!-- Window Control Buttons (Minimize, Maximize, Close) -->
+<div class="flex items-center space-x-3 text-slate-400 text-xs">
+<button class="hover:text-white hover:bg-slate-700 px-1.5 py-0.5 rounded transition" title="Minimize">
+<i class="fa-solid fa-window-minimize -translate-y-1"></i>
+</button>
+<button class="hover:text-white hover:bg-slate-700 px-1.5 py-0.5 rounded transition" title="Maximize">
+<i class="fa-regular fa-square"></i>
+</button>
+<button class="hover:text-white hover:bg-red-600 px-1.5 py-0.5 rounded transition" title="Close">
+<i class="fa-solid fa-xmark text-sm"></i>
+</button>
+</div>
+</header>
+<!-- END: WindowTitleBar -->
+<!-- BEGIN: ApplicationMenuBar -->
+<!-- Classic Desktop Dropdown Menubar -->
+<nav class="h-[22px] bg-[#f8fafc] border-b border-[#cbd5e1] flex items-center px-2 space-x-3 text-[11px] text-slate-700 shrink-0" data-purpose="menu-bar">
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">File</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">Edit</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">View</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">Favorites</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">Tools</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">Window</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">Help</span>
+</nav>
+<!-- END: ApplicationMenuBar -->
+<!-- BEGIN: PrimaryRibbonToolbar -->
+<!-- Main Navicat ribbon toolbar with large action buttons -->
+<section class="h-[64px] bg-[#f1f5f9] border-b border-[#cbd5e1] flex items-center justify-between px-3 shrink-0" data-purpose="primary-toolbar">
+<!-- Left Action Tools -->
+<div class="flex items-center space-x-1.5 overflow-x-auto">
+<!-- Connection -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[54px] text-slate-700 transition">
+<div class="relative text-[20px] text-slate-600">
+<i class="fa-solid fa-plug-circle-bolt text-slate-500"></i>
+<span class="absolute -bottom-1 -right-1 text-emerald-500 text-[10px] bg-white rounded-full"><i class="fa-solid fa-circle-plus"></i></span>
+</div>
+<span class="text-[10px] mt-1 font-medium">Connection</span>
+</button>
+<!-- New Query -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[54px] text-slate-700 transition">
+<div class="relative text-[20px] text-sky-500">
+<i class="fa-regular fa-file-code"></i>
+<span class="absolute -bottom-1 -right-1 text-emerald-500 text-[10px] bg-white rounded-full"><i class="fa-solid fa-circle-plus"></i></span>
+</div>
+<span class="text-[10px] mt-1 font-medium whitespace-nowrap">New Query</span>
+</button>
+<!-- Table (Selected State) -->
+<button class="flex flex-col items-center justify-center px-2 py-1 bg-white shadow-sm rounded border border-slate-300 min-w-[54px] text-blue-600">
+<div class="w-6 h-5 bg-sky-500 rounded flex flex-col justify-between p-0.5 shadow-sm">
+<div class="grid grid-cols-3 gap-0.5 h-full">
+<span class="bg-white/80 rounded-[1px]"></span>
+<span class="bg-white/80 rounded-[1px]"></span>
+<span class="bg-white/80 rounded-[1px]"></span>
+<span class="bg-white rounded-[1px]"></span>
+<span class="bg-white rounded-[1px]"></span>
+<span class="bg-white rounded-[1px]"></span>
+</div>
+</div>
+<span class="text-[10px] mt-1 font-semibold text-slate-800">Table</span>
+</button>
+<!-- View -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="text-[18px] text-sky-500">
+<i class="fa-solid fa-glasses"></i>
+</div>
+<span class="text-[10px] mt-1">View</span>
+</button>
+<!-- Function -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="text-[18px] text-blue-600 font-serif italic font-bold">
+          f<span class="text-[13px] font-sans tracking-tighter">(x)</span>
+</div>
+<span class="text-[10px] mt-1">Function</span>
+</button>
+<!-- User -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="flex items-center text-[18px] text-amber-500">
+<i class="fa-solid fa-user"></i>
+<i class="fa-solid fa-caret-down text-[8px] text-slate-500 ml-1"></i>
+</div>
+<span class="text-[10px] mt-1">User</span>
+</button>
+<!-- Others -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="flex items-center text-[18px] text-slate-600">
+<i class="fa-solid fa-wrench"></i>
+<i class="fa-solid fa-caret-down text-[8px] text-slate-500 ml-1"></i>
+</div>
+<span class="text-[10px] mt-1">Others</span>
+</button>
+<!-- SQL Server Backup (Ent) -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[64px] text-slate-700 transition">
+<div class="relative text-[18px] text-amber-700">
+<i class="fa-solid fa-rotate-left"></i>
+<span class="badge-ent">Ent</span>
+</div>
+<span class="text-[10px] mt-1 whitespace-nowrap text-slate-700">SQL Server...</span>
+</button>
+<!-- Query -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="text-[18px] text-orange-500">
+<i class="fa-solid fa-table-list"></i>
+</div>
+<span class="text-[10px] mt-1">Query</span>
+</button>
+<!-- Automation (Ent) -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[58px] text-slate-700 transition">
+<div class="relative text-[18px] text-cyan-600">
+<i class="fa-solid fa-robot"></i>
+<span class="badge-ent">Ent</span>
+</div>
+<span class="text-[10px] mt-1">Automation</span>
+</button>
+<!-- Model (Ent) -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="relative text-[18px] text-amber-600">
+<i class="fa-solid fa-diagram-project"></i>
+<span class="badge-ent">Ent</span>
+</div>
+<span class="text-[10px] mt-1">Model</span>
+</button>
+<!-- BI (Ent) -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="relative text-[18px] text-purple-600">
+<i class="fa-solid fa-chart-column"></i>
+<span class="badge-ent">Ent</span>
+</div>
+<span class="text-[10px] mt-1">BI</span>
+</button>
+</div>
+<!-- Right User Status & Actions -->
+<div class="flex items-center space-x-3 shrink-0 pl-3">
+<button class="text-sky-600 hover:text-sky-700 text-lg" title="Information">
+<i class="fa-solid fa-circle-info"></i>
+</button>
+<button class="relative text-amber-500 hover:text-amber-600 text-lg flex items-center" title="Upgrade Enterprise">
+<i class="fa-solid fa-crown"></i>
+<span class="badge-ent -top-2 -right-3">Ent</span>
+</button>
+<!-- User Avatar Placeholder with generic face icon -->
+<div class="w-8 h-8 rounded-full border border-slate-300 overflow-hidden bg-slate-200 flex items-center justify-center text-slate-500">
+<i class="fa-solid fa-user-tie text-base text-slate-600"></i>
+</div>
+</div>
+</section>
+<!-- END: PrimaryRibbonToolbar -->
+<!-- BEGIN: MainThreeColumnLayout -->
+<main class="flex-1 flex overflow-hidden bg-[#e2e8f0]" data-purpose="workspace-container"><div class="flex flex-col w-full h-full overflow-hidden select-none bg-surface text-on-surface">
+<div class="flex-1 flex overflow-hidden">
+<!-- LEFT PANE: Connection & Schema Hierarchy Tree -->
+<aside class="w-[240px] shrink-0 bg-surface-container-low flex flex-col justify-between overflow-hidden">
+<div class="flex flex-col h-full overflow-hidden">
+<!-- Tree Header Search -->
+<div class="p-space-sm bg-surface-container flex items-center gap-space-xs shrink-0">
+<div class="relative flex-1 flex items-center bg-surface-container-lowest rounded px-space-sm py-0.5">
+<span class="material-symbols-outlined text-outline text-[13px] mr-1">search</span>
+<input class="w-full bg-transparent border-none p-0 text-body-sm text-on-surface placeholder-outline focus:outline-none" placeholder="Search database objects..." type="text" value="Product"/>
+<span class="material-symbols-outlined text-outline text-[12px] hover:text-on-surface cursor-pointer">close</span>
+</div>
+<button class="p-1 hover:bg-surface-variant text-outline hover:text-on-surface rounded" title="Refresh Tree">
+<span class="material-symbols-outlined text-[14px]">refresh</span>
+</button>
+</div>
+<!-- Tree Nodes View -->
+<div class="flex-1 overflow-y-auto px-1 py-1 space-y-0.5 font-body-sm text-on-surface-variant select-none">
+<!-- Cloud Workspace -->
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-outline">
+<span class="material-symbols-outlined text-[13px]">arrow_right</span>
+<span class="material-symbols-outlined text-[14px] text-primary">cloud</span>
+<span class="truncate">Navicat Cloud</span>
+</div>
+<!-- Production Server Cluster (Expanded) -->
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/50 cursor-pointer text-on-surface font-semibold">
+<span class="material-symbols-outlined text-[13px]">arrow_drop_down</span>
+<span class="material-symbols-outlined text-[14px] text-tertiary">dns</span>
+<span class="truncate">Production Server</span>
+<span class="ml-auto text-[9px] px-1 py-0.2 rounded bg-tertiary-container/30 text-tertiary font-label-sm">PG 16</span>
+</div>
+<!-- Adventureworks Database (Expanded) -->
+<div class="pl-4">
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/50 cursor-pointer text-on-surface">
+<span class="material-symbols-outlined text-[13px]">arrow_drop_down</span>
+<span class="material-symbols-outlined text-[14px] text-secondary">database</span>
+<span class="truncate font-medium">Adventureworks</span>
+</div>
+<!-- Schemas level -->
+<div class="pl-4 space-y-0.5">
+<!-- Production Schema (Expanded) -->
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/50 cursor-pointer text-on-surface">
+<span class="material-symbols-outlined text-[13px]">arrow_drop_down</span>
+<span class="material-symbols-outlined text-[14px] text-primary-fixed-dim">folder_open</span>
+<span class="truncate font-medium">Production</span>
+</div>
+<!-- Production Objects -->
+<div class="pl-4 space-y-0.5">
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-on-surface">
+<span class="material-symbols-outlined text-[13px]">arrow_drop_down</span>
+<span class="material-symbols-outlined text-[14px] text-primary">table_chart</span>
+<span class="truncate">Tables (24)</span>
+</div>
+<!-- Tables list snippet -->
+<div class="pl-4 space-y-0.5 text-[11px]">
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-outline">
+<span class="material-symbols-outlined text-[12px] text-outline">table_rows</span>
+<span class="truncate">BillOfMaterials</span>
+</div>
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded bg-primary-container/20 text-primary font-medium cursor-pointer">
+<span class="material-symbols-outlined text-[12px] text-primary">table_rows</span>
+<span class="truncate">Product</span>
+<span class="ml-auto text-[9px] text-primary/70">504</span>
+</div>
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-outline">
+<span class="material-symbols-outlined text-[12px] text-outline">table_rows</span>
+<span class="truncate">ProductCostHistory</span>
+</div>
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-outline">
+<span class="material-symbols-outlined text-[12px] text-outline">table_rows</span>
+<span class="truncate">ProductInventory</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-outline">
+<span class="material-symbols-outlined text-[13px]">arrow_right</span>
+<span class="material-symbols-outlined text-[14px] text-secondary-fixed">visibility</span>
+<span class="truncate">Views (8)</span>
+</div>
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-outline">
+<span class="material-symbols-outlined text-[13px]">arrow_right</span>
+<span class="material-symbols-outlined text-[14px] text-tertiary">function</span>
+<span class="truncate">Functions (12)</span>
+</div>
+</div>
+<!-- Other schemas collapsed -->
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-outline">
+<span class="material-symbols-outlined text-[13px]">arrow_right</span>
+<span class="material-symbols-outlined text-[14px] text-outline">folder</span>
+<span class="truncate">Sales</span>
+</div>
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-outline">
+<span class="material-symbols-outlined text-[13px]">arrow_right</span>
+<span class="material-symbols-outlined text-[14px] text-outline">folder</span>
+<span class="truncate">Purchasing</span>
+</div>
+</div>
+</div>
+<!-- Other Root Connections -->
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-outline pt-2">
+<span class="material-symbols-outlined text-[13px]">arrow_right</span>
+<span class="material-symbols-outlined text-[14px] text-secondary">database</span>
+<span class="truncate">MySQL 8.1 Local</span>
+</div>
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-outline">
+<span class="material-symbols-outlined text-[13px]">arrow_right</span>
+<span class="material-symbols-outlined text-[14px] text-error">database</span>
+<span class="truncate">Oracle 19c Warehouse</span>
+</div>
+<div class="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-variant/40 cursor-pointer text-outline">
+<span class="material-symbols-outlined text-[13px]">arrow_right</span>
+<span class="material-symbols-outlined text-[14px] text-primary">cloud_circle</span>
+<span class="truncate">SNOWFLAKE Analytics</span>
+</div>
+</div>
+<!-- Sidebar mini status -->
+<div class="px-space-sm py-1 bg-surface-container text-body-sm text-outline flex items-center justify-between shrink-0">
+<span class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+            Host: 10.0.4.12
+          </span>
+<span class="font-code-sm text-[10px]">Port: 5432</span>
+</div>
+</div>
+</aside>
+<!-- CENTER PANE: Workspaces & Query Console -->
+<main class="flex-1 flex flex-col min-w-0 bg-surface-container overflow-hidden">
+<!-- Workspace Top Tab Rail -->
+<div class="h-[30px] bg-surface-container-low flex items-center px-1 overflow-x-auto shrink-0 select-none">
+<!-- Inactive Tab: Objects -->
+<div class="flex items-center gap-1 px-3 h-full hover:bg-surface-variant/50 text-outline hover:text-on-surface cursor-pointer text-body-sm">
+<span class="material-symbols-outlined text-[13px]">view_list</span>
+<span>Objects</span>
+</div>
+<!-- Inactive Tab: ProductCategory -->
+<div class="flex items-center gap-1.5 px-3 h-full hover:bg-surface-variant/50 text-outline hover:text-on-surface cursor-pointer text-body-sm group">
+<span class="material-symbols-outlined text-[13px] text-primary">table_chart</span>
+<span class="max-w-[120px] truncate">ProductCategory @Adve...</span>
+<span class="material-symbols-outlined text-[12px] opacity-0 group-hover:opacity-100 hover:text-error">close</span>
+</div>
+<!-- Active Tab: Query 1 -->
+<div class="flex items-center gap-2 px-3 h-full bg-surface-container text-on-surface font-medium text-body-sm relative group cursor-pointer shadow-sm">
+<div class="absolute top-0 left-0 right-0 h-[2px] bg-primary"></div>
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary" title="Unsaved query modifications"></span>
+<span class="material-symbols-outlined text-[14px] text-primary">code</span>
+<span class="tracking-tight">* Query: Adventureworks.Production</span>
+<span class="material-symbols-outlined text-[12px] text-outline hover:text-error hover:bg-surface-variant p-0.5 rounded">close</span>
+</div>
+<button class="p-1 hover:bg-surface-variant text-outline hover:text-on-surface rounded ml-1" title="New Query Tab">
+<span class="material-symbols-outlined text-[14px]">add</span>
+</button>
+</div>
+<!-- Specialized Query Ribbon Actions -->
+<div class="h-[36px] bg-surface-container px-2 flex items-center justify-between shrink-0">
+<!-- Left Action Group -->
+<div class="flex items-center gap-1">
+<!-- Execute Combo Button -->
+<div class="inline-flex rounded overflow-hidden shadow-sm">
+<button class="bg-secondary-container hover:bg-secondary text-on-secondary px-2.5 py-1 flex items-center gap-1.5 font-label-md transition active:scale-95" id="run-btn" title="Run Entire Query (Ctrl+Enter)">
+<span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+<span>Run</span>
+</button>
+<button class="bg-secondary-container/90 hover:bg-secondary text-on-secondary px-1 py-1" title="Run selection or statement">
+<span class="material-symbols-outlined text-[12px]">arrow_drop_down</span>
+</button>
+</div>
+<!-- Stop / Kill (Disabled) -->
+<button class="px-2 py-1 flex items-center gap-1 text-outline/40 cursor-not-allowed font-label-md" disabled="" title="Stop query execution">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">stop</span>
+<span>Stop</span>
+</button>
+<div class="w-px h-4 bg-surface-variant mx-1"></div>
+<!-- Query Refinement Tools -->
+<button class="px-2 py-1 rounded hover:bg-surface-variant text-on-surface flex items-center gap-1 font-label-md" title="Explain Execution Plan (Ctrl+E)">
+<span class="material-symbols-outlined text-[14px] text-primary">account_tree</span>
+<span>Explain Plan</span>
+</button>
+<button class="px-2 py-1 rounded hover:bg-surface-variant text-on-surface flex items-center gap-1 font-label-md" id="beautify-btn" title="Format / Beautify SQL">
+<span class="material-symbols-outlined text-[14px] text-tertiary">auto_fix_high</span>
+<span>Beautify</span>
+</button>
+<button class="px-2 py-1 rounded hover:bg-surface-variant text-on-surface flex items-center gap-1 font-label-md" title="Visual Query Builder">
+<span class="material-symbols-outlined text-[14px] text-secondary">view_compact</span>
+<span>Query Builder</span>
+</button>
+<div class="w-px h-4 bg-surface-variant mx-1"></div>
+<button class="p-1 rounded hover:bg-surface-variant text-outline hover:text-on-surface" title="Save Query (Ctrl+S)">
+<span class="material-symbols-outlined text-[15px]">save</span>
+</button>
+<button class="p-1 rounded hover:bg-surface-variant text-outline hover:text-on-surface" title="Clear Text Area">
+<span class="material-symbols-outlined text-[15px]">delete_sweep</span>
+</button>
+</div>
+<!-- Target Connection Quick Selector -->
+<div class="flex items-center gap-2">
+<div class="flex items-center gap-1.5 bg-surface-container-lowest px-2 py-0.5 rounded text-body-sm font-code-sm">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+<span class="text-outline">Schema:</span>
+<span class="text-on-surface font-medium truncate max-w-[150px]">Adventureworks &gt; Production</span>
+<span class="material-symbols-outlined text-[12px] text-outline">expand_more</span>
+</div>
+<div class="flex items-center gap-1 bg-surface-container-lowest px-2 py-0.5 rounded text-body-sm">
+<span class="text-outline">Limit:</span>
+<span class="text-primary font-code-sm">100</span>
+</div>
+</div>
+</div>
+<!-- MAIN SPLIT WORKBENCH -->
+<div class="flex-1 flex flex-col min-h-0 overflow-hidden">
+<!-- TOP PANE: SQL Editor Surface -->
+<div class="h-[48%] flex flex-col bg-surface-container-lowest relative overflow-hidden">
+<!-- Editor Context Bar -->
+<div class="h-[20px] bg-surface-container-lowest px-3 flex items-center justify-between text-label-sm text-outline select-none shrink-0">
+<div class="flex items-center gap-3">
+<span>SQL: POSTGRESQL DIALECT</span>
+<span class="flex items-center gap-1 text-secondary"><span class="material-symbols-outlined text-[12px]">check_circle</span> Syntax Valid</span>
+</div>
+<div>UTF-8 • UNIX (LF)</div>
+</div>
+<!-- Code Canvas: Gutter + Syntax Area -->
+<div class="flex-1 flex overflow-auto font-code-md text-on-surface relative">
+<!-- Line Number Gutter -->
+<div class="w-10 bg-surface-container-lowest/80 text-outline/50 flex flex-col text-right pr-2 py-1 shrink-0 select-none space-y-0.5">
+<span>1</span>
+<span>2</span>
+<span>3</span>
+<span>4</span>
+<span>5</span>
+<span>6</span>
+<span>7</span>
+<span>8</span>
+<span>9</span>
+<span class="text-primary font-bold">10</span>
+<span>11</span>
+<span>12</span>
+<span>13</span>
+<span>14</span>
+</div>
+<!-- Code Execution Highlight Overlay for Line 10 -->
+<div class="absolute left-10 right-0 top-[162px] h-[18px] bg-primary/10 pointer-events-none"></div>
+<!-- Syntax Highlighted Code -->
+<div class="flex-1 py-1 pl-2 pr-4 space-y-0.5 whitespace-pre overflow-x-auto leading-[18px]">
+<div><span class="text-outline italic">-- Query top selling products with inventory count</span></div>
+<div><span class="text-primary font-bold">SELECT</span></div>
+<div class="pl-4">p.<span class="text-on-surface">ProductID</span>,</div>
+<div class="pl-4">p.<span class="text-on-surface">Name</span> <span class="text-primary font-bold">AS</span> <span class="text-secondary-fixed">ProductName</span>,</div>
+<div class="pl-4">p.<span class="text-on-surface">ProductNumber</span>,</div>
+<div class="pl-4">p.<span class="text-on-surface">Color</span>,</div>
+<div class="pl-4">p.<span class="text-on-surface">ListPrice</span>,</div>
+<div class="pl-4"><span class="text-tertiary font-medium">COALESCE</span>(<span class="text-tertiary font-medium">SUM</span>(inv.<span class="text-on-surface">Quantity</span>), <span class="text-tertiary-fixed">0</span>) <span class="text-primary font-bold">AS</span> <span class="text-secondary-fixed">TotalStock</span>,</div>
+<div class="pl-4">p.<span class="text-on-surface">ModifiedDate</span></div>
+<div><span class="text-primary font-bold">FROM</span> <span class="text-on-surface font-semibold">Production.Product</span> p</div>
+<div><span class="text-primary font-bold">LEFT JOIN</span> <span class="text-on-surface font-semibold">Production.ProductInventory</span> inv <span class="text-primary font-bold">ON</span> p.<span class="text-on-surface">ProductID</span> = inv.<span class="text-on-surface">ProductID</span></div>
+<div><span class="text-primary font-bold">WHERE</span> p.<span class="text-on-surface">ListPrice</span> &gt; <span class="text-tertiary-fixed">50.00</span> <span class="text-primary font-bold">AND</span> p.<span class="text-on-surface">SellEndDate</span> <span class="text-primary font-bold">IS NULL</span></div>
+<div><span class="text-primary font-bold">GROUP BY</span> p.<span class="text-on-surface">ProductID</span>, p.<span class="text-on-surface">Name</span>, p.<span class="text-on-surface">ProductNumber</span>, p.<span class="text-on-surface">Color</span>, p.<span class="text-on-surface">ListPrice</span>, p.<span class="text-on-surface">ModifiedDate</span></div>
+<div><span class="text-primary font-bold">ORDER BY</span> p.<span class="text-on-surface">ListPrice</span> <span class="text-primary font-bold">DESC</span> <span class="text-primary font-bold">LIMIT</span> <span class="text-tertiary-fixed">100</span>;</div>
+</div>
+<!-- Auto-Suggest Micro Popup Mockup (Floating autocomplete) -->
+<div class="absolute top-[182px] left-[140px] bg-surface-container-high rounded shadow-xl p-1 w-56 flex flex-col z-20 font-body-sm">
+<div class="px-2 py-0.5 text-label-sm text-outline uppercase tracking-wider">Suggestions (Production.*)</div>
+<div class="px-2 py-1 bg-primary-container text-on-primary-container rounded flex items-center justify-between text-body-sm">
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[13px]">view_column</span> ProductID</span>
+<span class="font-code-sm text-[10px] opacity-80">INT4</span>
+</div>
+<div class="px-2 py-1 hover:bg-surface-variant text-on-surface rounded flex items-center justify-between text-body-sm">
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[13px] text-outline">view_column</span> ProductName</span>
+<span class="font-code-sm text-[10px] text-outline">VARCHAR</span>
+</div>
+<div class="px-2 py-1 hover:bg-surface-variant text-on-surface rounded flex items-center justify-between text-body-sm">
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[13px] text-outline">view_column</span> ProductSubcategoryID</span>
+<span class="font-code-sm text-[10px] text-outline">INT4</span>
+</div>
+</div>
+</div>
+</div>
+<!-- SPLIT DRAG RESIZE RAIL -->
+<div class="h-[6px] bg-surface-container-high hover:bg-primary cursor-row-resize flex items-center justify-center shrink-0 group transition-colors">
+<div class="w-8 h-1 bg-outline rounded-full group-hover:bg-on-primary"></div>
+</div>
+<!-- BOTTOM PANE: Query Execution Output & Data Grid -->
+<div class="flex-1 flex flex-col min-h-0 bg-surface-container overflow-hidden">
+<!-- Results Sub-tab Bar & Execution Banner -->
+<div class="h-[28px] bg-surface-container-low px-2 flex items-center justify-between shrink-0 select-none">
+<div class="flex items-center h-full">
+<button class="h-full px-3 bg-surface-container text-primary font-medium flex items-center gap-1.5 text-body-sm relative">
+<div class="absolute top-0 left-0 right-0 h-[2px] bg-primary"></div>
+<span class="material-symbols-outlined text-[14px]">grid_on</span>
+<span>Result 1 (100 rows)</span>
+</button>
+<button class="h-full px-3 hover:bg-surface-variant/40 text-outline hover:text-on-surface flex items-center gap-1.5 text-body-sm">
+<span class="material-symbols-outlined text-[14px]">terminal</span>
+<span>Messages / Output</span>
+</button>
+<button class="h-full px-3 hover:bg-surface-variant/40 text-outline hover:text-on-surface flex items-center gap-1.5 text-body-sm">
+<span class="material-symbols-outlined text-[14px]">query_stats</span>
+<span>Profile &amp; Metrics</span>
+</button>
+<button class="h-full px-3 hover:bg-surface-variant/40 text-outline hover:text-on-surface flex items-center gap-1.5 text-body-sm">
+<span class="material-symbols-outlined text-[14px]">info</span>
+<span>Status</span>
+</button>
+</div>
+<!-- Execution Timing Notification Pill -->
+<div class="flex items-center gap-2 text-label-sm text-outline">
+<span class="flex items-center gap-1 text-secondary">
+<span class="material-symbols-outlined text-[13px]">bolt</span>
+<span>42 ms (Fetch: 18 ms)</span>
+</span>
+<span>•</span>
+<span class="text-on-surface">100 rows retrieved</span>
+</div>
+</div>
+<!-- Data Grid Utility Controls -->
+<div class="h-[30px] bg-surface-container px-2 flex items-center justify-between shrink-0 text-body-sm">
+<div class="flex items-center gap-1.5">
+<button class="p-1 rounded hover:bg-surface-variant text-outline hover:text-on-surface" title="Refresh Query Data">
+<span class="material-symbols-outlined text-[14px]">sync</span>
+</button>
+<button class="p-1 rounded hover:bg-surface-variant text-outline hover:text-on-surface" title="Add Row to Result">
+<span class="material-symbols-outlined text-[14px]">add</span>
+</button>
+<button class="p-1 rounded hover:bg-surface-variant text-outline hover:text-on-surface" title="Delete Selected Row">
+<span class="material-symbols-outlined text-[14px]">remove</span>
+</button>
+<div class="w-px h-3.5 bg-surface-variant mx-1"></div>
+<button class="px-2 py-0.5 rounded hover:bg-surface-variant text-on-surface flex items-center gap-1 font-label-md" title="Export to CSV, JSON, or SQL">
+<span class="material-symbols-outlined text-[13px] text-tertiary">file_download</span>
+<span>Export Result</span>
+</button>
+<div class="relative flex items-center ml-2 bg-surface-container-lowest px-2 py-0.5 rounded">
+<span class="material-symbols-outlined text-outline text-[12px] mr-1">filter_alt</span>
+<input class="w-36 bg-transparent border-none p-0 text-[11px] text-on-surface placeholder-outline focus:outline-none" placeholder="Filter result set..." type="text"/>
+</div>
+</div>
+<!-- Pagination Toolbar -->
+<div class="flex items-center gap-2">
+<span class="text-outline text-label-sm">Rows 1 - 25 of 100</span>
+<div class="flex items-center gap-0.5 bg-surface-container-lowest rounded p-0.5">
+<button class="p-0.5 rounded hover:bg-surface-variant text-outline/50 cursor-not-allowed"><span class="material-symbols-outlined text-[14px]">first_page</span></button>
+<button class="p-0.5 rounded hover:bg-surface-variant text-outline/50 cursor-not-allowed"><span class="material-symbols-outlined text-[14px]">chevron_left</span></button>
+<span class="px-1.5 text-primary font-code-sm text-[11px]">1</span>
+<button class="p-0.5 rounded hover:bg-surface-variant text-outline hover:text-on-surface"><span class="material-symbols-outlined text-[14px]">chevron_right</span></button>
+<button class="p-0.5 rounded hover:bg-surface-variant text-outline hover:text-on-surface"><span class="material-symbols-outlined text-[14px]">last_page</span></button>
+</div>
+</div>
+</div>
+<!-- THE HIGH DENSITY TABULAR DATA GRID -->
+<div class="flex-1 overflow-auto bg-surface-container-lowest font-code-sm relative">
+<table class="w-full border-collapse text-left select-text">
+<!-- Sticky Column Headers -->
+<thead class="sticky top-0 bg-surface-container-high text-on-surface text-label-sm select-none z-10 shadow-sm">
+<tr class="h-[24px]">
+<th class="w-9 px-2 text-center text-outline bg-surface-container-high shrink-0 font-normal">#</th>
+<th class="px-2 min-w-[80px] hover:bg-surface-variant cursor-pointer">
+<div class="flex items-center justify-between">
+<span>ProductID</span>
+<span class="text-[9px] text-primary">INT</span>
+</div>
+</th>
+<th class="px-2 min-w-[170px] hover:bg-surface-variant cursor-pointer">
+<div class="flex items-center justify-between">
+<span>ProductName</span>
+<span class="text-[9px] text-outline">STR</span>
+</div>
+</th>
+<th class="px-2 min-w-[110px] hover:bg-surface-variant cursor-pointer">
+<div class="flex items-center justify-between">
+<span>ProductNumber</span>
+<span class="text-[9px] text-outline">STR</span>
+</div>
+</th>
+<th class="px-2 min-w-[80px] hover:bg-surface-variant cursor-pointer">
+<div class="flex items-center justify-between">
+<span>Color</span>
+<span class="text-[9px] text-outline">STR</span>
+</div>
+</th>
+<th class="px-2 min-w-[100px] hover:bg-surface-variant cursor-pointer bg-primary-container/20">
+<div class="flex items-center justify-between text-primary">
+<span>ListPrice</span>
+<span class="flex items-center">
+<span class="text-[9px]">DEC</span>
+<span class="material-symbols-outlined text-[11px] ml-0.5">arrow_downward</span>
+</span>
+</div>
+</th>
+<th class="px-2 min-w-[90px] hover:bg-surface-variant cursor-pointer">
+<div class="flex items-center justify-between">
+<span>TotalStock</span>
+<span class="text-[9px] text-secondary">INT</span>
+</div>
+</th>
+<th class="px-2 min-w-[150px] hover:bg-surface-variant cursor-pointer">
+<div class="flex items-center justify-between">
+<span>ModifiedDate</span>
+<span class="text-[9px] text-outline">DATE</span>
+</div>
+</th>
+</tr>
+</thead>
+<!-- Tabular Rows with high-density styling -->
+<tbody class="divide-y divide-surface-variant/30 text-body-sm">
+<!-- Row 1: Selected state -->
+<tr class="h-[22px] bg-primary-container/25 text-on-surface hover:bg-primary-container/30 cursor-pointer">
+<td class="px-2 text-center text-outline/60 bg-surface-container-high/40 select-none text-[10px]">1</td>
+<td class="px-2 text-tertiary-fixed font-code-sm">749</td>
+<td class="px-2 font-medium text-on-surface">Road-150 Red, 62</td>
+<td class="px-2 text-outline">BK-R93R-62</td>
+<td class="px-2"><span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-error"></span> Red</span></td>
+<td class="px-2 text-right text-primary font-code-sm font-semibold">$3,578.27</td>
+<td class="px-2 text-right font-code-sm text-secondary font-medium">124</td>
+<td class="px-2 text-outline text-[11px]">2024-03-01 10:14:22</td>
+</tr>
+<!-- Row 2 -->
+<tr class="h-[22px] hover:bg-surface-variant/40 cursor-pointer">
+<td class="px-2 text-center text-outline/60 bg-surface-container-high/20 select-none text-[10px]">2</td>
+<td class="px-2 text-tertiary-fixed font-code-sm">750</td>
+<td class="px-2 font-medium text-on-surface">Road-150 Red, 44</td>
+<td class="px-2 text-outline">BK-R93R-44</td>
+<td class="px-2"><span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-error"></span> Red</span></td>
+<td class="px-2 text-right text-primary font-code-sm font-semibold">$3,578.27</td>
+<td class="px-2 text-right font-code-sm text-secondary font-medium">88</td>
+<td class="px-2 text-outline text-[11px]">2024-03-01 10:14:22</td>
+</tr>
+<!-- Row 3 -->
+<tr class="h-[22px] bg-surface-container-low/50 hover:bg-surface-variant/40 cursor-pointer">
+<td class="px-2 text-center text-outline/60 bg-surface-container-high/20 select-none text-[10px]">3</td>
+<td class="px-2 text-tertiary-fixed font-code-sm">751</td>
+<td class="px-2 font-medium text-on-surface">Road-150 Red, 48</td>
+<td class="px-2 text-outline">BK-R93R-48</td>
+<td class="px-2"><span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-error"></span> Red</span></td>
+<td class="px-2 text-right text-primary font-code-sm font-semibold">$3,578.27</td>
+<td class="px-2 text-right font-code-sm text-secondary font-medium">92</td>
+<td class="px-2 text-outline text-[11px]">2024-03-01 10:14:22</td>
+</tr>
+<!-- Row 4 -->
+<tr class="h-[22px] hover:bg-surface-variant/40 cursor-pointer">
+<td class="px-2 text-center text-outline/60 bg-surface-container-high/20 select-none text-[10px]">4</td>
+<td class="px-2 text-tertiary-fixed font-code-sm">771</td>
+<td class="px-2 font-medium text-on-surface">Mountain-100 Silver, 38</td>
+<td class="px-2 text-outline">BK-M18S-38</td>
+<td class="px-2"><span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-outline"></span> Silver</span></td>
+<td class="px-2 text-right text-primary font-code-sm font-semibold">$3,399.99</td>
+<td class="px-2 text-right font-code-sm text-secondary font-medium">210</td>
+<td class="px-2 text-outline text-[11px]">2024-03-02 11:20:18</td>
+</tr>
+<!-- Row 5 -->
+<tr class="h-[22px] bg-surface-container-low/50 hover:bg-surface-variant/40 cursor-pointer">
+<td class="px-2 text-center text-outline/60 bg-surface-container-high/20 select-none text-[10px]">5</td>
+<td class="px-2 text-tertiary-fixed font-code-sm">772</td>
+<td class="px-2 font-medium text-on-surface">Mountain-100 Silver, 42</td>
+<td class="px-2 text-outline">BK-M18S-42</td>
+<td class="px-2"><span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-outline"></span> Silver</span></td>
+<td class="px-2 text-right text-primary font-code-sm font-semibold">$3,399.99</td>
+<td class="px-2 text-right font-code-sm text-secondary font-medium">174</td>
+<td class="px-2 text-outline text-[11px]">2024-03-02 11:20:18</td>
+</tr>
+<!-- Row 6 -->
+<tr class="h-[22px] hover:bg-surface-variant/40 cursor-pointer">
+<td class="px-2 text-center text-outline/60 bg-surface-container-high/20 select-none text-[10px]">6</td>
+<td class="px-2 text-tertiary-fixed font-code-sm">773</td>
+<td class="px-2 font-medium text-on-surface">Mountain-100 Silver, 44</td>
+<td class="px-2 text-outline">BK-M18S-44</td>
+<td class="px-2"><span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-outline"></span> Silver</span></td>
+<td class="px-2 text-right text-primary font-code-sm font-semibold">$3,399.99</td>
+<td class="px-2 text-right font-code-sm text-secondary font-medium">195</td>
+<td class="px-2 text-outline text-[11px]">2024-03-02 11:20:18</td>
+</tr>
+<!-- Row 7 -->
+<tr class="h-[22px] bg-surface-container-low/50 hover:bg-surface-variant/40 cursor-pointer">
+<td class="px-2 text-center text-outline/60 bg-surface-container-high/20 select-none text-[10px]">7</td>
+<td class="px-2 text-tertiary-fixed font-code-sm">774</td>
+<td class="px-2 font-medium text-on-surface">Mountain-100 Black, 38</td>
+<td class="px-2 text-outline">BK-M18B-38</td>
+<td class="px-2"><span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-surface-bright"></span> Black</span></td>
+<td class="px-2 text-right text-primary font-code-sm font-semibold">$3,375.99</td>
+<td class="px-2 text-right font-code-sm text-secondary font-medium">189</td>
+<td class="px-2 text-outline text-[11px]">2024-03-03 09:41:05</td>
+</tr>
+<!-- Row 8 (Null handling showcase) -->
+<tr class="h-[22px] hover:bg-surface-variant/40 cursor-pointer">
+<td class="px-2 text-center text-outline/60 bg-surface-container-high/20 select-none text-[10px]">8</td>
+<td class="px-2 text-tertiary-fixed font-code-sm">780</td>
+<td class="px-2 font-medium text-on-surface">Mountain-200 Silver, 46</td>
+<td class="px-2 text-outline">BK-M68S-46</td>
+<td class="px-2 text-outline italic text-[11px]">[NULL]</td>
+<td class="px-2 text-right text-primary font-code-sm font-semibold">$2,319.99</td>
+<td class="px-2 text-right font-code-sm text-secondary font-medium">54</td>
+<td class="px-2 text-outline text-[11px]">2024-03-03 14:18:30</td>
+</tr>
+<!-- Row 9 -->
+<tr class="h-[22px] bg-surface-container-low/50 hover:bg-surface-variant/40 cursor-pointer">
+<td class="px-2 text-center text-outline/60 bg-surface-container-high/20 select-none text-[10px]">9</td>
+<td class="px-2 text-tertiary-fixed font-code-sm">782</td>
+<td class="px-2 font-medium text-on-surface">Touring-1000 Blue, 50</td>
+<td class="px-2 text-outline">BK-T79U-50</td>
+<td class="px-2"><span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-primary"></span> Blue</span></td>
+<td class="px-2 text-right text-primary font-code-sm font-semibold">$2,384.07</td>
+<td class="px-2 text-right font-code-sm text-secondary font-medium">103</td>
+<td class="px-2 text-outline text-[11px]">2024-03-04 16:55:12</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+<!-- RIGHT PANE: Query Inspector / History / Snippets -->
+<aside class="w-[230px] shrink-0 bg-surface-container-low flex flex-col overflow-hidden">
+<!-- Right Pane Tabs -->
+<div class="h-[30px] bg-surface-container flex items-center px-1 shrink-0 select-none text-body-sm">
+<button class="flex-1 py-1 text-center bg-surface-container-low text-primary font-medium rounded-t">History</button>
+<button class="flex-1 py-1 text-center text-outline hover:text-on-surface">Snippets</button>
+<button class="flex-1 py-1 text-center text-outline hover:text-on-surface">Info</button>
+</div>
+<!-- Execution History List -->
+<div class="flex-1 overflow-y-auto p-2 space-y-2">
+<div class="flex items-center justify-between text-label-sm text-outline">
+<span>RECENT EXECUTIONS</span>
+<button class="hover:text-error" title="Clear log"><span class="material-symbols-outlined text-[12px]">delete</span></button>
+</div>
+<!-- History Item 1 (Current Active) -->
+<div class="p-2 rounded bg-surface-container hover:bg-surface-variant/40 cursor-pointer transition space-y-1">
+<div class="flex items-center justify-between text-label-sm">
+<span class="flex items-center gap-1 text-secondary font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+              200 OK (42ms)
+            </span>
+<span class="text-outline text-[10px]">Just now</span>
+</div>
+<div class="font-code-sm text-on-surface text-[11px] truncate">
+            SELECT p.ProductID, p.Name AS Product...
+          </div>
+<div class="flex items-center justify-between text-[10px] text-outline font-label-sm">
+<span>100 rows</span>
+<span>Production</span>
+</div>
+</div>
+<!-- History Item 2 -->
+<div class="p-2 rounded bg-surface-container-low hover:bg-surface-variant/40 cursor-pointer transition space-y-1">
+<div class="flex items-center justify-between text-label-sm">
+<span class="flex items-center gap-1 text-secondary font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+              200 OK (18ms)
+            </span>
+<span class="text-outline text-[10px]">11:21:04</span>
+</div>
+<div class="font-code-sm text-outline text-[11px] truncate">
+            SELECT * FROM Production.ProductCategory...
+          </div>
+<div class="flex items-center justify-between text-[10px] text-outline font-label-sm">
+<span>4 rows</span>
+<span>Production</span>
+</div>
+</div>
+<!-- History Item 3 (Error example) -->
+<div class="p-2 rounded bg-surface-container-low hover:bg-surface-variant/40 cursor-pointer transition space-y-1">
+<div class="flex items-center justify-between text-label-sm">
+<span class="flex items-center gap-1 text-error font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+              ERROR: 42P01
+            </span>
+<span class="text-outline text-[10px]">11:18:50</span>
+</div>
+<div class="font-code-sm text-error/80 text-[11px] truncate">
+            SELECT * FROM Production.Products_Tmp;
+          </div>
+<div class="text-[10px] text-outline font-label-sm truncate">
+            Relation does not exist
+          </div>
+</div>
+<!-- Quick Snippet Palette Area -->
+<div class="pt-2">
+<div class="text-label-sm text-outline uppercase tracking-wider mb-1">Quick SQL Snippets</div>
+<div class="space-y-1 text-body-sm">
+<div class="p-1.5 rounded bg-surface-container hover:bg-surface-variant cursor-pointer text-on-surface flex items-center justify-between">
+<span class="truncate font-medium">COUNT(*) Grouping</span>
+<span class="material-symbols-outlined text-[12px] text-outline">content_copy</span>
+</div>
+<div class="p-1.5 rounded bg-surface-container hover:bg-surface-variant cursor-pointer text-on-surface flex items-center justify-between">
+<span class="truncate font-medium">INDEX Rebuild / VACUUM</span>
+<span class="material-symbols-outlined text-[12px] text-outline">content_copy</span>
+</div>
+<div class="p-1.5 rounded bg-surface-container hover:bg-surface-variant cursor-pointer text-on-surface flex items-center justify-between">
+<span class="truncate font-medium">JSONB Column Query</span>
+<span class="material-symbols-outlined text-[12px] text-outline">content_copy</span>
+</div>
+</div>
+</div>
+<!-- Performance / Server Telemetry Gauge Mock -->
+<div class="pt-2">
+<div class="p-2 rounded bg-surface-container space-y-1.5">
+<div class="flex items-center justify-between text-label-sm">
+<span class="text-outline">DATABASE LOAD</span>
+<span class="text-secondary font-code-sm">18%</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-1.5 rounded-full overflow-hidden">
+<div class="bg-secondary h-full rounded-full" style="width: 18%"></div>
+</div>
+<div class="flex items-center justify-between text-[10px] text-outline">
+<span>Active Conns: 6</span>
+<span>Memory: 412 MB</span>
+</div>
+</div>
+</div>
+</div>
+</aside>
+</div>
+<!-- BOTTOM STATUS RAIL -->
+<div class="h-[22px] bg-surface-container-lowest px-2.5 flex items-center justify-between text-body-sm text-outline select-none shrink-0 font-body-sm">
+<div class="flex items-center gap-3">
+<span class="flex items-center gap-1.5 text-secondary">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<span class="text-on-surface font-medium">Ready</span>
+</span>
+<span>|</span>
+<span class="text-on-surface">Connection: <span class="text-primary font-medium">Adventureworks</span> (PostgreSQL 16.2)</span>
+<span>|</span>
+<span>Encoding: <span class="text-on-surface">UTF-8</span></span>
+<span>|</span>
+<span class="font-code-sm text-on-surface">Ln 10, Col 34</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="text-on-surface font-code-sm">100 rows fetched in 0.042s</span>
+<span>|</span>
+<div class="flex items-center gap-1 text-[11px]">
+<span class="material-symbols-outlined text-[13px] text-secondary">check</span>
+<span>Autocommit: ON</span>
+</div>
+<div class="flex items-center gap-1">
+<button class="hover:text-on-surface p-0.5" title="Wrap Text"><span class="material-symbols-outlined text-[12px]">wrap_text</span></button>
+<button class="hover:text-on-surface p-0.5" title="Grid View"><span class="material-symbols-outlined text-[12px]">table_rows</span></button>
+</div>
+</div>
+</div>
+</div>
+<script>
+  // Interactive micro-effects for authentic database IDE feel
+  document.getElementById('run-btn')?.addEventListener('click', function() {
+    const originalText = this.innerHTML;
+    this.innerHTML = '<span class="material-symbols-outlined text-[15px] animate-spin">refresh</span><span>Running...</span>';
+    setTimeout(() => {
+      this.innerHTML = originalText;
+    }, 450);
+  });
+
+  document.getElementById('beautify-btn')?.addEventListener('click', function() {
+    this.classList.add('bg-primary-container', 'text-on-primary-container');
+    setTimeout(() => {
+      this.classList.remove('bg-primary-container', 'text-on-primary-container');
+    }, 300);
+  });
+</script></main>
+<!-- END: MainThreeColumnLayout -->
+<!-- BEGIN: BottomStatusBar -->
+<!-- Bottom status bar with item count & view mode switchers -->
+<footer class="h-[22px] bg-[#f1f5f9] border-t border-[#cbd5e1] px-2.5 flex items-center justify-between text-[11px] text-slate-600 shrink-0 select-none" data-purpose="status-bar">
+<div>
+<span>1 item selected</span>
+</div>
+<!-- View Modes & Layout Toggle Controls -->
+<div class="flex items-center space-x-1.5 text-slate-500">
+<button class="hover:text-slate-800 p-0.5" title="Grid View"><i class="fa-solid fa-border-all text-[11px]"></i></button>
+<button class="text-sky-600 p-0.5" title="List View"><i class="fa-solid fa-list-ul text-[11px]"></i></button>
+<div class="relative inline-flex items-center">
+<button class="hover:text-slate-800 p-0.5" title="Enterprise Diagram View"><i class="fa-solid fa-diagram-project text-[11px]"></i></button>
+<span class="badge-ent -top-2.5 -right-2">Ent</span>
+</div>
+<div class="h-3 w-px bg-slate-300 mx-1"></div>
+<button class="text-sky-600 p-0.5" title="Standard View"><i class="fa-solid fa-table-columns text-[11px]"></i></button>
+<button class="hover:text-slate-800 p-0.5" title="Split View"><i class="fa-solid fa-window-restore text-[11px]"></i></button>
+</div>
+</footer>
+<!-- END: BottomStatusBar -->
+</body></html>
+
+<!-- Navicat Premium Lite - Database Manager -->
+<!DOCTYPE html>
+
+<html class="h-full select-none" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Navicat Premium Lite</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"/>
+<style data-purpose="desktop-typography">
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.35;
+      color: #1e293b;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+<style data-purpose="custom-badges">
+    .badge-ent {
+      position: absolute;
+      top: -2px;
+      right: -6px;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: white;
+      font-size: 8px;
+      font-weight: 800;
+      padding: 0.5px 3px;
+      border-radius: 3px;
+      line-height: 1;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col bg-[#eceff1] overflow-hidden text-slate-800">
+<!-- BEGIN: WindowTitleBar -->
+<!-- Top Native-like Desktop Titlebar -->
+<header class="h-[30px] bg-[#2d3748] text-slate-200 flex items-center justify-between px-2.5 text-xs select-none shrink-0" data-purpose="titlebar">
+<div class="flex items-center space-x-2">
+<!-- Navicat Icon -->
+<div class="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-[10px] text-white font-black shadow-inner">
+        N
+      </div>
+<span class="text-slate-100 font-medium tracking-wide">Navicat Premium Lite</span>
+</div>
+<!-- Window Control Buttons (Minimize, Maximize, Close) -->
+<div class="flex items-center space-x-3 text-slate-400 text-xs">
+<button class="hover:text-white hover:bg-slate-700 px-1.5 py-0.5 rounded transition" title="Minimize">
+<i class="fa-solid fa-window-minimize -translate-y-1"></i>
+</button>
+<button class="hover:text-white hover:bg-slate-700 px-1.5 py-0.5 rounded transition" title="Maximize">
+<i class="fa-regular fa-square"></i>
+</button>
+<button class="hover:text-white hover:bg-red-600 px-1.5 py-0.5 rounded transition" title="Close">
+<i class="fa-solid fa-xmark text-sm"></i>
+</button>
+</div>
+</header>
+<!-- END: WindowTitleBar -->
+<!-- BEGIN: ApplicationMenuBar -->
+<!-- Classic Desktop Dropdown Menubar -->
+<nav class="h-[22px] bg-[#f8fafc] border-b border-[#cbd5e1] flex items-center px-2 space-x-3 text-[11px] text-slate-700 shrink-0" data-purpose="menu-bar">
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">File</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">Edit</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">View</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">Favorites</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">Tools</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">Window</span>
+<span class="hover:bg-blue-100 hover:text-blue-800 px-1.5 py-0.5 rounded cursor-default">Help</span>
+</nav>
+<!-- END: ApplicationMenuBar -->
+<!-- BEGIN: PrimaryRibbonToolbar -->
+<!-- Main Navicat ribbon toolbar with large action buttons -->
+<section class="h-[64px] bg-[#f1f5f9] border-b border-[#cbd5e1] flex items-center justify-between px-3 shrink-0" data-purpose="primary-toolbar">
+<!-- Left Action Tools -->
+<div class="flex items-center space-x-1.5 overflow-x-auto">
+<!-- Connection -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[54px] text-slate-700 transition">
+<div class="relative text-[20px] text-slate-600">
+<i class="fa-solid fa-plug-circle-bolt text-slate-500"></i>
+<span class="absolute -bottom-1 -right-1 text-emerald-500 text-[10px] bg-white rounded-full"><i class="fa-solid fa-circle-plus"></i></span>
+</div>
+<span class="text-[10px] mt-1 font-medium">Connection</span>
+</button>
+<!-- New Query -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[54px] text-slate-700 transition">
+<div class="relative text-[20px] text-sky-500">
+<i class="fa-regular fa-file-code"></i>
+<span class="absolute -bottom-1 -right-1 text-emerald-500 text-[10px] bg-white rounded-full"><i class="fa-solid fa-circle-plus"></i></span>
+</div>
+<span class="text-[10px] mt-1 font-medium whitespace-nowrap">New Query</span>
+</button>
+<!-- Table (Selected State) -->
+<button class="flex flex-col items-center justify-center px-2 py-1 bg-white shadow-sm rounded border border-slate-300 min-w-[54px] text-blue-600">
+<div class="w-6 h-5 bg-sky-500 rounded flex flex-col justify-between p-0.5 shadow-sm">
+<div class="grid grid-cols-3 gap-0.5 h-full">
+<span class="bg-white/80 rounded-[1px]"></span>
+<span class="bg-white/80 rounded-[1px]"></span>
+<span class="bg-white/80 rounded-[1px]"></span>
+<span class="bg-white rounded-[1px]"></span>
+<span class="bg-white rounded-[1px]"></span>
+<span class="bg-white rounded-[1px]"></span>
+</div>
+</div>
+<span class="text-[10px] mt-1 font-semibold text-slate-800">Table</span>
+</button>
+<!-- View -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="text-[18px] text-sky-500">
+<i class="fa-solid fa-glasses"></i>
+</div>
+<span class="text-[10px] mt-1">View</span>
+</button>
+<!-- Function -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="text-[18px] text-blue-600 font-serif italic font-bold">
+          f<span class="text-[13px] font-sans tracking-tighter">(x)</span>
+</div>
+<span class="text-[10px] mt-1">Function</span>
+</button>
+<!-- User -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="flex items-center text-[18px] text-amber-500">
+<i class="fa-solid fa-user"></i>
+<i class="fa-solid fa-caret-down text-[8px] text-slate-500 ml-1"></i>
+</div>
+<span class="text-[10px] mt-1">User</span>
+</button>
+<!-- Others -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="flex items-center text-[18px] text-slate-600">
+<i class="fa-solid fa-wrench"></i>
+<i class="fa-solid fa-caret-down text-[8px] text-slate-500 ml-1"></i>
+</div>
+<span class="text-[10px] mt-1">Others</span>
+</button>
+<!-- SQL Server Backup (Ent) -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[64px] text-slate-700 transition">
+<div class="relative text-[18px] text-amber-700">
+<i class="fa-solid fa-rotate-left"></i>
+<span class="badge-ent">Ent</span>
+</div>
+<span class="text-[10px] mt-1 whitespace-nowrap text-slate-700">SQL Server...</span>
+</button>
+<!-- Query -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="text-[18px] text-orange-500">
+<i class="fa-solid fa-table-list"></i>
+</div>
+<span class="text-[10px] mt-1">Query</span>
+</button>
+<!-- Automation (Ent) -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[58px] text-slate-700 transition">
+<div class="relative text-[18px] text-cyan-600">
+<i class="fa-solid fa-robot"></i>
+<span class="badge-ent">Ent</span>
+</div>
+<span class="text-[10px] mt-1">Automation</span>
+</button>
+<!-- Model (Ent) -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="relative text-[18px] text-amber-600">
+<i class="fa-solid fa-diagram-project"></i>
+<span class="badge-ent">Ent</span>
+</div>
+<span class="text-[10px] mt-1">Model</span>
+</button>
+<!-- BI (Ent) -->
+<button class="flex flex-col items-center justify-center px-2 py-1 hover:bg-white hover:shadow-sm rounded border border-transparent hover:border-slate-300 min-w-[50px] text-slate-700 transition">
+<div class="relative text-[18px] text-purple-600">
+<i class="fa-solid fa-chart-column"></i>
+<span class="badge-ent">Ent</span>
+</div>
+<span class="text-[10px] mt-1">BI</span>
+</button>
+</div>
+<!-- Right User Status & Actions -->
+<div class="flex items-center space-x-3 shrink-0 pl-3">
+<button class="text-sky-600 hover:text-sky-700 text-lg" title="Information">
+<i class="fa-solid fa-circle-info"></i>
+</button>
+<button class="relative text-amber-500 hover:text-amber-600 text-lg flex items-center" title="Upgrade Enterprise">
+<i class="fa-solid fa-crown"></i>
+<span class="badge-ent -top-2 -right-3">Ent</span>
+</button>
+<!-- User Avatar Placeholder with generic face icon -->
+<div class="w-8 h-8 rounded-full border border-slate-300 overflow-hidden bg-slate-200 flex items-center justify-center text-slate-500">
+<i class="fa-solid fa-user-tie text-base text-slate-600"></i>
+</div>
+</div>
+</section>
+<!-- END: PrimaryRibbonToolbar -->
+<!-- BEGIN: MainThreeColumnLayout -->
+<main class="flex-1 flex overflow-hidden bg-[#e2e8f0]" data-purpose="workspace-container">
+<!-- BEGIN: LeftSidebarConnections -->
+<!-- Connection Hierarchy Sidebar -->
+<aside class="w-[245px] bg-[#f8fafc] border-r border-[#cbd5e1] flex flex-col shrink-0" data-purpose="connections-tree">
+<!-- Tree Structure List -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-1.5 space-y-0.5 text-[11px]" data-purpose="tree-nodes">
+<!-- Root: Navicat Cloud -->
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer group">
+<i class="fa-solid fa-caret-down text-slate-400 text-[10px] w-3"></i>
+<i class="fa-solid fa-cloud text-sky-400 mr-1.5 text-xs"></i>
+<span class="font-medium text-slate-800">Navicat Cloud</span>
+</div>
+<div class="pl-4 space-y-0.5">
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-cube text-blue-500 mr-1.5 text-[10px]"></i>
+<span class="text-slate-700">Office</span>
+</div>
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-cube text-blue-500 mr-1.5 text-[10px]"></i>
+<span class="text-slate-700">Project MH-0015</span>
+</div>
+</div>
+<!-- Root: Head Office 305 -->
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer mt-1">
+<i class="fa-solid fa-caret-down text-slate-400 text-[10px] w-3"></i>
+<i class="fa-solid fa-building text-slate-500 mr-1.5 text-xs"></i>
+<span class="font-medium text-slate-800">Head Office 305</span>
+</div>
+<!-- Sub-tree: ProjectDT-0052 (Expanded) -->
+<div class="pl-4 space-y-0.5">
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-caret-down text-slate-400 text-[10px] w-3"></i>
+<i class="fa-solid fa-cubes text-blue-600 mr-1.5 text-[11px]"></i>
+<span class="font-medium text-slate-800">ProjectDT-0052</span>
+<span class="text-[10px] text-slate-400 ml-1">(marybrown)</span>
+</div>
+<!-- DB Connections list inside ProjectDT-0052 -->
+<div class="pl-4 space-y-0.5">
+<!-- Amazon Aurora -->
+<div class="flex items-center justify-between py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer group">
+<div class="flex items-center">
+<i class="fa-solid fa-caret-right text-slate-400 text-[9px] w-3"></i>
+<i class="fa-brands fa-aws text-orange-500 mr-1 text-xs"></i>
+<span class="text-slate-700">Amazon Aurora</span>
+</div>
+<i class="fa-solid fa-star text-amber-400 text-[10px]"></i>
+</div>
+<!-- MySQL 8.1 -->
+<div class="flex items-center justify-between py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer group">
+<div class="flex items-center">
+<i class="fa-solid fa-caret-right text-slate-400 text-[9px] w-3"></i>
+<i class="fa-solid fa-database text-sky-600 mr-1 text-xs"></i>
+<span class="text-slate-700">MySQL 8.1</span>
+</div>
+<i class="fa-solid fa-star text-amber-400 text-[10px]"></i>
+</div>
+<!-- localhost -->
+<div class="flex items-center justify-between py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer group">
+<div class="flex items-center">
+<i class="fa-solid fa-caret-right text-slate-400 text-[9px] w-3"></i>
+<i class="fa-solid fa-server text-emerald-600 mr-1 text-xs"></i>
+<span class="text-slate-700">localhost</span>
+</div>
+<i class="fa-solid fa-star text-amber-400 text-[10px]"></i>
+</div>
+<!-- PostgreSQL -->
+<div class="flex items-center justify-between py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer group">
+<div class="flex items-center">
+<i class="fa-solid fa-caret-right text-slate-400 text-[9px] w-3"></i>
+<i class="fa-solid fa-elephant text-blue-700 mr-1 text-xs"></i>
+<span class="text-slate-700">PostgreSQL</span>
+</div>
+<i class="fa-solid fa-star text-amber-400 text-[10px]"></i>
+</div>
+<!-- Oracle 19c -->
+<div class="flex items-center justify-between py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer group">
+<div class="flex items-center">
+<i class="fa-solid fa-caret-right text-slate-400 text-[9px] w-3"></i>
+<i class="fa-solid fa-circle-dot text-red-600 mr-1 text-xs"></i>
+<span class="text-slate-700">Oracle 19c</span>
+</div>
+<i class="fa-solid fa-star text-amber-400 text-[10px]"></i>
+</div>
+<!-- Oracle Cloud -->
+<div class="flex items-center justify-between py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer group">
+<div class="flex items-center">
+<i class="fa-solid fa-caret-right text-slate-400 text-[9px] w-3"></i>
+<i class="fa-solid fa-cloud text-red-500 mr-1 text-xs"></i>
+<span class="text-slate-700">Oracle Cloud</span>
+</div>
+<i class="fa-solid fa-star text-amber-400 text-[10px]"></i>
+</div>
+<!-- SQLite 3 -->
+<div class="flex items-center justify-between py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer group">
+<div class="flex items-center">
+<i class="fa-solid fa-caret-right text-slate-400 text-[9px] w-3"></i>
+<i class="fa-solid fa-feather text-cyan-600 mr-1 text-xs"></i>
+<span class="text-slate-700">SQLite 3</span>
+</div>
+</div>
+<!-- test -->
+<div class="flex items-center justify-between py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer group">
+<div class="flex items-center">
+<i class="fa-solid fa-caret-right text-slate-400 text-[9px] w-3"></i>
+<i class="fa-solid fa-flask text-teal-600 mr-1 text-xs"></i>
+<span class="text-slate-700">test</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Production Server Hierarchy (Selected/Active Path) -->
+<div class="pl-2 space-y-0.5 pt-1">
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-caret-down text-slate-400 text-[10px] w-3"></i>
+<i class="fa-solid fa-shield-halved text-amber-500 mr-1 text-xs"></i>
+<span class="font-medium text-slate-800">Production Server</span>
+</div>
+<div class="pl-4 space-y-0.5">
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-caret-down text-slate-400 text-[10px] w-3"></i>
+<i class="fa-solid fa-box-archive text-emerald-600 mr-1 text-xs"></i>
+<span class="font-medium text-slate-800">Adventureworks</span>
+</div>
+<div class="pl-4 space-y-0.5">
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-caret-down text-slate-400 text-[10px] w-3"></i>
+<i class="fa-solid fa-sitemap text-teal-600 mr-1 text-xs"></i>
+<span class="font-medium text-slate-800">Production</span>
+</div>
+<!-- Production sub-nodes -->
+<div class="pl-4 space-y-0.5">
+<div class="flex items-center py-0.5 px-1 bg-blue-100/70 rounded cursor-pointer text-blue-900 font-medium">
+<i class="fa-solid fa-table-cells text-sky-500 mr-1.5 text-[11px]"></i>
+<span>Tables</span>
+</div>
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-glasses text-sky-500 mr-1.5 text-[11px]"></i>
+<span class="text-slate-700">Views</span>
+</div>
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-subscript text-blue-600 mr-1.5 text-[11px]"></i>
+<span class="text-slate-700">Functions</span>
+</div>
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-regular fa-file-lines text-amber-600 mr-1.5 text-[11px]"></i>
+<span class="text-slate-700">Queries</span>
+</div>
+</div>
+</div>
+</div>
+<!-- SNOWFLAKE -->
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-caret-right text-slate-400 text-[10px] w-3"></i>
+<i class="fa-solid fa-snowflake text-sky-400 mr-1 text-xs"></i>
+<span class="text-slate-700">SNOWFLAKE</span>
+</div>
+</div>
+<!-- Root: My Connections -->
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer mt-2">
+<i class="fa-solid fa-caret-down text-slate-400 text-[10px] w-3"></i>
+<i class="fa-solid fa-folder-tree text-slate-500 mr-1.5 text-xs"></i>
+<span class="font-medium text-slate-800">My Connections</span>
+</div>
+<div class="pl-4 space-y-0.5">
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-caret-right text-slate-400 text-[9px] w-3"></i>
+<i class="fa-solid fa-database text-emerald-600 mr-1 text-xs"></i>
+<span class="text-slate-700">MySQL</span>
+</div>
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-caret-right text-slate-400 text-[9px] w-3"></i>
+<i class="fa-solid fa-layer-group text-red-500 mr-1 text-xs"></i>
+<span class="text-slate-700">Redis 8.0</span>
+</div>
+<div class="flex items-center py-0.5 px-1 hover:bg-slate-200 rounded cursor-pointer">
+<i class="fa-solid fa-caret-right text-slate-400 text-[9px] w-3"></i>
+<i class="fa-solid fa-user-shield text-slate-600 mr-1 text-xs"></i>
+<span class="text-slate-700">USERADMIN</span>
+</div>
+</div>
+</div>
+<!-- Bottom Tree Filter Bar -->
+<div class="h-[28px] border-t border-[#cbd5e1] bg-[#f1f5f9] px-2 flex items-center justify-between gap-1 text-slate-500 shrink-0" data-purpose="tree-filter">
+<div class="flex-1 flex items-center bg-white border border-slate-300 rounded px-1.5 py-0.5 shadow-inner">
+<input class="w-full bg-transparent border-0 p-0 text-[11px] focus:ring-0 text-slate-700 placeholder-slate-400" placeholder="Search" type="text"/>
+</div>
+<button class="hover:text-slate-800 p-1" title="Filter"><i class="fa-solid fa-bars-staggered text-[10px]"></i></button>
+<button class="hover:text-slate-800 p-1" title="Favorites"><i class="fa-regular fa-star text-[10px]"></i></button>
+<button class="hover:text-slate-800 p-1" title="Connections"><i class="fa-solid fa-code-fork text-[10px]"></i></button>
+<button class="hover:text-slate-800 p-1" title="More"><i class="fa-solid fa-caret-down text-[8px]"></i></button>
+</div>
+</aside>
+<!-- END: LeftSidebarConnections -->
+<!-- BEGIN: MiddleMainWorkspace -->
+<!-- Center Grid Workspace for Objects & Tables -->
+<section class="flex-1 bg-white flex flex-col min-w-0" data-purpose="main-content-panel">
+<!-- Workspace Tabs Bar -->
+<div class="h-[28px] bg-[#e2e8f0] border-b border-[#cbd5e1] flex items-end px-2 space-x-1 shrink-0 overflow-x-auto text-[11px]" data-purpose="document-tabs">
+<!-- Tab: Objects (Active) -->
+<div class="bg-white border-t-2 border-t-transparent border-x border-[#cbd5e1] rounded-t px-3 py-1 flex items-center space-x-1.5 shadow-[0_-1px_2px_rgba(0,0,0,0.03)] cursor-default">
+<span class="font-medium text-slate-800">Objects</span>
+</div>
+<!-- Tab: ProductCategory -->
+<div class="bg-[#e9edf2] hover:bg-[#f1f5f9] border border-transparent border-b-0 rounded-t px-2.5 py-1 flex items-center space-x-1.5 text-slate-600 cursor-pointer">
+<i class="fa-solid fa-table-cells text-sky-500 text-[10px]"></i>
+<span class="truncate max-w-[130px]">ProductCategory @Adve...</span>
+<button class="hover:bg-slate-300 rounded p-0.5 text-[9px] text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+</div>
+<!-- Tab: Untitled Query -->
+<div class="bg-[#e9edf2] hover:bg-[#f1f5f9] border border-transparent border-b-0 rounded-t px-2.5 py-1 flex items-center space-x-1.5 text-slate-600 cursor-pointer">
+<i class="fa-regular fa-file-code text-orange-500 text-[10px]"></i>
+<span class="truncate max-w-[120px]">* Untitled - Query</span>
+<button class="hover:bg-slate-300 rounded p-0.5 text-[9px] text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+</div>
+</div>
+<!-- Action Commands Bar (Table Operations) -->
+<div class="h-[30px] bg-[#f8fafc] border-b border-[#cbd5e1] px-2 flex items-center justify-between shrink-0" data-purpose="action-buttons-bar">
+<div class="flex items-center space-x-2 text-[11px] text-slate-700">
+<button class="flex items-center space-x-1 px-1.5 py-0.5 hover:bg-slate-200 rounded">
+<i class="fa-regular fa-folder-open text-sky-600 text-xs"></i>
+<span>Open Table</span>
+</button>
+<button class="flex items-center space-x-1 px-1.5 py-0.5 hover:bg-slate-200 rounded">
+<i class="fa-solid fa-pencil text-sky-600 text-xs"></i>
+<span>Design Table</span>
+</button>
+<button class="flex items-center space-x-1 px-1.5 py-0.5 hover:bg-slate-200 rounded">
+<i class="fa-regular fa-circle-plus text-emerald-600 text-xs"></i>
+<span>New Table</span>
+</button>
+<button class="flex items-center space-x-1 px-1.5 py-0.5 hover:bg-slate-200 rounded">
+<i class="fa-regular fa-circle-minus text-rose-600 text-xs"></i>
+<span>Delete Table</span>
+</button>
+<div class="h-3.5 w-px bg-slate-300 mx-1"></div>
+<button class="flex items-center space-x-1 px-1.5 py-0.5 hover:bg-slate-200 rounded">
+<i class="fa-solid fa-arrow-right-to-bracket text-emerald-600 text-xs"></i>
+<span>Import</span>
+</button>
+<button class="flex items-center space-x-1 px-1.5 py-0.5 hover:bg-slate-200 rounded">
+<i class="fa-solid fa-arrow-up-from-bracket text-amber-600 text-xs"></i>
+<span>Export</span>
+</button>
+</div>
+<div class="flex items-center text-slate-400">
+<button class="hover:text-slate-600 p-1" title="Search objects">
+<i class="fa-solid fa-magnifying-glass text-xs"></i>
+</button>
+</div>
+</div>
+<!-- Object Data Grid Table -->
+<div class="flex-1 overflow-auto custom-scrollbar relative" data-purpose="objects-table-wrapper">
+<table class="w-full text-left border-collapse text-[11px]" data-purpose="objects-data-table">
+<thead class="sticky top-0 bg-[#f1f5f9] border-b border-[#cbd5e1] text-slate-700 shadow-sm z-10">
+<tr>
+<th class="py-1 px-3 font-medium border-r border-[#cbd5e1] w-[260px] cursor-pointer hover:bg-slate-200">
+<div class="flex items-center justify-between">
+<span>Name</span>
+<i class="fa-solid fa-caret-down text-[9px] text-slate-500"></i>
+</div>
+</th>
+<th class="py-1 px-3 font-medium border-r border-[#cbd5e1] w-[90px] text-right">Rows</th>
+<th class="py-1 px-3 font-medium border-r border-[#cbd5e1] w-[170px]">Modified Date</th>
+<th class="py-1 px-3 font-medium">Comment</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 font-normal">
+<!-- Row: BillOfMaterials -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">BillOfMaterials</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">2,679</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-01 11:21:41</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Items required to make bicycles</td>
+</tr>
+<!-- Row: Culture -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">Culture</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">8</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-02 12:21:42</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Lookup table containing the languages</td>
+</tr>
+<!-- Row: Document -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">Document</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">9</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-02 13:21:44</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Product maintenance documents</td>
+</tr>
+<!-- Row: illustration -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">illustration</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">5</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-02 14:21:47</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Bicycle assembly diagrams.</td>
+</tr>
+<!-- Row: Location -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">Location</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">14</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-03 15:21:44</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Product inventory and manufacturing locations.</td>
+</tr>
+<!-- Row: Product (SELECTED ROW) -->
+<tr class="bg-[#3b82f6] text-white hover:bg-[#2563eb] cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-white text-xs"></i>
+<span class="font-medium text-white">Product</span>
+</td>
+<td class="py-1 px-3 text-right text-white tabular-nums">504</td>
+<td class="py-1 px-3 text-white font-mono text-[10.5px]">2024-03-03 10:55:28</td>
+<td class="py-1 px-3 text-white truncate max-w-[280px]">Products sold or used in the manufacturing of sold products.</td>
+</tr>
+<!-- Row: Product - Profile 1 -->
+<tr class="hover:bg-blue-50/70 cursor-pointer text-slate-500">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-regular fa-file text-slate-400 text-xs"></i>
+<span class="text-slate-600 italic">Product - Profile 1</span>
+</td>
+<td class="py-1 px-3 text-right tabular-nums"></td>
+<td class="py-1 px-3 font-mono text-[10.5px]"></td>
+<td class="py-1 px-3"></td>
+</tr>
+<!-- Row: ProductCategory -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">ProductCategory</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">4</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-04 12:22:44</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">High-level product categories</td>
+</tr>
+<!-- Row: ProductCostHistory -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">ProductCostHistory</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">395</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-05 12:21:43</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Changes in the cost of a product</td>
+</tr>
+<!-- Row: ProductDescription -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">ProductDescription</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">762</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-05 12:21:43</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Product descriptions in several languages</td>
+</tr>
+<!-- Row: ProductDocument -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">ProductDocument</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">32</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-05 12:21:41</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Cross-reference table mapping products...</td>
+</tr>
+<!-- Row: ProductInventory -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">ProductInventory</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">1,069</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-06 12:21:43</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Product inventory information</td>
+</tr>
+<!-- Row: ProductListPriceHistory -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">ProductListPriceHistory</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">395</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-06 12:21:42</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Changes in the list price of a product</td>
+</tr>
+<!-- Row: ProductModel -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">ProductModel</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">128</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-08 10:21:41</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Product model classification.</td>
+</tr>
+<!-- Row: ProductModelIllustration -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">ProductModelIllustration</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">7</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-08 11:21:46</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Cross-reference table mapping...</td>
+</tr>
+<!-- Row: ProductPhoto -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">ProductPhoto</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">101</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-08 14:21:49</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Product images.</td>
+</tr>
+<!-- Row: ProductProductPhoto -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">ProductProductPhoto</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">504</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-08 15:21:50</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Cross-reference table mapping...</td>
+</tr>
+<!-- Row: ProductReview -->
+<tr class="hover:bg-blue-50/70 cursor-pointer">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-solid fa-table-cells text-sky-500 text-xs"></i>
+<span class="text-slate-800">ProductReview</span>
+</td>
+<td class="py-1 px-3 text-right text-slate-700 tabular-nums">4</td>
+<td class="py-1 px-3 text-slate-600 font-mono text-[10.5px]">2024-03-08 18:11:09</td>
+<td class="py-1 px-3 text-slate-600 truncate max-w-[280px]">Customer reviews of products</td>
+</tr>
+<!-- Row: ProductReview - Profile 2 -->
+<tr class="hover:bg-blue-50/70 cursor-pointer text-slate-500">
+<td class="py-1 px-3 flex items-center space-x-2">
+<i class="fa-regular fa-file text-slate-400 text-xs"></i>
+<span class="text-slate-600 italic">ProductReview - Profile 2</span>
+</td>
+<td class="py-1 px-3 text-right tabular-nums"></td>
+<td class="py-1 px-3 font-mono text-[10.5px]"></td>
+<td class="py-1 px-3"></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- END: MiddleMainWorkspace -->
+<!-- BEGIN: RightInspectorPanel -->
+<!-- Details & Metadata Properties Sidebar -->
+<aside class="w-[260px] bg-[#f8fafc] border-l border-[#cbd5e1] flex flex-col shrink-0" data-purpose="object-inspector">
+<!-- Top Inspector Toolbar Icons -->
+<div class="h-[28px] border-b border-[#cbd5e1] flex items-center justify-between px-2 text-slate-500 shrink-0" data-purpose="inspector-tools">
+<div class="flex items-center space-x-2.5">
+<button class="text-sky-600 hover:text-sky-700" title="Information"><i class="fa-solid fa-circle-info text-xs"></i></button>
+<button class="hover:text-slate-700" title="DDL"><span class="text-[9.5px] font-bold border border-current px-0.5 rounded leading-none">DDL</span></button>
+<button class="hover:text-slate-700" title="ER Diagram"><i class="fa-solid fa-network-wired text-xs"></i></button>
+<button class="hover:text-slate-700" title="Relations"><i class="fa-solid fa-sliders text-xs"></i></button>
+<button class="hover:text-slate-700" title="Settings"><i class="fa-solid fa-gear text-xs"></i></button>
+</div>
+<button class="hover:text-slate-700" title="Expand / Popout"><i class="fa-regular fa-clone text-xs"></i></button>
+</div>
+<!-- Inspector Body Content -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-3.5 space-y-4 text-[11px]" data-purpose="inspector-body">
+<!-- Object Title & Big Icon -->
+<div class="flex items-start space-x-3">
+<!-- Big Blue Table Grid Icon -->
+<div class="w-11 h-11 bg-sky-500 rounded-lg p-1.5 shadow-sm flex flex-col justify-between shrink-0">
+<div class="grid grid-cols-2 gap-1 h-full">
+<span class="bg-white/80 rounded-sm"></span>
+<span class="bg-white/80 rounded-sm"></span>
+<span class="bg-white rounded-sm"></span>
+<span class="bg-white rounded-sm"></span>
+</div>
+</div>
+<div>
+<h2 class="text-sm font-bold text-slate-800 leading-tight">Product</h2>
+<div class="text-[11px] text-slate-400">Table</div>
+<a class="inline-flex items-center space-x-1 text-sky-600 hover:underline mt-0.5 text-[11px]" href="#">
+<i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+<span>Share</span>
+</a>
+</div>
+</div>
+<!-- Connection / Path Hierarchy Breakdown -->
+<div class="space-y-1.5 pt-1 text-slate-600 border-t border-slate-200">
+<div class="flex items-center space-x-2">
+<i class="fa-solid fa-building text-slate-400 w-3 text-center"></i>
+<span class="truncate">Head Office 305</span>
+</div>
+<div class="flex items-center space-x-2">
+<i class="fa-solid fa-cubes text-blue-500 w-3 text-center"></i>
+<span class="truncate">ProjectDT-0052</span>
+</div>
+<div class="flex items-center space-x-2">
+<i class="fa-solid fa-shield-halved text-amber-500 w-3 text-center"></i>
+<span class="truncate">Production Server</span>
+</div>
+<div class="flex items-center space-x-2">
+<i class="fa-solid fa-database text-emerald-600 w-3 text-center"></i>
+<span class="truncate">Adventureworks</span>
+</div>
+<div class="flex items-center space-x-2">
+<i class="fa-solid fa-sitemap text-teal-600 w-3 text-center"></i>
+<span class="truncate">Production</span>
+</div>
+</div>
+<!-- Field Attributes (OID, Rows, Dates, Comments) -->
+<div class="space-y-3 pt-2 border-t border-slate-200">
+<div>
+<div class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">OID</div>
+<div class="text-slate-800 font-mono mt-0.5">1429580131</div>
+</div>
+<div>
+<div class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Rows</div>
+<div class="text-slate-800 font-mono mt-0.5">504</div>
+</div>
+<div>
+<div class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Created Date</div>
+<div class="text-slate-800 font-mono mt-0.5">2010-06-11 12:21:17</div>
+</div>
+<div>
+<div class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Modified Date</div>
+<div class="text-slate-800 font-mono mt-0.5">2024-03-03 10:55:28</div>
+</div>
+<div>
+<div class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Comment</div>
+<div class="text-slate-700 leading-relaxed mt-0.5">
+              Products sold or used in the manfacturing of sold products.
+            </div>
+</div>
+</div>
+<!-- Reset Limit Link -->
+<div class="pt-2">
+<a class="text-sky-600 hover:text-sky-800 hover:underline text-[11px]" href="#">
+            Reset Limit Record Setting
+          </a>
+</div>
+</div>
+</aside>
+<!-- END: RightInspectorPanel -->
+</main>
+<!-- END: MainThreeColumnLayout -->
+<!-- BEGIN: BottomStatusBar -->
+<!-- Bottom status bar with item count & view mode switchers -->
+<footer class="h-[22px] bg-[#f1f5f9] border-t border-[#cbd5e1] px-2.5 flex items-center justify-between text-[11px] text-slate-600 shrink-0 select-none" data-purpose="status-bar">
+<div>
+<span>1 item selected</span>
+</div>
+<!-- View Modes & Layout Toggle Controls -->
+<div class="flex items-center space-x-1.5 text-slate-500">
+<button class="hover:text-slate-800 p-0.5" title="Grid View"><i class="fa-solid fa-border-all text-[11px]"></i></button>
+<button class="text-sky-600 p-0.5" title="List View"><i class="fa-solid fa-list-ul text-[11px]"></i></button>
+<div class="relative inline-flex items-center">
+<button class="hover:text-slate-800 p-0.5" title="Enterprise Diagram View"><i class="fa-solid fa-diagram-project text-[11px]"></i></button>
+<span class="badge-ent -top-2.5 -right-2">Ent</span>
+</div>
+<div class="h-3 w-px bg-slate-300 mx-1"></div>
+<button class="text-sky-600 p-0.5" title="Standard View"><i class="fa-solid fa-table-columns text-[11px]"></i></button>
+<button class="hover:text-slate-800 p-0.5" title="Split View"><i class="fa-solid fa-window-restore text-[11px]"></i></button>
+</div>
+</footer>
+<!-- END: BottomStatusBar -->
+</body></html>

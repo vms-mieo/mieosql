@@ -1,0 +1,19 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Node / FE (coming later)
+node_modules/
+dist/
+.vite/
+
+# Tauri
+apps/mieosql-desktop/gen/
+
+# Local app data
+*.mieosql
+.mieosql/
+
+# OS
+.DS_Store
+Thumbs.db

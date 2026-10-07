@@ -1,0 +1,24 @@
+[package]
+name = "mieosql-desktop"
+description = "MieoSQL desktop shell (Tauri 2) — Rust backend + frontend wired via IPC"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+mieosql-core = { workspace = true }
+mieosql-engine = { workspace = true }
+mieosql-api = { workspace = true }
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+
+[features]
+# Default Tauri feature set; kept explicit for future tuning.
+default = []

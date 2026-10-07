@@ -1,0 +1,34 @@
+// Convenience re-exports of the generated bindings (single import point).
+
+export type { ApiError } from "@bindings/ApiError";
+export type { Capabilities } from "@bindings/Capabilities";
+export type { ColumnDef } from "@bindings/ColumnDef";
+export type { ColumnMeta } from "@bindings/ColumnMeta";
+export type { ConnectionProfile } from "@bindings/ConnectionProfile";
+export type { DatabaseRef } from "@bindings/DatabaseRef";
+export type { DataTypeKind } from "@bindings/DataTypeKind";
+export type { Engine } from "@bindings/Engine";
+export type { ErrorCode } from "@bindings/ErrorCode";
+export type { ErrorInfo } from "@bindings/ErrorInfo";
+export type { ExportFormat } from "@bindings/ExportFormat";
+export type { ExportStats } from "@bindings/ExportStats";
+export type { ForeignKeyDef } from "@bindings/ForeignKeyDef";
+export type { HistoryEntry } from "@bindings/HistoryEntry";
+export type { HistoryStatus } from "@bindings/HistoryStatus";
+export type { IndexDef } from "@bindings/IndexDef";
+export type { ObjectKind } from "@bindings/ObjectKind";
+export type { ObjectRef } from "@bindings/ObjectRef";
+export type { PreviewStart } from "@bindings/PreviewStart";
+export type { ProfileId } from "@bindings/ProfileId";
+export type { ProfileInput } from "@bindings/ProfileInput";
+export type { QueryEvent } from "@bindings/QueryEvent";
+export type { QueryMode } from "@bindings/QueryMode";
+export type { QueryOptions } from "@bindings/QueryOptions";
+export type { QueryStats } from "@bindings/QueryStats";
+export type { SchemaRef } from "@bindings/SchemaRef";
+export type { Scope } from "@bindings/Scope";
+export type { ServerInfo } from "@bindings/ServerInfo";
+export type { SessionInfo } from "@bindings/SessionInfo";
+export type { SshSpec } from "@bindings/SshSpec";
+export type { SslMode } from "@bindings/SslMode";
+export type { Value } from "@bindings/Value";

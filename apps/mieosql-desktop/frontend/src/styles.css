@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+:root {
+  --row-h: 22px;
+  --font-code: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #1e293b;
+  overscroll-behavior: none;
+}
+
+.font-code {
+  font-family: var(--font-code);
+}
+
+/* ---- scrollbars (desktop-app look) ---- */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 5px;
+  border: 2px solid #f1f5f9;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: #f1f5f9;
+}
+
+/* ---- CodeMirror refinement (light theme, 12px, code font) ---- */
+.cm-editor {
+  height: 100%;
+  font-size: 12px;
+  background: #ffffff;
+}
+.cm-editor .cm-scroller {
+  font-family: var(--font-code);
+  line-height: 18px;
+}
+.cm-editor.cm-focused {
+  outline: none;
+}
+.cm-gutters {
+  background: #fbfdff !important;
+  border-right: 1px solid #e2e8f0 !important;
+  color: #94a3b8 !important;
+}
+.cm-activeLineGutter {
+  background: #eef6ff !important;
+  color: #0369a1 !important;
+}
+.cm-activeLine {
+  background: #f0f7ff !important;
+}
+.cm-selectionBackground,
+.cm-content ::selection {
+  background: #dbeafe !important;
+}
+
+/* ---- Excel-like data grid ---- */
+.grid-row {
+  height: var(--row-h);
+}
+.grid-row:nth-child(even) {
+  background: #f8fafc;
+}
+.grid-row:hover {
+  background: #eff6ff !important;
+}
+.grid-row.selected {
+  background: #dbeafe !important;
+}
+.grid-cell {
+  height: var(--row-h);
+  line-height: var(--row-h);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 8px;
+  border-right: 1px solid #eef2f7;
+  border-bottom: 1px solid #eef2f7;
+}
+.grid-cell.focused {
+  outline: 1.5px solid #0ea5e9;
+  outline-offset: -1.5px;
+  background: #f0f9ff;
+}

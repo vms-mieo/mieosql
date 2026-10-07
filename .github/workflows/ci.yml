@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  backend:
+    name: backend (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # rust-toolchain.toml pins the toolchain; rustup installs it on demand.
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check backend crates
+        run: cargo check -p mieosql-core -p mieosql-drivers -p mieosql-engine -p mieosql-api -p mieosql-cli
+
+      - name: Integration tests (SQLite — no server needed)
+        run: cargo test -p mieosql-api
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mieosql-desktop/frontend/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        working-directory: apps/mieosql-desktop/frontend
+        run: npm ci
+
+      - name: Typecheck + build
+        working-directory: apps/mieosql-desktop/frontend
+        run: npm run build
+
+      - name: Regenerate TypeScript bindings
+        run: cargo run -p mieosql-api --bin export-ts -- apps/mieosql-desktop/frontend/src/bindings-check
+
+      - name: Bindings are up to date
+        run: |
+          if ! diff -r apps/mieosql-desktop/frontend/src/bindings apps/mieosql-desktop/frontend/src/bindings-check >/dev/null; then
+            echo "::warning::generated bindings are out of date — run: cargo run -p mieosql-api --bin export-ts -- apps/mieosql-desktop/frontend/src/bindings"
+            diff -r apps/mieosql-desktop/frontend/src/bindings apps/mieosql-desktop/frontend/src/bindings-check || true
+          fi
+
+  desktop:
+    name: desktop build (${{ matrix.os }})
+    needs: [backend, frontend]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Tauri (Linux) system dependencies.
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            patchelf libgtk-3-dev libsoup-3.0-dev javascriptcoregtk-4.1-dev
+
+      - name: Install tauri-cli
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build single executable
+        run: cargo tauri build --no-bundle
+        working-directory: apps/mieosql-desktop
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mieosql-${{ matrix.os }}
+          path: |
+            target/release/mieosql-desktop*
+            apps/mieosql-desktop/target/release/mieosql-desktop*

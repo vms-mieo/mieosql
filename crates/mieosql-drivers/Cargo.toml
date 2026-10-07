@@ -1,0 +1,20 @@
+[package]
+name = "mieosql-drivers"
+description = "MieoSQL database drivers (sqlx: MySQL/MariaDB, PostgreSQL, SQLite)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+mieosql-core = { workspace = true }
+sqlx = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+base64 = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+dirs = { workspace = true }

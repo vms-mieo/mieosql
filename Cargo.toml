@@ -1,0 +1,81 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/mieosql-core",
+    "crates/mieosql-drivers",
+    "crates/mieosql-engine",
+    "crates/mieosql-api",
+    "apps/mieosql-cli",
+    "apps/mieosql-desktop",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT OR Apache-2.0"
+authors = ["MieoSQL"]
+
+[workspace.dependencies]
+# Internal crates
+mieosql-core = { path = "crates/mieosql-core" }
+mieosql-drivers = { path = "crates/mieosql-drivers" }
+mieosql-engine = { path = "crates/mieosql-engine" }
+mieosql-api = { path = "crates/mieosql-api" }
+
+# Async runtime
+tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util", "net"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Errors / logging
+thiserror = "2.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Domain helpers
+uuid = { version = "1.27", features = ["v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+base64 = "0.23"
+rand = "0.9"
+dirs = "7.0"
+
+# Database drivers (pure Rust; rustls avoids OpenSSL system dependency)
+sqlx = { version = "0.9", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls-ring",
+    "mysql",
+    "mysql-rsa",
+    "postgres",
+    "sqlite",
+    "chrono",
+    "uuid",
+    "json",
+    "bigdecimal",
+] }
+
+# TypeScript bindings
+ts-rs = { version = "12", features = [
+    "serde-compat",
+    "no-serde-warnings",
+    "chrono-impl",
+    "serde-json-impl",
+    "uuid-impl",
+] }
+
+# Security (credential vault)
+chacha20poly1305 = "0.11"
+
+# CLI
+clap = { version = "4.6", features = ["derive"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

@@ -1,0 +1,19 @@
+[package]
+name = "mieosql-cli"
+description = "MieoSQL headless CLI (backend smoke-testing, scripts, CI)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+mieosql-core = { workspace = true }
+mieosql-engine = { workspace = true }
+mieosql-api = { workspace = true }
+tokio = { workspace = true }
+clap = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
