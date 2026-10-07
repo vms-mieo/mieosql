@@ -27,7 +27,7 @@ Nguyên tắc: mỗi phase là một cột mốc **dùng được**, ưu tiên c
 
 - [ ] **SSH tunnel** (password / key / agent, `russh`) + jump host + UI fields
 - [ ] SSL nâng cao: CA file, client cert, skip-verify có cảnh báo
-- [ ] **SQL Server** (tiberius) — engine thứ 5
+- [x] **SQL Server** ✅ v0.5 (tiberius thuần Rust — Connector Pack v2)
 - [ ] Multi-statement script: SQL splitter an toàn (quote/comment/$do$) + chạy tuần tự, dừng khi lỗi
 - [ ] Hard-cancel: `KILL QUERY` (MySQL), `pg_cancel_backend` (Postgres)
 - [ ] Data grid editing: diff-based UPDATE/DELETE theo PK + preview SQL (FE + BE)
@@ -56,9 +56,20 @@ Nguyên tắc: mỗi phase là một cột mốc **dùng được**, ưu tiên c
 - [x] **BI Dashboard (v1)**: tile chart bar/line/pie/table (SVG thuần), `{{param}}`, auto-refresh, lưu localStorage
 - [x] **Collaboration v1**: workspace bundle export/import connection metadata (không chứa mật khẩu)
 
+## Connector Pack v2 — SQL Server · MongoDB/DocumentDB · Redis · Kafka ✅ (v0.5)
+
+> Chi tiết hợp đồng: [CONNECTOR_PACK_V2.md](CONNECTOR_PACK_V2.md)
+
+- [x] **SQL Server / Azure SQL** — tiberius (thuần Rust TDS): query streaming + prepared (`?`→`@P1`), introspection (sys/INFORMATION_SCHEMA), transactions, type mapping 2 chiều; TLS rustls
+- [x] **MongoDB / AWS DocumentDB** — mongodb 3.9: `db.coll.find/aggregate/countDocuments`, field inference từ sample docs, BSON→Value lossless, indexes; TLS + `auth_source`/`replica_set`
+- [x] **Redis / ElastiCache / Memorystore** — redis 1.7: command console (tokenizer đầy đủ), `PREVIEW <key>` (string/hash/list/set/zset/stream), SCAN key browser, MULTI/EXEC/DISCARD
+- [x] **Apache Kafka / Confluent / Aiven** — rskafka: topic browser, consume JSON (`from: earliest/latest/offset`), produce (murmur2 partitioner), SASL PLAIN/SCRAM-SHA-256/512, TLS
+- [x] **Cloud presets** — `variant` trên profile: aurora (MySQL/PG), redshift, azure, documentdb, elasticache, memorystore, confluent, aiven
+- [x] **EngineKind** (sql/document/key_value/message_broker) + `preview_statement` cho NoSQL; `select_limited` engine-aware (TOP cho SQL Server)
+
 ## P2 — Ngang tầm công cụ chuyên nghiệp
 
-- [ ] MongoDB + Redis driver (NoSQL: document tree, key browser, command console)
+- [x] **MongoDB + Redis driver ✅ v0.5** (Connector Pack v2: collection/key browser + command console); document tree nâng cao (edit document, aggregation builder) — P3
 - [ ] Import/Export Excel/XML/Markdown/HTML
 - [ ] Backup/Restore (dump SQL + restore có progress)
 - [ ] Snippets/saved queries tự lưu, session restore sau khi tắt app

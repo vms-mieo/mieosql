@@ -11,12 +11,13 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 | MySQL / MariaDB | ✅ | ✅ v0.1 (sqlx, `mysql-rsa` auth, rustls TLS) |
 | PostgreSQL | ✅ | ✅ v0.1 (sqlx) |
 | SQLite | ✅ | ✅ v0.1 (sqlx, bundled — không cần cài thêm) |
-| SQL Server / Azure SQL | ✅ | P1 (tiberius, thuần Rust) |
-| MongoDB (+ Atlas) | ✅ | P2 |
-| Redis / ElastiCache / Memorystore | ✅ | P2 |
+| SQL Server / Azure SQL | ✅ | ✅ v0.5 (tiberius thuần Rust, TDS; TLS rustls; Azure SQL = preset `azure`) |
+| MongoDB (+ Atlas) | ✅ | ✅ v0.5 (mongodb 3.9; AWS DocumentDB = preset `documentdb` + TLS) |
+| Redis / ElastiCache / Memorystore | ✅ | ✅ v0.5 (redis 1.7; presets `elasticache`/`memorystore`, TLS `rediss://`) |
+| Apache Kafka (+ Confluent / Aiven) | ✅ | ✅ v0.5 (rskafka thuần Rust; SASL PLAIN/SCRAM, TLS; topic browser + consume/produce JSON) |
 | Oracle | ✅ | P3 (`oracledb`/OCI — cần client lib, đóng gói phức tạp hơn) |
 | Snowflake | ✅ | P4 (REST API) |
-| Cloud: RDS/Aurora/Azure DB/GCP SQL/Redshift/… | ✅ | kế thừa từ engine gốc (chỉ là biến thể connection) |
+| Cloud: RDS/Aurora/Azure DB/GCP SQL/Redshift/… | ✅ | ✅ v0.5 — presets `aurora` (MySQL/PG), `redshift` (PG, port 5439), `azure` (SQL Server), `documentdb`, `elasticache`, `memorystore`; kế thừa driver gốc |
 
 ## 1. Connections & Security
 

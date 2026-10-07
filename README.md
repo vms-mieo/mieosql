@@ -2,12 +2,13 @@
 
 A Navicat-class, multi-engine database client. **Rust core + TypeScript UI, one single executable per OS** (macOS / Linux / Windows).
 
-> **Trạng thái: v0.4 — Backend v0.1 + Frontend theo design + Feature Pack v1 (Code Insight, DB-wide Search, Visual Explain, Data Tools, Sync, Transfer, ERD, BI).** UI 3 cột theo mockup Navicat Premium Lite: cây connection → editor SQL → **grid kết quả kiểu Excel** (header cột + type badge, sort, resize, filter, virtualized, copy/export), inspector object, history, snippets, transactions, status bar. Tauri 2 IPC + TS bindings tự sinh.
+> **Trạng thái: v0.5 — Backend v0.1 + Frontend theo design + Feature Pack v1 (Code Insight, Search, Explain, Data Tools, Sync, Transfer, ERD, BI) + Connector Pack v2 (SQL Server, MongoDB/DocumentDB, Redis, Kafka).** UI 3 cột theo mockup Navicat Premium Lite: cây connection → editor SQL → **grid kết quả kiểu Excel** (header cột + type badge, sort, resize, filter, virtualized, copy/export), inspector object, history, snippets, transactions, status bar. Tauri 2 IPC + TS bindings tự sinh.
 
 ## Tính năng
 
 **Backend (Rust)**
 - **Engines**: SQLite (bundled), MySQL, MariaDB, PostgreSQL — thuần Rust (sqlx 0.9 + rustls), không phụ thuộc OpenSSL/client library.
+- **Connector Pack v2 (v0.5)**: **SQL Server / Azure SQL** (tiberius TDS), **MongoDB / AWS DocumentDB** (mongodb 3.9), **Redis / ElastiCache / Memorystore** (redis 1.7), **Apache Kafka** (rskafka; SASL PLAIN/SCRAM + TLS) — tất cả thuần Rust, kèm **cloud presets** (aurora/redshift/azure/documentdb/elasticache/memorystore/confluent/aiven qua `variant`).
 - **Connections**: profile store tách secrets; vault XChaCha20-Poly1305; test connection; SSL modes.
 - **Query**: prepared + simple mode, parameter binding, **streaming theo batch**, `max_rows` (Limit), timeout, **cancellation**, transaction begin/commit/rollback theo session.
 - **Introspection**: databases, schemas (PG), tables/views/matviews/sequences, columns, indexes, FK, DDL.
@@ -36,13 +37,13 @@ A Navicat-class, multi-engine database client. **Rust core + TypeScript UI, one 
 ├──────────────────────────────────────────────────────────────────────────────────┤
 │  mieosql-api     DTO + Api facade + export-ts                                    │
 │  mieosql-engine  sessions · vault · profile store · query history · cancel       │
-│  mieosql-drivers AnyDriver (sqlx: SQLite, MySQL/MariaDB, PostgreSQL)             │
+│  mieosql-drivers AnyDriver (sqlx: SQLite, MySQL/MariaDB, PostgreSQL · tiberius: SQL Server · mongodb · redis · rskafka)  │
 │  mieosql-core    value model · schema model · errors · profiles · query events   │
 └──────────────────────────────────────────────────────────────────────────────────┘
         apps/mieosql-cli ← consumer thứ 2 của cùng một API
 ```
 
-Chi tiết: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Đối chiếu Navicat: [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) · Lộ trình: [docs/ROADMAP.md](docs/ROADMAP.md) · Design system (Apple-native UI): [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) · Feature Pack v1: [docs/FEATURE_PACK_V1.md](docs/FEATURE_PACK_V1.md)
+Chi tiết: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Đối chiếu Navicat: [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) · Lộ trình: [docs/ROADMAP.md](docs/ROADMAP.md) · Design system (Apple-native UI): [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) · Feature Pack v1: [docs/FEATURE_PACK_V1.md](docs/FEATURE_PACK_V1.md) · Connector Pack v2: [docs/CONNECTOR_PACK_V2.md](docs/CONNECTOR_PACK_V2.md)
 
 ## Bắt đầu nhanh
 
