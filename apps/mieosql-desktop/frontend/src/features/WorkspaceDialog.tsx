@@ -11,9 +11,9 @@ import type { ImportSummary, WorkspaceBundle } from "../lib/bindings";
 import { DialogShell } from "./DialogShell";
 
 const BTN_SECONDARY =
-  "flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50 disabled:opacity-50";
 const BTN_PRIMARY =
-  "flex items-center gap-1.5 rounded bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-sky-700 disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover disabled:opacity-50";
 
 const BUNDLE_FILTER = [
   { name: "MieoSQL Workspace", extensions: ["json"] },
@@ -108,8 +108,8 @@ export function WorkspaceDialog({ onClose }: { onClose: () => void }) {
   return (
     <DialogShell title="Team Workspace" width={640} onClose={onClose}>
       <div className="space-y-3 p-3">
-        <div className="flex items-start gap-2 rounded border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] text-sky-800">
-          <ShieldCheck size={14} className="mt-px shrink-0" />
+        <div className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] text-slate-600">
+          <ShieldCheck size={14} className="mt-px shrink-0 text-slate-500" />
           <div>
             Workspace bundles contain connection <b>metadata only</b> — name,
             engine, host, port, database and SSL mode. Passwords and SSH
@@ -118,11 +118,11 @@ export function WorkspaceDialog({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="rounded border border-slate-200 bg-white p-3">
-          <div className="mb-1 text-[12px] font-semibold text-slate-700">
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="mb-1 text-[13px] font-semibold text-slate-900">
             Export
           </div>
-          <p className="mb-2 text-[11px] text-slate-500">
+          <p className="mb-2 text-[12.5px] text-slate-500">
             Write every saved connection to a JSON bundle to share with your
             teammates (for example over a repository or chat).
           </p>
@@ -146,15 +146,15 @@ export function WorkspaceDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        <div className="rounded border border-slate-200 bg-white p-3">
-          <div className="mb-1 text-[12px] font-semibold text-slate-700">
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="mb-1 text-[13px] font-semibold text-slate-900">
             Import
           </div>
-          <p className="mb-2 text-[11px] text-slate-500">
+          <p className="mb-2 text-[12.5px] text-slate-500">
             Load a bundle exported from another MieoSQL workspace. Existing
             connections keep their stored passwords.
           </p>
-          <label className="mb-2 flex items-center gap-1.5 text-[11px] text-slate-600">
+          <label className="mb-2 flex items-center gap-1.5 text-[12.5px] text-slate-600">
             <input
               type="checkbox"
               checked={overwrite}
@@ -177,20 +177,20 @@ export function WorkspaceDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         {error && (
-          <div className="flex items-start gap-2 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] whitespace-pre-wrap text-rose-700">
+          <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[12.5px] whitespace-pre-wrap text-rose-600">
             <AlertTriangle size={13} className="mt-px shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {summary && (
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-700">
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] text-slate-700">
             <div className="font-medium">
               Imported {summary.imported} · skipped {summary.skipped}
             </div>
             {summary.names.length > 0 && (
               <>
-                <div className="mt-1 text-[10px] tracking-wide text-slate-400 uppercase">
+                <div className="mt-1 text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
                   Collided connections ({overwrite ? "replaced" : "skipped"})
                 </div>
                 <ul className="custom-scrollbar mt-0.5 max-h-28 list-disc overflow-auto pl-4">
@@ -202,7 +202,7 @@ export function WorkspaceDialog({ onClose }: { onClose: () => void }) {
                 </ul>
               </>
             )}
-            <div className="mt-1.5 text-[10px] text-amber-700">
+            <div className="mt-1.5 text-[11px] text-amber-700">
               Remember to re-enter passwords for the imported connections.
             </div>
           </div>

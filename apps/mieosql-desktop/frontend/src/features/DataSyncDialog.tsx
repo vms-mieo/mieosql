@@ -28,13 +28,13 @@ import {
 } from "./EndpointPicker";
 
 const INPUT_CLS =
-  "w-full rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-800 focus:border-sky-400 focus:outline-none";
+  "h-7 w-full rounded-md border border-slate-300 bg-white px-2 text-[13px] text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-accent/40 focus:outline-none";
 const LABEL_CLS =
-  "mb-0.5 block text-[10px] font-medium tracking-wide text-slate-500 uppercase";
+  "mb-1 block text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase";
 const BTN_SECONDARY =
-  "flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50 disabled:opacity-50";
 const BTN_PRIMARY =
-  "flex items-center gap-1.5 rounded bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-sky-700 disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover disabled:opacity-50";
 
 const MAX_SHOWN_PER_GROUP = 200;
 
@@ -43,19 +43,19 @@ const GROUPS = [
     key: "insert",
     label: "Insert",
     text: "text-emerald-600",
-    badge: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    badge: "bg-emerald-50 text-emerald-700",
   },
   {
     key: "update",
     label: "Update",
     text: "text-amber-600",
-    badge: "border-amber-200 bg-amber-50 text-amber-700",
+    badge: "bg-amber-50 text-amber-700",
   },
   {
     key: "delete",
     label: "Delete",
     text: "text-rose-600",
-    badge: "border-rose-200 bg-rose-50 text-rose-700",
+    badge: "bg-rose-50 text-rose-700",
   },
 ] as const;
 
@@ -81,11 +81,9 @@ function StatCard({
   className: string;
 }) {
   return (
-    <div className={`rounded border px-2 py-1.5 ${className}`}>
-      <div className="text-[10px] tracking-wide text-slate-500 uppercase">
-        {label}
-      </div>
-      <div className="text-[14px] font-semibold tabular-nums">{value}</div>
+    <div className={`rounded-md border px-2 py-1.5 ${className}`}>
+      <div className="text-[11px] text-slate-500">{label}</div>
+      <div className="text-[15px] font-semibold tabular-nums">{value}</div>
     </div>
   );
 }
@@ -233,7 +231,7 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
         </>
       }
     >
-      <div className="space-y-3 p-3">
+      <div className="space-y-3 p-4">
         <div className="grid grid-cols-2 gap-2">
           <EndpointPicker
             label="Source"
@@ -267,7 +265,7 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
               placeholder="id"
               onChange={(e) => setKeyColumns(e.target.value)}
             />
-            <div className="mt-0.5 text-[10px] text-slate-400">
+            <div className="mt-1 text-[11px] text-slate-500">
               empty = source table primary key
             </div>
           </div>
@@ -279,7 +277,7 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
               placeholder="(all non-key)"
               onChange={(e) => setCompareColumns(e.target.value)}
             />
-            <div className="mt-0.5 text-[10px] text-slate-400">
+            <div className="mt-1 text-[11px] text-slate-500">
               empty = all non-key columns
             </div>
           </div>
@@ -306,7 +304,7 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
               onChange={(e) => setMaxStatements(e.target.value)}
             />
           </div>
-          <label className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-600">
+          <label className="mt-4 flex items-center gap-1.5 text-[13px] text-slate-700">
             <input
               type="checkbox"
               checked={fullScan}
@@ -315,7 +313,7 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
             Full scan (accurate counts)
           </label>
           {source && target && (
-            <div className="mt-4 text-right text-[10px] text-slate-400">
+            <div className="mt-4 text-right text-[11px] text-slate-500">
               {engineLabel(
                 sessions.find((s) => s.id === source.session_id)?.engine ??
                   "mysql",
@@ -330,13 +328,13 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         {error && (
-          <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] whitespace-pre-wrap text-rose-700">
+          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[12.5px] whitespace-pre-wrap text-rose-700">
             {error}
           </div>
         )}
 
         {loading && (
-          <div className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+          <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] text-slate-500">
             <Loader2 size={12} className="animate-spin" />
             Diffing rows…
           </div>
@@ -344,7 +342,7 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
 
         {plan && summary && (
           <>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-4 gap-2">
               <StatCard
                 label="Source rows"
                 value={summary.source_rows.toLocaleString()}
@@ -387,12 +385,12 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
               <StatCard
                 label="Key columns"
                 value={plan.key_columns.join(", ") || "—"}
-                className="border-sky-200 bg-sky-50 text-sky-700"
+                className="border-slate-200 bg-slate-50 text-slate-700"
               />
             </div>
 
             {plan.warnings.length > 0 && (
-              <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-700">
                 <div className="flex items-center gap-1.5 font-medium">
                   <AlertTriangle size={12} className="shrink-0" />
                   Warnings
@@ -415,27 +413,27 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
                 return (
                   <div
                     key={group.key}
-                    className="overflow-hidden rounded border border-slate-200 bg-white"
+                    className="overflow-hidden rounded-md border border-slate-200 bg-white"
                   >
-                    <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-2 py-1">
+                    <div className="flex items-center gap-2 border-b border-slate-200/70 bg-sidebar px-2.5 py-1.5">
                       <span
-                        className={`flex items-center gap-1 rounded border px-1.5 py-px text-[10px] font-medium ${group.badge}`}
+                        className={`flex items-center gap-1 rounded px-1 py-px text-[10.5px] font-semibold ${group.badge}`}
                       >
                         {group.key === "insert" && <Plus size={10} />}
                         {group.key === "update" && <PenLine size={10} />}
                         {group.key === "delete" && <Minus size={10} />}
                         {group.label}
                       </span>
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-[11px] text-slate-500">
                         {statements.length} statement(s)
                       </span>
                       {statements.length > MAX_SHOWN_PER_GROUP && (
-                        <span className="text-[10px] text-slate-400">
+                        <span className="text-[11px] text-slate-500">
                           showing first {MAX_SHOWN_PER_GROUP}
                         </span>
                       )}
                     </div>
-                    <pre className="custom-scrollbar max-h-40 overflow-auto p-2 font-code text-[10px] leading-relaxed">
+                    <pre className="custom-scrollbar max-h-40 overflow-auto p-3 font-code text-[12.5px] leading-5">
                       {shown.map((stmt, i) => (
                         <div key={i} className={group.text}>
                           {stmt.sql}
@@ -446,7 +444,7 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
                 );
               })}
               {plan.statements.length === 0 && (
-                <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] text-slate-500">
                   No row differences found — source and target are identical
                   (within the sample limit).
                 </div>
@@ -455,10 +453,10 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
 
             {applyResult && (
               <div
-                className={`rounded border px-3 py-2 text-[11px] ${
+                className={`rounded-md border px-3 py-2 text-[12.5px] ${
                   applyResult.failed > 0
                     ? "border-rose-200 bg-rose-50 text-rose-700"
-                    : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
                 }`}
               >
                 <div className="font-medium">

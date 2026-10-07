@@ -269,7 +269,13 @@ impl Api {
     ) -> ApiResult<(QueryStream, String)> {
         let info = self.engine.session_info(&session_id).await?;
         let limit = limit.unwrap_or(200).clamp(1, 1_000_000);
-        let sql = build_select_sql(info.engine, &scope, &table, limit);
+        let sql = if info.engine.is_sql() {
+            build_select_sql(info.engine, &scope, &table, limit)
+        } else {
+            self.engine
+                .preview_statement(&session_id, &scope, &table, limit)
+                .await?
+        };
         let stream = self
             .engine
             .run_query(
@@ -374,6 +380,7 @@ fn build_profile(input: ProfileInput) -> ApiResult<(ConnectionProfile, ProfileSe
     profile.ssh = input.ssh.clone();
     profile.color = input.color.clone();
     profile.group = input.group.clone();
+    profile.variant = input.variant.clone();
 
     let secrets = ProfileSecrets {
         password: input.password.clone(),
@@ -390,6 +397,7 @@ fn build_profile(input: ProfileInput) -> ApiResult<(ConnectionProfile, ProfileSe
 pub fn quote_ident(engine: Engine, name: &str) -> String {
     match engine {
         Engine::MySql | Engine::MariaDb => format!("`{}`", name.replace('`', "``")),
+        Engine::SqlServer => format!("[{}]", name.replace(']', "]]")),
         _ => format!("\"{}\"", name.replace('"', "\"\"")),
     }
 }
@@ -398,20 +406,35 @@ pub fn quote_ident(engine: Engine, name: &str) -> String {
 ///
 /// - PostgreSQL: identifiers are schema-qualified; a connection is pinned to
 ///   one database, so the database part is only used to switch beforehand.
+/// - SQL Server: identifiers are schema-qualified the same way.
 /// - MySQL/MariaDB/SQLite: identifiers are database-qualified.
 pub fn build_select_sql(engine: Engine, scope: &Scope, table: &str, limit: u64) -> String {
     let table = quote_ident(engine, table);
     let qualified = match engine {
-        Engine::Postgres => match scope.schema.as_deref().filter(|s| !s.is_empty()) {
-            Some(schema) => format!("{}.{table}", quote_ident(engine, schema)),
-            None => table,
-        },
+        Engine::Postgres | Engine::SqlServer => {
+            match scope.schema.as_deref().filter(|s| !s.is_empty()) {
+                Some(schema) => format!("{}.{table}", quote_ident(engine, schema)),
+                None => table,
+            }
+        }
         _ => match scope.database.as_deref().filter(|s| !s.is_empty()) {
             Some(database) => format!("{}.{table}", quote_ident(engine, database)),
             None => table,
         },
     };
     format!("SELECT * FROM {qualified} LIMIT {limit}")
+}
+
+/// Render a `SELECT` with an engine-correct row cap.
+///
+/// `select_list` is the projection (`*` or `a, b`), `from_where` the rest of
+/// the statement (`FROM t WHERE ...`). SQL Server needs `TOP (n)` right after
+/// `SELECT`; every other engine gets a trailing `LIMIT n`.
+pub fn select_limited(engine: Engine, select_list: &str, from_where: &str, n: u64) -> String {
+    match engine {
+        Engine::SqlServer => format!("SELECT TOP ({n}) {select_list} {from_where}"),
+        _ => format!("SELECT {select_list} {from_where} LIMIT {n}"),
+    }
 }
 
 #[cfg(test)]

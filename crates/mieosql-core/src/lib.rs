@@ -19,7 +19,8 @@ pub use model::{
     ObjectRef, PlaceholderStyle, SchemaRef, Scope, ServerInfo,
 };
 pub use profile::{
-    ConnectionProfile, ConnectionSpec, Engine, ProfileId, SshAuthKind, SshSpec, SslMode,
+    ConnectionProfile, ConnectionSpec, Engine, EngineKind, ProfileId, SshAuthKind, SshSpec,
+    SslMode,
 };
 pub use value::{DataTypeKind, Value};
 

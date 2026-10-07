@@ -27,14 +27,14 @@ import { DialogShell } from "./DialogShell";
 // ---------------------------------------------------------------------------
 
 const inputCls =
-  "w-full rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 focus:border-sky-400 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400";
+  "h-7 w-full rounded-md border border-slate-300 bg-white px-2 text-[13px] text-slate-700 focus:ring-2 focus:ring-accent/40 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400";
 const miniInputCls =
-  "rounded border border-slate-300 bg-white px-1 py-0.5 text-[11px] text-slate-700 focus:border-sky-400 focus:outline-none";
-const labelCls = "mb-0.5 block text-[11px] font-medium text-slate-500";
+  "h-6 rounded-md border border-slate-300 bg-white px-1.5 text-[11.5px] text-slate-700 focus:ring-2 focus:ring-accent/40 focus:outline-none";
+const labelCls = "mb-1 block text-[12px] font-medium text-slate-500";
 const btnPrimary =
-  "flex items-center gap-1.5 rounded bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50";
 const btnSecondary =
-  "flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
 
 const FORMAT_EXT: Record<ExportFormat, string> = {
   csv: "csv",
@@ -224,7 +224,7 @@ function ParamInput({
   width?: string;
 }) {
   return (
-    <label className="flex items-center gap-1 text-[10px] text-slate-400">
+    <label className="flex items-center gap-1 text-[11px] text-slate-500">
       {label}
       <input
         className={`${miniInputCls} ${width}`}
@@ -235,7 +235,7 @@ function ParamInput({
   );
 }
 
-const hintCls = "text-[10px] text-slate-400";
+const hintCls = "text-[11px] text-slate-500";
 
 function MaskRuleParams({
   rule,
@@ -355,12 +355,12 @@ function MaskRuleRow({
 }) {
   const active = rule.kind !== "none";
   return (
-    <tr className={active ? "bg-sky-50/40" : undefined}>
-      <td className="border-b border-slate-100 px-2 py-1 align-top">
-        <div className="font-medium text-slate-700">{col.name}</div>
-        <div className="text-[10px] text-slate-400">{col.native_type}</div>
+    <tr className={active ? "bg-accent/10" : undefined}>
+      <td className="border-b border-slate-200/70 px-2 py-1.5 align-top">
+        <div className="font-code text-[12px] font-medium text-slate-700">{col.name}</div>
+        <div className="text-[11px] text-slate-500">{col.native_type}</div>
       </td>
-      <td className="border-b border-slate-100 px-2 py-1 align-top">
+      <td className="border-b border-slate-200/70 px-2 py-1.5 align-top">
         <select
           className={inputCls}
           value={rule.kind}
@@ -373,7 +373,7 @@ function MaskRuleRow({
           ))}
         </select>
       </td>
-      <td className="border-b border-slate-100 px-2 py-1 align-top">
+      <td className="border-b border-slate-200/70 px-2 py-1.5 align-top">
         <MaskRuleParams rule={rule} onChange={onChange} />
       </td>
     </tr>
@@ -382,7 +382,7 @@ function MaskRuleRow({
 
 function PreviewCell({ value }: { value: Value | undefined }) {
   if (!value || value.t === "null") {
-    return <span className="text-[10px] text-slate-300 italic">NULL</span>;
+    return <span className="text-[11px] text-slate-400 italic">NULL</span>;
   }
   const text = plainText(value);
   return (
@@ -427,11 +427,11 @@ export function MaskExportDialog({ onClose }: { onClose: () => void }) {
     return (
       <DialogShell title="Export with Data Masking" width={780} onClose={onClose}>
         <div className="flex flex-col items-center gap-3 p-10 text-center">
-          <ShieldCheck size={30} className="text-slate-300" />
-          <div className="text-[12px] font-semibold text-slate-600">
+          <ShieldCheck size={30} strokeWidth={1.6} className="text-slate-400" />
+          <div className="text-[15px] font-semibold text-slate-900">
             No result to export
           </div>
-          <p className="max-w-[400px] text-[11px] leading-relaxed text-slate-400">
+          <p className="max-w-[400px] text-[12.5px] leading-relaxed text-slate-500">
             Run a query first, select its result tab, then reopen this dialog.
             Masking re-runs the recorded SQL and applies your rules while the rows
             are streamed to the file.
@@ -524,12 +524,12 @@ export function MaskExportDialog({ onClose }: { onClose: () => void }) {
       footer={
         <>
           {maskedCount === 0 ? (
-            <span className="mr-auto flex items-center gap-1 text-[10px] text-amber-600">
-              <AlertTriangle size={11} />
+            <span className="mr-auto flex items-center gap-1 text-[11px] text-amber-600">
+              <AlertTriangle size={12} strokeWidth={1.8} />
               Choose a strategy for at least one column
             </span>
           ) : (
-            <span className="mr-auto truncate text-[10px] text-slate-400" title={lastPath ?? undefined}>
+            <span className="mr-auto truncate text-[11px] text-slate-500" title={lastPath ?? undefined}>
               {lastPath
                 ? `Saved: ${lastPath}`
                 : `${maskedCount} of ${result.columns.length} column(s) will be masked`}
@@ -545,9 +545,9 @@ export function MaskExportDialog({ onClose }: { onClose: () => void }) {
             title={running ? "Wait for the query to finish" : undefined}
           >
             {exporting ? (
-              <Loader2 size={12} className="animate-spin" />
+              <Loader2 size={13} className="animate-spin" />
             ) : (
-              <FileDown size={12} />
+              <FileDown size={13} strokeWidth={1.8} />
             )}
             Export…
           </button>
@@ -555,16 +555,16 @@ export function MaskExportDialog({ onClose }: { onClose: () => void }) {
       }
     >
       {/* --------------------------------------------------------- source */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-        <span className="font-semibold text-slate-700">{tab.title}</span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200/70 bg-sidebar px-4 py-2 text-[12px] text-slate-600">
+        <span className="font-semibold text-slate-900">{tab.title}</span>
         <span>
           Result {tab.activeResult + 1} · {result.rows.length.toLocaleString()} rows
           buffered · {result.columns.length} columns
         </span>
         {result.truncated && <span className="text-amber-600">result truncated</span>}
-        {running && <span className="text-sky-600">query still running…</span>}
+        {running && <span className="text-accent">query still running…</span>}
         <code
-          className="max-w-full truncate rounded bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-500 ring-1 ring-slate-200"
+          className="max-w-full truncate rounded bg-white px-1.5 py-0.5 font-code text-[11.5px] text-slate-600 ring-1 ring-slate-200"
           title={result.sql}
         >
           {result.sql.length > 140 ? `${result.sql.slice(0, 140)}…` : result.sql}
@@ -572,21 +572,21 @@ export function MaskExportDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* -------------------------------------------------------- preview */}
-      <div className="p-3">
-        <div className="mb-1 text-[12px] font-semibold text-slate-700">
+      <div className="p-4">
+        <div className="mb-2 text-[13px] font-semibold text-slate-900">
           Result preview{" "}
-          <span className="text-[10px] font-normal text-slate-400">
+          <span className="text-[11px] font-normal text-slate-500">
             (first {previewRows.length} row(s))
           </span>
         </div>
-        <div className="custom-scrollbar overflow-auto rounded border border-slate-200 bg-white">
-          <table className="border-collapse text-left text-[11px]">
-            <thead className="bg-[#f1f5f9]">
+        <div className="custom-scrollbar overflow-auto rounded-md border border-slate-200 bg-white">
+          <table className="border-collapse text-left text-[12.5px]">
+            <thead className="bg-sidebar">
               <tr>
                 {result.columns.map((c) => (
                   <th
                     key={c.name}
-                    className="border-b border-slate-200 px-2 py-1 text-[10px] font-medium whitespace-nowrap text-slate-500"
+                    className="border-b border-slate-200/70 px-2 py-1.5 text-[11.5px] font-semibold whitespace-nowrap text-slate-500"
                   >
                     {c.name}
                   </th>
@@ -595,11 +595,11 @@ export function MaskExportDialog({ onClose }: { onClose: () => void }) {
             </thead>
             <tbody>
               {previewRows.map((row, i) => (
-                <tr key={i}>
+                <tr key={i} className="hover:bg-slate-900/[0.03]">
                   {result.columns.map((c, j) => (
                     <td
                       key={c.name}
-                      className="max-w-[220px] truncate border-b border-slate-100 px-2 py-0.5 whitespace-nowrap text-slate-700"
+                      className="max-w-[220px] truncate border-b border-slate-200/70 px-2 py-1 whitespace-nowrap text-slate-700"
                     >
                       <PreviewCell value={row[j]} />
                     </td>
@@ -610,7 +610,7 @@ export function MaskExportDialog({ onClose }: { onClose: () => void }) {
                 <tr>
                   <td
                     colSpan={Math.max(1, result.columns.length)}
-                    className="px-2 py-2 text-[10px] text-slate-400"
+                    className="px-2 py-2 text-[12px] text-slate-500"
                   >
                     No rows buffered for this result.
                   </td>
@@ -622,24 +622,24 @@ export function MaskExportDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* ---------------------------------------------------------- rules */}
-      <div className="px-3 pb-3">
-        <div className="mb-1 flex items-center justify-between">
-          <span className="text-[12px] font-semibold text-slate-700">Column rules</span>
-          <span className="text-[10px] text-slate-400">
+      <div className="px-4 pb-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[13px] font-semibold text-slate-900">Column rules</span>
+          <span className="text-[11px] text-slate-500">
             matched case-insensitively against the result columns
           </span>
         </div>
-        <div className="overflow-hidden rounded border border-slate-200">
-          <table className="w-full border-collapse text-left text-[11px]">
-            <thead className="bg-[#f1f5f9]">
+        <div className="overflow-hidden rounded-md border border-slate-200">
+          <table className="w-full border-collapse text-left text-[12.5px]">
+            <thead className="bg-sidebar">
               <tr className="text-slate-500">
-                <th className="w-[220px] border-b border-slate-200 px-2 py-1 text-[10px] font-medium">
+                <th className="w-[220px] border-b border-slate-200/70 px-2 py-1.5 text-[11.5px] font-semibold">
                   Column
                 </th>
-                <th className="w-[150px] border-b border-slate-200 px-2 py-1 text-[10px] font-medium">
+                <th className="w-[150px] border-b border-slate-200/70 px-2 py-1.5 text-[11.5px] font-semibold">
                   Strategy
                 </th>
-                <th className="border-b border-slate-200 px-2 py-1 text-[10px] font-medium">
+                <th className="border-b border-slate-200/70 px-2 py-1.5 text-[11.5px] font-semibold">
                   Parameters
                 </th>
               </tr>
@@ -664,7 +664,7 @@ export function MaskExportDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* -------------------------------------------------------- options */}
-      <div className="grid grid-cols-2 gap-3 border-t border-slate-200 p-3">
+      <div className="grid grid-cols-2 gap-3 border-t border-slate-200/70 p-4">
         <div>
           <label className={labelCls}>Export format</label>
           <select
@@ -694,20 +694,20 @@ export function MaskExportDialog({ onClose }: { onClose: () => void }) {
 
       {/* ------------------------------------------------------- warnings */}
       {(error || unmatched.length > 0 || lastPath) && (
-        <div className="space-y-2 border-t border-slate-200 p-3">
+        <div className="space-y-2 border-t border-slate-200/70 p-4">
           {error && (
-            <div className="flex items-start gap-1.5 rounded border border-rose-200 bg-rose-50 p-2 text-[11px] whitespace-pre-wrap text-rose-600">
-              <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+            <div className="flex items-start gap-1.5 rounded-md border border-rose-200 bg-rose-50 p-2.5 text-[12.5px] whitespace-pre-wrap text-rose-600">
+              <AlertTriangle size={13} strokeWidth={1.8} className="mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
           {unmatched.length > 0 && (
-            <div className="rounded border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-700">
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-[12.5px] text-amber-700">
               <div className="flex items-center gap-1 font-medium">
-                <AlertTriangle size={11} />
+                <AlertTriangle size={12} strokeWidth={1.8} />
                 {unmatched.length} rule(s) did not match any result column
               </div>
-              <ul className="mt-1 list-inside list-disc text-[10px]">
+              <ul className="mt-1 list-inside list-disc text-[11.5px]">
                 {unmatched.map((name) => (
                   <li key={name}>{name}</li>
                 ))}
@@ -715,8 +715,8 @@ export function MaskExportDialog({ onClose }: { onClose: () => void }) {
             </div>
           )}
           {lastPath && !error && (
-            <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[11px] text-emerald-700">
-              Written to <span className="font-mono text-[10px]">{lastPath}</span>
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[12.5px] text-emerald-700">
+              Written to <span className="font-code text-[11.5px]">{lastPath}</span>
             </div>
           )}
         </div>

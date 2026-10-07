@@ -185,8 +185,8 @@ export function ConnectionModal() {
   };
 
   const inputCls =
-    "w-full rounded border border-slate-300 bg-white px-2 py-1 text-[13px] text-slate-800 focus:border-sky-400 focus:outline-none";
-  const labelCls = "mb-0.5 block text-[12px] font-medium text-slate-500 uppercase tracking-wide";
+    "h-7 w-full rounded-md border border-slate-300 bg-white px-2 text-[13px] placeholder:text-slate-400 focus:ring-2 focus:ring-accent/40 focus:outline-none";
+  const labelCls = "mb-0.5 block text-[11px] font-medium text-slate-500";
 
   return (
     <div
@@ -194,21 +194,21 @@ export function ConnectionModal() {
       onMouseDown={() => store.setConnectionModal(false)}
     >
       <div
-        className="w-[520px] max-w-[94vw] rounded border border-slate-300 bg-[#f8fafc] shadow-2xl"
+        className="w-[520px] max-w-[94vw] overflow-hidden rounded-xl border border-slate-300/70 bg-white shadow-[0_24px_70px_rgba(0,0,0,0.25)]"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex h-10 items-center justify-between border-b border-slate-200 px-3">
+        <div className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200/80 px-4">
           <div className="flex items-center gap-2">
-            <Plug size={15} className="text-sky-600" />
-            <span className="text-[15px] font-semibold text-slate-800">
+            <Plug size={14} strokeWidth={1.7} className="text-slate-500" />
+            <span className="text-[15px] font-semibold text-slate-900">
               {editing ? "Connection Properties" : "New Connection"}
             </span>
           </div>
           <button
-            className="rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+            className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-600"
             onClick={() => store.setConnectionModal(false)}
           >
-            <X size={14} />
+            <X size={14} strokeWidth={1.7} />
           </button>
         </div>
 
@@ -243,7 +243,7 @@ export function ConnectionModal() {
             <div className="grid grid-cols-[130px_1fr] items-center gap-3">
               <label className={labelCls}>Database file</label>
               <div className="flex items-center gap-2">
-                <HardDrive size={13} className="shrink-0 text-slate-400" />
+                <HardDrive size={14} strokeWidth={1.7} className="shrink-0 text-slate-500" />
                 <input
                   className={inputCls}
                   value={form.file}
@@ -312,7 +312,7 @@ export function ConnectionModal() {
           <div className="grid grid-cols-[130px_1fr] items-center gap-3">
             <label className={labelCls}>Database</label>
             <div className="flex items-center gap-2">
-              <Database size={13} className="shrink-0 text-slate-400" />
+              <Database size={14} strokeWidth={1.7} className="shrink-0 text-slate-500" />
               <input
                 className={inputCls}
                 value={form.database}
@@ -329,7 +329,7 @@ export function ConnectionModal() {
 
           {testResult && (
             <div
-              className={`rounded border px-3 py-2 text-[12px] ${
+              className={`rounded-md border px-3 py-2 text-[12px] ${
                 testResult.ok
                   ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                   : "border-rose-200 bg-rose-50 text-rose-700"
@@ -341,36 +341,36 @@ export function ConnectionModal() {
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2">
+        <div className="flex h-12 shrink-0 items-center justify-between border-t border-slate-200/80 bg-sidebar px-4">
           <div>
             {editing && (
               <button
-                className="flex items-center gap-1 rounded px-2 py-1 text-[13px] text-rose-600 hover:bg-rose-50"
+                className="flex h-7 items-center gap-1 rounded-md px-2 text-[13px] text-rose-600 hover:bg-rose-50"
                 onClick={onDelete}
               >
-                <Trash2 size={12} /> Delete
+                <Trash2 size={12} strokeWidth={1.7} /> Delete
               </button>
             )}
           </div>
           <div className="flex items-center gap-2">
             <button
-              className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1 text-[13px] text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              className="flex h-7 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               onClick={onTest}
               disabled={testing}
             >
               {testing ? (
-                <Loader2 size={12} className="animate-spin" />
+                <Loader2 size={12} strokeWidth={1.7} className="animate-spin" />
               ) : (
-                <Plug size={12} />
+                <Plug size={12} strokeWidth={1.7} />
               )}
               Test Connection
             </button>
             <button
-              className="flex items-center gap-1.5 rounded bg-sky-600 px-3 py-1 text-[13px] font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+              className="flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover disabled:opacity-50"
               onClick={onSave}
               disabled={saving}
             >
-              {saving && <Loader2 size={12} className="animate-spin" />}
+              {saving && <Loader2 size={12} strokeWidth={1.7} className="animate-spin" />}
               Save &amp; Connect
             </button>
           </div>

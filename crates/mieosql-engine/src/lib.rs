@@ -320,6 +320,20 @@ impl Engine {
         Ok(())
     }
 
+    /// Engine-appropriate preview statement for the data grid (SQL engines are
+    /// handled by the API layer; NoSQL engines provide their native syntax).
+    pub async fn preview_statement(
+        &self,
+        session_id: &str,
+        scope: &Scope,
+        table: &str,
+        limit: u64,
+    ) -> MieoResult<String> {
+        let session = self.inner.sessions.get(session_id)?;
+        let guard = session.driver.lock().await;
+        guard.preview_statement(scope, table, limit)
+    }
+
     // ------------------------------------------------------------------
     // Transactions
     // ------------------------------------------------------------------

@@ -42,7 +42,7 @@ A Navicat-class, multi-engine database client. **Rust core + TypeScript UI, one 
         apps/mieosql-cli ← consumer thứ 2 của cùng một API
 ```
 
-Chi tiết: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Đối chiếu Navicat: [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) · Lộ trình: [docs/ROADMAP.md](docs/ROADMAP.md) · Feature Pack v1: [docs/FEATURE_PACK_V1.md](docs/FEATURE_PACK_V1.md)
+Chi tiết: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Đối chiếu Navicat: [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) · Lộ trình: [docs/ROADMAP.md](docs/ROADMAP.md) · Design system (Apple-native UI): [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) · Feature Pack v1: [docs/FEATURE_PACK_V1.md](docs/FEATURE_PACK_V1.md)
 
 ## Bắt đầu nhanh
 

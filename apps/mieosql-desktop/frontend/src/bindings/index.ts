@@ -20,6 +20,7 @@ export * from "./DocFormat";
 export * from "./DocOptions";
 export * from "./DocSummary";
 export * from "./Engine";
+export * from "./EngineKind";
 export * from "./ErrorCode";
 export * from "./ErrorInfo";
 export * from "./ExplainFormat";

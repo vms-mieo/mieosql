@@ -39,6 +39,7 @@ const ENGINE_LABEL: Record<Engine, string> = {
   sql_server: "SQL Server",
   mongodb: "MongoDB",
   redis: "Redis",
+  kafka: "Kafka",
   oracle: "Oracle",
   snowflake: "Snowflake",
 };
@@ -147,30 +148,30 @@ export function ExplainPanel({ tab }: { tab: Tab }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-white">
       {/* Header: engine / format / timing / cost + actions */}
-      <div className="flex h-[34px] shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-200 bg-[#f1f5f9] px-3 text-[11px] text-slate-600">
-        <span className="shrink-0 rounded bg-slate-200/80 px-1.5 py-px font-code text-[10px] font-medium uppercase text-slate-700">
+      <div className="flex h-[34px] shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-200/70 bg-sidebar px-3 text-[11px] text-slate-600">
+        <span className="shrink-0 rounded bg-slate-900/[0.06] px-1.5 py-px font-code text-[10.5px] font-semibold uppercase text-slate-600">
           {plan ? ENGINE_LABEL[plan.engine] : session ? ENGINE_LABEL[session.engine] : "—"}
         </span>
         {plan && (
-          <span className="shrink-0 text-[10px] text-slate-400">
+          <span className="shrink-0 text-[11px] text-slate-400">
             {FORMAT_LABEL[plan.format]}
           </span>
         )}
         {plan && (
-          <span className="shrink-0 text-[10px] text-slate-500">
+          <span className="shrink-0 text-[11px] text-slate-500">
             {fmtDuration(plan.elapsed_ms)}
           </span>
         )}
         {plan?.analyzed && (
           <span
-            className="shrink-0 rounded bg-emerald-100 px-1.5 py-px text-[10px] font-medium text-emerald-700"
+            className="shrink-0 rounded bg-emerald-100 px-1.5 py-px text-[10.5px] font-semibold text-emerald-700"
             title="Plan captured from real execution (EXPLAIN ANALYZE)"
           >
             analyzed
           </span>
         )}
         {plan && plan.total_cost != null && (
-          <span className="shrink-0 text-[10px] text-slate-500">
+          <span className="shrink-0 text-[11px] text-slate-500">
             total cost{" "}
             <span className="font-code tabular-nums text-slate-700">
               {fmtCost(plan.total_cost)}
@@ -185,7 +186,7 @@ export function ExplainPanel({ tab }: { tab: Tab }) {
             >
               <input
                 type="checkbox"
-                className="accent-sky-600"
+                className="accent-accent"
                 checked={analyze}
                 disabled={loading}
                 onChange={(e) => toggleAnalyze(e.target.checked)}
@@ -194,23 +195,23 @@ export function ExplainPanel({ tab }: { tab: Tab }) {
             </label>
           )}
           <button
-            className="flex items-center gap-1 whitespace-nowrap rounded border border-slate-300 bg-white px-2 py-1 text-[10px] text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-7 items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 text-[12.5px] text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => setShowRaw((v) => !v)}
             disabled={!showRaw && !plan?.raw}
             title={showRaw ? "Show plan tree" : "Show raw output"}
           >
-            <Code2 size={11} />
+            <Code2 size={12} />
             {showRaw ? "Tree" : "Raw"}
           </button>
           <button
-            className="flex items-center gap-1 whitespace-nowrap rounded bg-sky-600 px-2.5 py-1 text-[10px] font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-7 items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => void run()}
             disabled={loading}
           >
             {loading ? (
-              <Loader2 size={11} className="animate-spin" />
+              <Loader2 size={12} className="animate-spin" />
             ) : (
-              <RefreshCw size={11} />
+              <RefreshCw size={12} />
             )}
             Re-run
           </button>
@@ -220,7 +221,7 @@ export function ExplainPanel({ tab }: { tab: Tab }) {
       {/* SQL preview */}
       {sql && (
         <div
-          className="shrink-0 truncate border-b border-slate-200 bg-white px-3 py-1 font-code text-[10px] text-slate-500"
+          className="shrink-0 truncate border-b border-slate-200/70 bg-white px-3 py-1 font-code text-[12px] text-slate-500"
           title={sql}
         >
           {sql}
@@ -231,20 +232,20 @@ export function ExplainPanel({ tab }: { tab: Tab }) {
       {loading && !plan ? (
         <div className="grid flex-1 place-items-center">
           <div className="flex items-center gap-2 text-[11px] text-slate-500">
-            <Loader2 size={13} className="animate-spin text-sky-500" />
+            <Loader2 size={13} className="animate-spin text-accent" />
             {isPostgres && analyze
               ? "Running EXPLAIN ANALYZE…"
               : "Explaining query…"}
           </div>
         </div>
       ) : error ? (
-        <div className="m-3 flex items-start gap-2 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
+        <div className="m-3 flex items-start gap-2 rounded-md border border-rose-200/80 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
           <TriangleAlert size={12} className="mt-px shrink-0" />
           <div className="min-w-0 flex-1 whitespace-pre-wrap break-words">
             {error}
           </div>
           <button
-            className="shrink-0 rounded border border-rose-300 bg-white px-2 py-0.5 text-[10px] text-rose-600 hover:bg-rose-100"
+            className="shrink-0 rounded-md border border-rose-300 bg-white px-2 py-0.5 text-[11px] text-rose-600 hover:bg-rose-100"
             onClick={() => void run()}
           >
             Retry
@@ -253,16 +254,16 @@ export function ExplainPanel({ tab }: { tab: Tab }) {
       ) : !plan ? (
         <div className="grid flex-1 place-items-center">
           <div className="text-center">
-            <div className="text-[11px] font-medium text-slate-500">
+            <div className="text-[12px] font-medium text-slate-500">
               Nothing to explain
             </div>
-            <div className="mt-1 text-[10px] text-slate-400">
+            <div className="mt-1 text-[11px] text-slate-400">
               Open a query tab and choose Explain.
             </div>
           </div>
         </div>
       ) : showRaw ? (
-        <pre className="custom-scrollbar m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words bg-white p-3 font-code text-[11px] leading-relaxed text-slate-700">
+        <pre className="custom-scrollbar m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words bg-white p-3 font-code text-[12px] leading-relaxed text-slate-700">
           {plan.raw ?? "No raw plan output available."}
         </pre>
       ) : (
@@ -323,23 +324,23 @@ function PlanTree({
   return (
     <>
       <div
-        className={`flex items-start gap-1.5 border-b border-slate-100 py-1.5 pr-3 ${
+        className={`flex items-start gap-1.5 border-b border-slate-200/70 py-1.5 pr-3 ${
           hot
-            ? "bg-amber-50 ring-1 ring-inset ring-amber-400"
-            : "hover:bg-slate-50"
+            ? "bg-amber-50 ring-1 ring-inset ring-amber-300"
+            : "hover:bg-slate-900/[0.03]"
         }`}
         style={{ paddingLeft: 8 + depth * 14 }}
       >
         {hasChildren ? (
           <button
-            className="mt-px shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+            className="mt-px shrink-0 rounded-md p-0.5 text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-700"
             title={isCollapsed ? "Expand" : "Collapse"}
             onClick={() => onToggle(path)}
           >
             {isCollapsed ? (
-              <ChevronRight size={11} />
+              <ChevronRight size={12} />
             ) : (
-              <ChevronDown size={11} />
+              <ChevronDown size={12} />
             )}
           </button>
         ) : (
@@ -348,23 +349,23 @@ function PlanTree({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span
-              className={`text-[11px] ${
+              className={`text-[12.5px] ${
                 hot ? "font-semibold text-amber-900" : "font-medium text-slate-800"
               }`}
             >
               {node.label}
             </span>
             {node.kind && (
-              <span className="rounded bg-slate-100 px-1.5 py-px font-code text-[10px] text-slate-600">
+              <span className="rounded bg-slate-900/[0.06] px-1.5 py-px font-code text-[10.5px] text-slate-600">
                 {node.kind}
               </span>
             )}
             {node.relation && !node.label.includes(node.relation) && (
-              <span className="font-code text-[10px] text-slate-400">
+              <span className="font-code text-[11px] text-slate-500">
                 {node.relation}
               </span>
             )}
-            <span className="ml-auto flex items-center gap-2 text-[10px]">
+            <span className="ml-auto flex items-center gap-2 text-[11px]">
               {node.rows_estimate != null && (
                 <span
                   className="whitespace-nowrap tabular-nums text-slate-500"
@@ -394,19 +395,19 @@ function PlanTree({
                   className="flex items-center gap-1"
                   title={`Estimated cost ${fmtCost(node.cost)}`}
                 >
-                  <span className="whitespace-nowrap rounded bg-sky-50 px-1.5 py-px font-code tabular-nums text-sky-700">
+                  <span className="whitespace-nowrap rounded bg-accent/10 px-1.5 py-px font-code tabular-nums text-accent">
                     {fmtCost(node.cost)}
                   </span>
                   <span className="block h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
                     <span
-                      className="block h-full rounded-full bg-sky-500"
+                      className="block h-full rounded-full bg-accent"
                       style={{ width: `${pct}%` }}
                     />
                   </span>
                 </span>
               )}
               {hot && (
-                <span className="whitespace-nowrap rounded bg-amber-200/70 px-1.5 py-px font-medium text-amber-800">
+                <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-px text-[10.5px] font-semibold text-amber-700">
                   most expensive
                 </span>
               )}
@@ -414,7 +415,7 @@ function PlanTree({
           </div>
           {node.detail && (
             <div
-              className="mt-0.5 truncate text-[10px] text-slate-500"
+              className="mt-0.5 truncate text-[11px] text-slate-500"
               title={node.detail}
             >
               {node.detail}

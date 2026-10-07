@@ -31,6 +31,7 @@ pub struct MySqlDriver {
 
 pub(crate) fn mysql_capabilities() -> Capabilities {
     Capabilities {
+        engine_kind: mieosql_core::EngineKind::Sql,
         placeholder: PlaceholderStyle::Question,
         list_databases: true,
         list_schemas: false,

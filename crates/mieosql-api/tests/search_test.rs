@@ -52,6 +52,7 @@ async fn setup(tag: &str) -> TestEnv {
             ssh: None,
             color: None,
             group: None,
+            variant: None,
             password: None,
             ssh_password: None,
         })

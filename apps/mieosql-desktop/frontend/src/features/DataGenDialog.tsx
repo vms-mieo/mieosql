@@ -35,14 +35,14 @@ import { DialogShell } from "./DialogShell";
 // ---------------------------------------------------------------------------
 
 const inputCls =
-  "w-full rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 focus:border-sky-400 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400";
+  "h-7 w-full rounded-md border border-slate-300 bg-white px-2 text-[13px] text-slate-800 placeholder:text-slate-500 focus:ring-2 focus:ring-accent/40 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400";
 const miniInputCls =
-  "rounded border border-slate-300 bg-white px-1 py-0.5 text-[11px] text-slate-700 focus:border-sky-400 focus:outline-none";
-const labelCls = "mb-0.5 block text-[11px] font-medium text-slate-500";
+  "h-7 rounded-md border border-slate-300 bg-white px-2 text-[12.5px] text-slate-800 placeholder:text-slate-500 focus:ring-2 focus:ring-accent/40 focus:outline-none";
+const labelCls = "mb-1 block text-[11px] font-medium text-slate-500";
 const btnPrimary =
-  "flex items-center gap-1.5 rounded bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50";
 const btnSecondary =
-  "flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
 
 // ---------------------------------------------------------------------------
 // Column strategy model (mirrors `GenStrategy` on the backend)
@@ -241,7 +241,7 @@ function ParamInput({
   width?: string;
 }) {
   return (
-    <label className="flex items-center gap-1 text-[10px] text-slate-400">
+    <label className="flex items-center gap-1 text-[11px] text-slate-500">
       {label}
       <input
         className={`${miniInputCls} ${width}`}
@@ -252,7 +252,7 @@ function ParamInput({
   );
 }
 
-const hintCls = "text-[10px] text-slate-400";
+const hintCls = "text-[11px] text-slate-500";
 
 function RuleParams({
   rule,
@@ -376,22 +376,30 @@ function RuleRow({
 }) {
   const skipped = col.is_auto_increment || col.is_generated;
   return (
-    <tr className={skipped ? "bg-slate-50/60" : undefined}>
-      <td className="border-b border-slate-100 px-2 py-1 align-top">
+    <tr
+      className={
+        skipped
+          ? "bg-sidebar/60 hover:bg-slate-900/[0.03]"
+          : "hover:bg-slate-900/[0.03]"
+      }
+    >
+      <td className="border-b border-slate-200/70 px-3 py-1.5 align-top">
         <div className="flex items-center gap-1.5">
-          <span className="font-medium text-slate-700">{col.name}</span>
+          <span className="font-code text-[12.5px] font-medium text-slate-700">
+            {col.name}
+          </span>
           {col.is_primary_key && (
-            <span className="rounded bg-amber-100 px-1 text-[9px] font-semibold text-amber-700">
+            <span className="rounded bg-amber-100 px-1 text-[10.5px] font-medium text-amber-700">
               PK
             </span>
           )}
         </div>
-        <div className="text-[10px] text-slate-400">
+        <div className="text-[11px] text-slate-500">
           {col.native_type}
           {col.nullable ? " · nullable" : " · not null"}
         </div>
       </td>
-      <td className="border-b border-slate-100 px-2 py-1 align-top">
+      <td className="border-b border-slate-200/70 px-3 py-1.5 align-top">
         <select
           className={inputCls}
           value={skipped ? "auto" : rule.kind}
@@ -405,14 +413,14 @@ function RuleRow({
           ))}
         </select>
         {skipped && (
-          <div className="mt-0.5 text-[10px] text-amber-600">
+          <div className="mt-1 text-[11px] text-amber-600">
             skipped — {col.is_auto_increment ? "auto-increment" : "generated"}
           </div>
         )}
       </td>
-      <td className="border-b border-slate-100 px-2 py-1 align-top">
+      <td className="border-b border-slate-200/70 px-3 py-1.5 align-top">
         {skipped ? (
-          <span className="text-[10px] text-slate-400">value provided by the database</span>
+          <span className="text-[11px] text-slate-500">value provided by the database</span>
         ) : (
           <RuleParams rule={rule} onChange={onChange} />
         )}
@@ -701,7 +709,7 @@ export function DataGenDialog({ onClose }: { onClose: () => void }) {
       }
     >
       {/* ------------------------------------------------------------ form */}
-      <div className="grid grid-cols-6 gap-x-3 gap-y-2 border-b border-slate-200 p-3">
+      <div className="grid grid-cols-6 gap-x-3 gap-y-3 border-b border-slate-200/80 p-4">
         <div className="col-span-3">
           <label className={labelCls}>Session</label>
           <select
@@ -745,7 +753,7 @@ export function DataGenDialog({ onClose }: { onClose: () => void }) {
               ))}
             </select>
             <button
-              className="shrink-0 rounded border border-slate-300 bg-white p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-700 disabled:opacity-50"
               title="Reload tables"
               onClick={() => setTablesReload((n) => n + 1)}
               disabled={!sessionId || busy !== null}
@@ -754,7 +762,7 @@ export function DataGenDialog({ onClose }: { onClose: () => void }) {
             </button>
           </div>
           {selectedTable?.rows_estimate != null && (
-            <div className="mt-0.5 text-[10px] text-slate-400">
+            <div className="mt-1 text-[11px] text-slate-500">
               ≈ {selectedTable.rows_estimate.toLocaleString()} rows currently
             </div>
           )}
@@ -821,17 +829,17 @@ export function DataGenDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {error && (
-        <div className="flex items-start gap-1.5 whitespace-pre-wrap border-b border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-600">
+        <div className="flex items-start gap-2 border-b border-rose-200/70 bg-rose-50 px-4 py-2 text-[12.5px] whitespace-pre-wrap text-rose-600">
           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {/* --------------------------------------------------- column rules */}
-      <div className="p-3">
-        <div className="mb-1 flex items-center justify-between">
-          <span className="text-[12px] font-semibold text-slate-700">Column rules</span>
-          <span className="text-[10px] text-slate-400">
+      <div className="p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[13px] font-semibold text-slate-900">Column rules</span>
+          <span className="text-[11px] text-slate-500">
             {columns.length} column(s)
             {skippedColumns.length > 0 &&
               ` · ${skippedColumns.length} skipped (auto-increment / generated)`}
@@ -839,29 +847,29 @@ export function DataGenDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         {loadingColumns ? (
-          <div className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-4 text-[11px] text-slate-400">
+          <div className="flex items-center gap-2 rounded-lg bg-sidebar px-3 py-4 text-[13px] text-slate-500">
             <Loader2 size={12} className="animate-spin" /> Loading columns…
           </div>
         ) : !table ? (
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-4 text-[11px] text-slate-400">
+          <div className="rounded-lg bg-sidebar px-3 py-4 text-[13px] text-slate-500">
             Choose a table to configure per-column strategies.
           </div>
         ) : columns.length === 0 ? (
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-4 text-[11px] text-slate-400">
+          <div className="rounded-lg bg-sidebar px-3 py-4 text-[13px] text-slate-500">
             No columns found for this table.
           </div>
         ) : (
-          <div className="overflow-hidden rounded border border-slate-200">
-            <table className="w-full border-collapse text-left text-[11px]">
-              <thead className="bg-[#f1f5f9]">
+          <div className="overflow-hidden rounded-lg border border-slate-200/70">
+            <table className="w-full border-collapse text-left text-[12.5px]">
+              <thead className="bg-sidebar">
                 <tr className="text-slate-500">
-                  <th className="w-[220px] border-b border-slate-200 px-2 py-1 text-[10px] font-medium">
+                  <th className="w-[220px] border-b border-slate-200/70 px-3 py-1.5 text-[11.5px] font-semibold">
                     Column
                   </th>
-                  <th className="w-[150px] border-b border-slate-200 px-2 py-1 text-[10px] font-medium">
+                  <th className="w-[150px] border-b border-slate-200/70 px-3 py-1.5 text-[11.5px] font-semibold">
                     Strategy
                   </th>
-                  <th className="border-b border-slate-200 px-2 py-1 text-[10px] font-medium">
+                  <th className="border-b border-slate-200/70 px-3 py-1.5 text-[11.5px] font-semibold">
                     Parameters
                   </th>
                 </tr>
@@ -881,7 +889,7 @@ export function DataGenDialog({ onClose }: { onClose: () => void }) {
         )}
 
         {skippedColumns.length > 0 && (
-          <div className="mt-1.5 text-[10px] text-slate-400">
+          <div className="mt-2 text-[11px] text-slate-500">
             Skipped: {skippedColumns.map((c) => c.name).join(", ")} — the database
             provides these values.
           </div>
@@ -890,27 +898,27 @@ export function DataGenDialog({ onClose }: { onClose: () => void }) {
 
       {/* -------------------------------------------------------- preview */}
       {preview && (
-        <div className="border-t border-slate-200 p-3">
-          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-[11px] text-slate-600">
-              <span className="font-semibold">
+        <div className="border-t border-slate-200/80 p-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-[12.5px] text-slate-600">
+              <span className="font-semibold text-slate-900">
                 {preview.executed ? "Executed" : "Preview"}
               </span>
               <span>{preview.rows.toLocaleString()} row(s)</span>
-              <span className="text-slate-400">{preview.elapsed_ms} ms</span>
+              <span className="text-slate-500">{preview.elapsed_ms} ms</span>
             </div>
             {preview.truncated && (
-              <span className="flex items-center gap-1 text-[10px] text-amber-600">
+              <span className="flex items-center gap-1 text-[11px] text-amber-600">
                 <AlertTriangle size={10} />
                 SQL preview truncated (first 1000 rows)
               </span>
             )}
           </div>
-          <pre className="custom-scrollbar max-h-[240px] overflow-auto rounded border border-slate-800 bg-slate-900 p-2 font-mono text-[10px] leading-relaxed whitespace-pre text-slate-100">
+          <pre className="custom-scrollbar max-h-[240px] overflow-auto rounded-lg bg-slate-900 p-3 font-code text-[12.5px] leading-relaxed whitespace-pre text-slate-50">
             {preview.sql}
           </pre>
           {preview.skipped_columns.length > 0 && (
-            <div className="mt-1 text-[10px] text-slate-400">
+            <div className="mt-2 text-[11px] text-slate-500">
               Skipped by the backend: {preview.skipped_columns.join(", ")}
             </div>
           )}

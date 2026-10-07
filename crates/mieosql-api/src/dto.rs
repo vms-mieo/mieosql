@@ -109,6 +109,11 @@ pub struct ProfileInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub group: Option<String>,
+    /// Connector preset / cloud flavor (`aurora`, `documentdb`, `redshift`,
+    /// `azure`, `elasticache`, `memorystore`, ...). Descriptive only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub variant: Option<String>,
     /// Password policy: `None` keeps the stored secret, `Some("")` clears it.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]

@@ -57,20 +57,20 @@ function badgeTone(kind: ColumnMeta["kind"]): string {
     case "uint":
     case "float":
     case "decimal":
-      return "text-amber-600";
+      return "text-slate-400";
     case "date":
     case "time":
     case "datetime":
     case "timestamptz":
-      return "text-sky-600";
+      return "text-slate-400";
     case "json":
     case "uuid":
-      return "text-violet-500";
+      return "text-slate-400";
     case "bytes":
     case "geometry":
-      return "text-rose-500";
+      return "text-slate-400";
     case "bool":
-      return "text-emerald-600";
+      return "text-slate-400";
     default:
       return "text-slate-400";
   }
@@ -85,11 +85,11 @@ function cellClass(tone: ReturnType<typeof formatCell>["tone"]): string {
     case "temporal":
       return "font-code text-slate-500";
     case "json":
-      return "font-code text-violet-700";
+      return "font-code text-slate-700";
     case "binary":
-      return "font-code text-rose-600";
+      return "font-code text-slate-600";
     case "bool":
-      return "font-code text-emerald-700";
+      return "font-code text-slate-800";
     case "unsupported":
       return "italic text-amber-600";
     default:
@@ -298,7 +298,7 @@ export function ResultGrid({ result, matchIndices, onViewCell, onApi }: Props) {
 
   if (columns.length === 0 && running) {
     return (
-      <div className="flex-1 overflow-hidden bg-white p-4">
+      <div className="flex-1 overflow-hidden bg-surface p-4">
         {[0, 1, 2].map((i) => (
           <div key={i} className="flex gap-3 py-1.5" style={{ opacity: 1 - i * 0.3 }}>
             {[120, 200, 90, 160, 110].map((w, k) => (
@@ -316,7 +316,7 @@ export function ResultGrid({ result, matchIndices, onViewCell, onApi }: Props) {
 
   if (total === 0) {
     return (
-      <div className="grid flex-1 place-items-center bg-white text-slate-400">
+      <div className="grid flex-1 place-items-center bg-surface text-[13px] text-slate-500">
         {running ? "Waiting for rows…" : "Query returned no rows"}
       </div>
     );
@@ -325,7 +325,7 @@ export function ResultGrid({ result, matchIndices, onViewCell, onApi }: Props) {
   return (
     <div
       ref={scrollRef}
-      className="custom-scrollbar relative flex-1 overflow-auto bg-white outline-none"
+      className="custom-scrollbar relative flex-1 overflow-auto bg-surface outline-none"
       onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
       onKeyDown={onKeyDown}
       tabIndex={0}
@@ -333,11 +333,11 @@ export function ResultGrid({ result, matchIndices, onViewCell, onApi }: Props) {
       <div style={{ minWidth: totalWidth + 1 }}>
         {/* header */}
         <div
-          className="sticky top-0 z-10 flex border-b border-slate-300 bg-[#f1f5f9]"
+          className="sticky top-0 z-10 flex border-b border-slate-200/70 bg-sidebar"
           style={{ height: 32 }}
         >
           <div
-            className="flex shrink-0 items-center justify-center border-r border-slate-300 text-[11px] text-slate-400"
+            className="flex shrink-0 items-center justify-center text-[11.5px] font-semibold text-slate-500"
             style={{ width: GUTTER_W }}
           >
             #
@@ -345,7 +345,7 @@ export function ResultGrid({ result, matchIndices, onViewCell, onApi }: Props) {
           {columns.map((col, i) => (
             <div
               key={`${col.ordinal}-${col.name}`}
-              className="relative flex shrink-0 items-center border-r border-slate-300"
+              className="relative flex shrink-0 items-center"
               style={{ width: widths[i] ?? 120, minWidth: widths[i] ?? 120 }}
             >
               <button
@@ -353,23 +353,23 @@ export function ResultGrid({ result, matchIndices, onViewCell, onApi }: Props) {
                 onClick={() => cycleSort(i)}
                 title={`${col.name} — ${col.native_type} · click to sort`}
               >
-                <span className="min-w-0 truncate text-[12px] font-medium text-slate-700">
+                <span className="min-w-0 truncate text-[11.5px] font-semibold text-slate-500">
                   {col.name}
                 </span>
                 <span
-                  className={`ml-auto shrink-0 text-[11px] font-medium ${badgeTone(col.kind)}`}
+                  className={`ml-auto shrink-0 text-[10.5px] font-medium ${badgeTone(col.kind)}`}
                 >
                   {kindBadge(col.kind)}
                 </span>
                 {sort?.col === i &&
                   (sort.dir === "asc" ? (
-                    <ArrowUp size={10} className="shrink-0 text-sky-600" />
+                    <ArrowUp size={11} strokeWidth={1.8} className="shrink-0 text-accent" />
                   ) : (
-                    <ArrowDown size={10} className="shrink-0 text-sky-600" />
+                    <ArrowDown size={11} strokeWidth={1.8} className="shrink-0 text-accent" />
                   ))}
               </button>
               <div
-                className="absolute top-0 right-0 h-full w-[5px] cursor-col-resize hover:bg-sky-400/60"
+                className="absolute top-0 right-0 h-full w-[5px] cursor-col-resize hover:bg-accent/40"
                 onMouseDown={(e) => startResize(e, i)}
                 onDoubleClick={() => autoFit(i)}
               />
@@ -387,12 +387,12 @@ export function ResultGrid({ result, matchIndices, onViewCell, onApi }: Props) {
               <div
                 key={i}
                 className={`grid-row absolute left-0 flex ${
-                  selectedRow ? "selected" : i % 2 === 1 ? "bg-[#fafbfd]" : "bg-white"
+                  selectedRow ? "selected" : i % 2 === 1 ? "bg-slate-50" : "bg-surface"
                 }`}
                 style={{ top: i * ROW_H, height: ROW_H, minWidth: totalWidth }}
               >
                 <div
-                  className="flex shrink-0 cursor-pointer items-center justify-center border-r border-b border-[#eef2f7] bg-[#f6f8fb] text-[11px] text-slate-400 select-none"
+                  className="flex shrink-0 cursor-pointer items-center justify-center border-r border-b border-slate-200 bg-sidebar text-[11px] text-slate-500 select-none"
                   style={{ width: GUTTER_W }}
                   onClick={() => setSel({ row: i, col: sel?.col ?? 0 })}
                 >
@@ -414,7 +414,7 @@ export function ResultGrid({ result, matchIndices, onViewCell, onApi }: Props) {
                       title={view.title}
                     >
                       <span
-                        className={`block truncate ${cellClass(view.tone)}`}
+                        className={`block truncate text-[12.5px] ${cellClass(view.tone)}`}
                         style={{ textAlign: view.align }}
                       >
                         {view.text}

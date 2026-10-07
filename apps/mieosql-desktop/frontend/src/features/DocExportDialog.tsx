@@ -20,12 +20,12 @@ import { DialogShell } from "./DialogShell";
 // ---------------------------------------------------------------------------
 
 const inputCls =
-  "w-full rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 focus:border-sky-400 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400";
-const labelCls = "mb-0.5 block text-[11px] font-medium text-slate-500";
+  "h-7 w-full rounded-md border border-slate-300 bg-white px-2 text-[13px] text-slate-800 placeholder:text-slate-500 focus:ring-2 focus:ring-accent/40 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400";
+const labelCls = "mb-1 block text-[11px] font-medium text-slate-500";
 const btnPrimary =
-  "flex items-center gap-1.5 rounded bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50";
 const btnSecondary =
-  "flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
 
 function Checkbox({
   label,
@@ -39,15 +39,15 @@ function Checkbox({
   hint?: string;
 }) {
   return (
-    <label className="flex items-center gap-1.5 text-[11px] text-slate-600">
+    <label className="flex items-center gap-1.5 text-[13px] text-slate-700">
       <input
         type="checkbox"
-        className="accent-sky-600"
+        className="accent-accent"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
       <span>{label}</span>
-      {hint && <span className="text-[10px] text-slate-400">{hint}</span>}
+      {hint && <span className="text-[11px] text-slate-500">{hint}</span>}
     </label>
   );
 }
@@ -177,7 +177,7 @@ export function DocExportDialog({ onClose }: { onClose: () => void }) {
         <>
           {summary && !busy && (
             <span
-              className="mr-auto truncate text-[10px] text-slate-400"
+              className="mr-auto truncate text-[11px] text-slate-500"
               title={summary.path}
             >
               Last export: {summary.tables.toLocaleString()} table(s) ·{" "}
@@ -204,7 +204,7 @@ export function DocExportDialog({ onClose }: { onClose: () => void }) {
         </>
       }
     >
-      <div className="grid grid-cols-2 gap-x-3 gap-y-2 border-b border-slate-200 p-3">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-b border-slate-200/80 p-4">
         <div>
           <label className={labelCls}>Session</label>
           <select
@@ -269,9 +269,9 @@ export function DocExportDialog({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      <div className="space-y-2 p-3">
-        <div className="text-[12px] font-semibold text-slate-700">Include</div>
-        <div className="flex flex-wrap gap-x-5 gap-y-2">
+      <div className="space-y-2 p-4">
+        <div className="text-[13px] font-semibold text-slate-900">Include</div>
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
           <Checkbox
             label="Columns"
             checked={includeColumns}
@@ -295,7 +295,7 @@ export function DocExportDialog({ onClose }: { onClose: () => void }) {
             onChange={setIncludeDdl}
           />
         </div>
-        <p className="text-[10px] leading-relaxed text-slate-400">
+        <p className="text-[12px] leading-relaxed text-slate-500">
           Documents every table in the selected database/schema. Column comments are
           written as the glossary; DDL is fetched per object and can be slow on large
           schemas.
@@ -303,14 +303,14 @@ export function DocExportDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {error && (
-        <div className="mx-3 mb-3 flex items-start gap-1.5 rounded border border-rose-200 bg-rose-50 p-2 text-[11px] whitespace-pre-wrap text-rose-600">
+        <div className="mx-4 mb-4 flex items-start gap-2 rounded-lg bg-rose-50 px-3 py-2 text-[12.5px] whitespace-pre-wrap text-rose-600">
           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {summary && !error && (
-        <div className="mx-3 mb-3 rounded border border-emerald-200 bg-emerald-50 p-2 text-[11px] text-emerald-700">
+        <div className="mx-4 mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] text-emerald-700">
           <div className="font-medium">
             {summary.tables.toLocaleString()} table(s) ·{" "}
             {summary.columns.toLocaleString()} column(s) ·{" "}
@@ -318,7 +318,7 @@ export function DocExportDialog({ onClose }: { onClose: () => void }) {
             {summary.foreign_keys.toLocaleString()} FK(s) ·{" "}
             {formatBytes(summary.bytes)} in {summary.elapsed_ms} ms
           </div>
-          <div className="mt-0.5 font-mono text-[10px]">{summary.path}</div>
+          <div className="mt-1 font-code text-[11px]">{summary.path}</div>
         </div>
       )}
     </DialogShell>

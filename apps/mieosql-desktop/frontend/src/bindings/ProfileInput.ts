@@ -16,6 +16,11 @@ id?: string, name: string, engine: Engine, host?: string, port?: number, usernam
  */
 file?: string, params: { [key in string]: string }, ssl_mode?: SslMode, ssh?: SshSpec, color?: string, group?: string, 
 /**
+ * Connector preset / cloud flavor (`aurora`, `documentdb`, `redshift`,
+ * `azure`, `elasticache`, `memorystore`, ...). Descriptive only.
+ */
+variant?: string, 
+/**
  * Password policy: `None` keeps the stored secret, `Some("")` clears it.
  */
 password?: string, 

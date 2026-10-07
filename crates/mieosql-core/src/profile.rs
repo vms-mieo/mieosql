@@ -40,8 +40,24 @@ pub enum Engine {
     #[serde(rename = "mongodb")]
     MongoDb,
     Redis,
+    Kafka,
     Oracle,
     Snowflake,
+}
+
+/// Broad engine category — drives UI affordances (SQL vs document vs ...).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum EngineKind {
+    /// Relational / SQL engines.
+    Sql,
+    /// Document stores (MongoDB, AWS DocumentDB).
+    Document,
+    /// Key-value stores (Redis, ElastiCache, Memorystore).
+    KeyValue,
+    /// Message brokers (Kafka).
+    MessageBroker,
 }
 
 impl Engine {
@@ -51,6 +67,10 @@ impl Engine {
         Engine::MariaDb,
         Engine::Postgres,
         Engine::Sqlite,
+        Engine::SqlServer,
+        Engine::MongoDb,
+        Engine::Redis,
+        Engine::Kafka,
     ];
 
     pub fn is_implemented(self) -> bool {
@@ -66,6 +86,7 @@ impl Engine {
             Engine::SqlServer => "SQL Server",
             Engine::MongoDb => "MongoDB",
             Engine::Redis => "Redis",
+            Engine::Kafka => "Apache Kafka",
             Engine::Oracle => "Oracle",
             Engine::Snowflake => "Snowflake",
         }
@@ -78,14 +99,31 @@ impl Engine {
             Engine::SqlServer => Some(1433),
             Engine::MongoDb => Some(27017),
             Engine::Redis => Some(6379),
+            Engine::Kafka => Some(9092),
             Engine::Oracle => Some(1521),
             Engine::Sqlite | Engine::Snowflake => None,
         }
     }
 
+    /// Broad category of the engine.
+    pub fn kind(self) -> EngineKind {
+        match self {
+            Engine::MySql
+            | Engine::MariaDb
+            | Engine::Postgres
+            | Engine::Sqlite
+            | Engine::SqlServer
+            | Engine::Oracle
+            | Engine::Snowflake => EngineKind::Sql,
+            Engine::MongoDb => EngineKind::Document,
+            Engine::Redis => EngineKind::KeyValue,
+            Engine::Kafka => EngineKind::MessageBroker,
+        }
+    }
+
     /// Whether the engine speaks SQL and is served by the SQL driver layer.
     pub fn is_sql(self) -> bool {
-        !matches!(self, Engine::MongoDb | Engine::Redis)
+        self.kind() == EngineKind::Sql
     }
 
     /// Whether connections are file-based rather than host/port based.
@@ -188,6 +226,12 @@ pub struct ConnectionProfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub group: Option<String>,
+    /// Connector preset / cloud flavor, e.g. `aurora`, `documentdb`,
+    /// `elasticache`, `memorystore`, `redshift`, `azure`. Purely descriptive:
+    /// the underlying driver is chosen by `engine`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub variant: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -209,6 +253,7 @@ impl ConnectionProfile {
             ssh: None,
             color: None,
             group: None,
+            variant: None,
             created_at: now,
             updated_at: now,
         }
@@ -269,6 +314,8 @@ pub struct ConnectionSpec {
     pub file: Option<String>,
     pub params: BTreeMap<String, String>,
     pub ssl_mode: SslMode,
+    /// Connector preset / cloud flavor (descriptive only).
+    pub variant: Option<String>,
     pub ssh: Option<SshSpec>,
     /// SSH password / key passphrase, resolved from the vault.
     pub ssh_password: Option<String>,
@@ -288,6 +335,7 @@ impl std::fmt::Debug for ConnectionSpec {
             .field("database", &self.database)
             .field("file", &self.file)
             .field("ssl_mode", &self.ssl_mode)
+            .field("variant", &self.variant)
             .field("ssh", &self.ssh.as_ref().map(|s| &s.host))
             .field(
                 "ssh_password",
@@ -311,6 +359,7 @@ impl ConnectionSpec {
             file: profile.file.clone(),
             params: profile.params.clone(),
             ssl_mode: profile.ssl_mode,
+            variant: profile.variant.clone(),
             ssh: profile.ssh.clone(),
             ssh_password: None,
             connect_timeout_secs: 15,

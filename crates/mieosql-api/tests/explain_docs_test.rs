@@ -48,6 +48,7 @@ async fn setup(tag: &str) -> TestEnv {
             ssh: None,
             color: None,
             group: None,
+            variant: None,
             password: Some("test".into()),
             ssh_password: None,
         })

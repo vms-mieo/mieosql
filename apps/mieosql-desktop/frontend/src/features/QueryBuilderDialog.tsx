@@ -202,10 +202,10 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
   };
 
   const field =
-    "rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-800 focus:border-sky-400 focus:outline-none";
-  const sectionTitle = "text-[12px] font-semibold text-slate-700";
+    "h-7 rounded-md border border-slate-300 bg-white px-2 text-[13px] text-slate-800 focus:ring-2 focus:ring-accent/40 focus:outline-none";
+  const sectionTitle = "text-[13px] font-semibold text-slate-900";
   const smallButton =
-    "rounded border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100 disabled:opacity-40";
+    "h-7 rounded-md border border-slate-300 bg-white px-2 text-[12.5px] text-slate-700 hover:bg-slate-50 disabled:opacity-40";
 
   return (
     <DialogShell
@@ -215,13 +215,13 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
       footer={
         <>
           <button
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-100"
+            className="h-7 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50"
             onClick={onClose}
           >
             Cancel
           </button>
           <button
-            className="rounded bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+            className="h-7 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover disabled:opacity-50"
             disabled={!sessionId || !table}
             onClick={insert}
           >
@@ -231,7 +231,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
       }
     >
       {sessions.length === 0 ? (
-        <div className="p-6 text-[11px] text-slate-400">
+        <div className="p-6 text-[13px] text-slate-500">
           Connect to a database first, then reopen the query builder.
         </div>
       ) : (
@@ -240,7 +240,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
           <section className="space-y-1.5">
             <h3 className={sectionTitle}>1. Connection &amp; scope</h3>
             <div className="flex items-center gap-2">
-              <label className="w-20 shrink-0 text-[11px] text-slate-500">Session</label>
+              <label className="w-20 shrink-0 text-[12px] text-slate-500">Session</label>
               <select
                 className={`${field} min-w-0 flex-1`}
                 value={sessionId ?? ""}
@@ -258,14 +258,14 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <label className="w-20 shrink-0 text-[11px] text-slate-500">Database</label>
+              <label className="w-20 shrink-0 text-[12px] text-slate-500">Database</label>
               <input
                 className={`${field} min-w-0 flex-1`}
                 placeholder="database (optional)"
                 value={database}
                 onChange={(e) => setDatabase(e.target.value)}
               />
-              <label className="shrink-0 text-[11px] text-slate-500">Schema</label>
+              <label className="shrink-0 text-[12px] text-slate-500">Schema</label>
               <input
                 className={`${field} min-w-0 flex-1`}
                 placeholder="schema (optional)"
@@ -278,7 +278,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
                 disabled={loading}
                 title="Reload tables for this scope"
               >
-                <RefreshCw size={11} />
+                <RefreshCw size={12} />
                 Load
               </button>
             </div>
@@ -296,7 +296,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
             )}
             {tables && tables.length > 0 && (
               <div className="flex items-center gap-2">
-                <label className="w-20 shrink-0 text-[11px] text-slate-500">Table</label>
+                <label className="w-20 shrink-0 text-[12px] text-slate-500">Table</label>
                 <select
                   className={`${field} min-w-0 flex-1`}
                   value={tableName}
@@ -341,11 +341,11 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
                     </button>
                   </div>
                 </div>
-                <div className="custom-scrollbar grid max-h-36 grid-cols-2 gap-x-4 gap-y-0.5 overflow-auto rounded border border-slate-200 p-2">
+                <div className="custom-scrollbar grid max-h-36 grid-cols-2 gap-x-4 gap-y-0.5 overflow-auto rounded-md border border-slate-200 p-2">
                   {table.columns.map((col) => (
                     <label
                       key={col.name}
-                      className="flex items-center gap-1.5 text-[11px] text-slate-700"
+                      className="flex items-center gap-1.5 text-[12.5px] text-slate-700"
                     >
                       <input
                         type="checkbox"
@@ -356,7 +356,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
                         }
                       />
                       <span className="truncate font-code">{col.name}</span>
-                      <span className="truncate text-[10px] text-slate-400">
+                      <span className="truncate text-[11px] text-slate-400">
                         {col.native_type}
                       </span>
                     </label>
@@ -372,7 +372,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
               <div className="flex items-center justify-between">
                 <h3 className={sectionTitle}>3. Filters</h3>
                 <button className={`${smallButton} flex items-center gap-1`} onClick={addFilter}>
-                  <Plus size={11} />
+                  <Plus size={12} />
                   Add filter
                 </button>
               </div>
@@ -412,7 +412,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
                     ))}
                   </select>
                   <input
-                    className={`${field} min-w-0 flex-1 font-code disabled:bg-slate-100`}
+                    className={`${field} min-w-0 flex-1 font-code disabled:bg-slate-50 disabled:text-slate-400`}
                     placeholder={row.op === "IN" ? "a, b, c" : "value"}
                     disabled={isNullOp(row.op)}
                     value={isNullOp(row.op) ? "" : row.value}
@@ -426,7 +426,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
                     }}
                   />
                   <button
-                    className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.05] hover:text-rose-600"
                     title="Remove filter"
                     onClick={() => setFilters((rows) => rows.filter((r) => r.id !== row.id))}
                   >
@@ -443,7 +443,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
               <div className="flex items-center justify-between">
                 <h3 className={sectionTitle}>4. Sorting &amp; limit</h3>
                 <button className={`${smallButton} flex items-center gap-1`} onClick={addOrder}>
-                  <Plus size={11} />
+                  <Plus size={12} />
                   Add sort
                 </button>
               </div>
@@ -479,7 +479,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
                     <option value="DESC">DESC</option>
                   </select>
                   <button
-                    className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.05] hover:text-rose-600"
                     title="Remove sort"
                     onClick={() => setOrders((rows) => rows.filter((r) => r.id !== row.id))}
                   >
@@ -488,7 +488,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
                 </div>
               ))}
               <div className="flex items-center gap-2">
-                <label className="w-20 shrink-0 text-[11px] text-slate-500">Limit</label>
+                <label className="w-20 shrink-0 text-[12px] text-slate-500">Limit</label>
                 <input
                   className={`${field} w-28 font-code`}
                   inputMode="numeric"
@@ -504,7 +504,7 @@ export function QueryBuilderDialog({ onClose }: { onClose: () => void }) {
           {/* Preview */}
           <section className="space-y-1.5">
             <h3 className={sectionTitle}>Preview</h3>
-            <pre className="custom-scrollbar max-h-44 min-h-[60px] overflow-auto rounded border border-slate-700 bg-slate-900 p-2 font-code text-[11px] leading-snug whitespace-pre-wrap text-sky-100">
+            <pre className="custom-scrollbar max-h-44 min-h-[60px] overflow-auto rounded-md border border-slate-200 bg-sidebar p-2 font-code text-[12.5px] leading-snug whitespace-pre-wrap text-slate-700">
               {table ? sql : "-- select a table to build a query"}
             </pre>
           </section>

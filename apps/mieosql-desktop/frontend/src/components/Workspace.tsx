@@ -528,7 +528,7 @@ function ObjectsView({ tab }: { tab: Tab }) {
               {shown.map((o) => (
                 <tr
                   key={`${o.schema ?? ""}.${o.name}`}
-                  className="cursor-default border-b border-[#EDEDF0] hover:bg-slate-900/[0.03]"
+                  className="cursor-default border-b border-slate-200/70 hover:bg-slate-900/[0.03]"
                   onClick={() =>
                     store.openTable(
                       tab.sessionId!,

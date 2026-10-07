@@ -27,13 +27,13 @@ import {
 } from "./EndpointPicker";
 
 const INPUT_CLS =
-  "w-full rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-800 focus:border-sky-400 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400";
+  "h-7 w-full rounded-md border border-slate-300 bg-white px-2 text-[13px] text-slate-800 focus:ring-2 focus:ring-accent/40 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400";
 const LABEL_CLS =
-  "mb-0.5 block text-[10px] font-medium tracking-wide text-slate-500 uppercase";
+  "mb-1 block text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase";
 const BTN_SECONDARY =
-  "flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50 disabled:opacity-50";
 const BTN_PRIMARY =
-  "flex items-center gap-1.5 rounded bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-sky-700 disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover disabled:opacity-50";
 
 const MODES: Array<{
   value: TransferMode;
@@ -252,17 +252,17 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
             disabled={running || loadingColumns}
           >
             {running ? (
-              <Loader2 size={12} className="animate-spin" />
+              <Loader2 size={13} className="animate-spin" />
             ) : (
-              <ArrowRight size={12} />
+              <ArrowRight size={13} strokeWidth={1.8} />
             )}
             Transfer
           </button>
         </>
       }
     >
-      <div className="space-y-3 p-3">
-        <div className="grid grid-cols-2 gap-2">
+      <div className="space-y-4 p-4">
+        <div className="grid grid-cols-2 gap-3">
           <EndpointPicker
             label="Source"
             value={source}
@@ -277,7 +277,7 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={LABEL_CLS}>Source table</label>
             <input
@@ -301,7 +301,7 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={LABEL_CLS}>Mode</label>
             <select
@@ -317,14 +317,14 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
               ))}
             </select>
             <div
-              className={`mt-0.5 text-[10px] ${
-                activeMode.destructive ? "text-rose-600" : "text-slate-400"
+              className={`mt-1 text-[11px] ${
+                activeMode.destructive ? "text-rose-600" : "text-slate-500"
               }`}
             >
               {activeMode.description}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={LABEL_CLS}>Row limit (optional)</label>
               <input
@@ -350,7 +350,7 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={LABEL_CLS}>WHERE clause (optional)</label>
             <input
@@ -360,7 +360,7 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
               onChange={(e) => setWhere(e.target.value)}
             />
           </div>
-          <div className="self-end text-[10px] text-slate-400">
+          <div className="self-end pb-0.5 text-[11px] text-slate-500">
             {source && target && (
               <>
                 {engineLabel(sourceSession?.engine ?? "mysql")} →{" "}
@@ -372,19 +372,19 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div>
-          <div className="mb-1 flex items-center justify-between">
+          <div className="mb-1.5 flex items-center justify-between">
             <span className={LABEL_CLS}>
               Columns ({selectedColumns.size}/{columns.length})
             </span>
             <div className="flex items-center gap-2">
               {loadingColumns && (
-                <span className="flex items-center gap-1 text-[10px] text-slate-400">
-                  <Loader2 size={10} className="animate-spin" />
+                <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                  <Loader2 size={11} className="animate-spin" />
                   loading…
                 </span>
               )}
               <button
-                className="text-[10px] text-sky-600 hover:underline disabled:opacity-50"
+                className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-accent hover:bg-accent/10 disabled:opacity-40"
                 disabled={columns.length === 0}
                 onClick={() =>
                   setSelectedColumns(new Set(columns.map((c) => c.name)))
@@ -393,44 +393,45 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
                 All
               </button>
               <button
-                className="text-[10px] text-sky-600 hover:underline disabled:opacity-50"
+                className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-accent hover:bg-accent/10 disabled:opacity-40"
                 disabled={columns.length === 0}
                 onClick={() => setSelectedColumns(new Set())}
               >
                 None
               </button>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[11px] text-slate-500">
                 empty list = copy every column
               </span>
             </div>
           </div>
-          <div className="custom-scrollbar max-h-36 overflow-auto rounded border border-slate-200 bg-white p-1.5">
+          <div className="custom-scrollbar max-h-36 overflow-auto rounded-md border border-slate-200 bg-white p-2">
             {columns.length === 0 ? (
-              <div className="px-1 py-2 text-[11px] text-slate-400">
+              <div className="px-1 py-2 text-[12.5px] text-slate-500">
                 {sourceTable.trim()
                   ? "No columns loaded — check the session / table."
                   : "Enter a source table to load its columns."}
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-x-2 gap-y-0.5">
+              <div className="grid grid-cols-3 gap-x-3 gap-y-1">
                 {columns.map((col) => (
                   <label
                     key={col.name}
-                    className="flex min-w-0 cursor-pointer items-center gap-1.5 text-[11px] text-slate-700"
+                    className="flex min-w-0 cursor-pointer items-center gap-1.5 text-[12.5px] text-slate-700"
                     title={`${col.name} · ${col.native_type}`}
                   >
                     <input
                       type="checkbox"
+                      className="h-3.5 w-3.5 accent-accent"
                       checked={selectedColumns.has(col.name)}
                       onChange={() => toggleColumn(col.name)}
                     />
                     <span className="truncate font-code">{col.name}</span>
                     {col.is_primary_key && (
-                      <span className="shrink-0 rounded bg-amber-100 px-1 text-[9px] text-amber-700">
+                      <span className="shrink-0 rounded bg-amber-100 px-1 text-[10.5px] font-medium text-amber-700">
                         PK
                       </span>
                     )}
-                    <span className="ml-auto shrink-0 truncate text-[9px] text-slate-400">
+                    <span className="ml-auto shrink-0 truncate text-[11px] text-slate-500">
                       {col.native_type}
                     </span>
                   </label>
@@ -438,21 +439,21 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
               </div>
             )}
           </div>
-          <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-400">
-            <RefreshCw size={10} />
+          <div className="mt-1 flex items-center gap-1 text-[11px] text-slate-500">
+            <RefreshCw size={11} strokeWidth={1.8} />
             columns load automatically when the source table changes
           </div>
         </div>
 
         {error && (
-          <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] whitespace-pre-wrap text-rose-700">
+          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[12.5px] whitespace-pre-wrap text-rose-600">
             {error}
           </div>
         )}
 
         {result && (
           <div
-            className={`rounded border px-3 py-2 text-[11px] ${
+            className={`rounded-md border px-3 py-2 text-[12.5px] ${
               result.warnings.length > 0
                 ? "border-amber-200 bg-amber-50 text-amber-800"
                 : "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -468,7 +469,7 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
               <ul className="mt-1 ml-4 list-disc space-y-0.5">
                 {result.warnings.map((w, i) => (
                   <li key={i}>
-                    <AlertTriangle size={9} className="mr-1 inline" />
+                    <AlertTriangle size={11} strokeWidth={1.8} className="mr-1 inline" />
                     {w}
                   </li>
                 ))}
@@ -478,7 +479,7 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
         )}
 
         {selected && source && selected.sessionId !== source.session_id && (
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[11px] text-slate-500">
             Object selection came from another session — verify the source
             table name before transferring.
           </p>

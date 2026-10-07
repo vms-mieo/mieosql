@@ -90,11 +90,11 @@ const AGG_LABELS: Record<BiAgg, string> = {
 };
 
 const INPUT_CLS =
-  "rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 focus:border-sky-400 focus:outline-none";
+  "h-7 rounded-md border border-slate-300 bg-white px-2 text-[13px] text-slate-700 focus:ring-2 focus:ring-accent/40 focus:outline-none";
 const PRIMARY_BTN =
-  "flex items-center gap-1 rounded bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-7 items-center gap-1 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50";
 const SECONDARY_BTN =
-  "rounded border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-100";
+  "h-7 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50";
 
 function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -377,15 +377,15 @@ export function BiPanel({ tab }: { tab: Tab }) {
   }, []);
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-[#f8fafc]">
-      <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-slate-200 bg-[#f1f5f9] px-2">
-        <BarChart3 size={13} className="text-cyan-600" />
-        <span className="text-[12px] font-semibold text-slate-700">BI Dashboard</span>
+    <div className="relative flex min-h-0 flex-1 flex-col bg-sidebar">
+      <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-slate-200/80 bg-sidebar px-2">
+        <BarChart3 size={13} className="text-slate-500" />
+        <span className="text-[13px] font-medium text-slate-900">BI Dashboard</span>
         <span className="text-[11px] text-slate-400">
           {tiles.length} tile{tiles.length === 1 ? "" : "s"} · saved locally
         </span>
         <button className={`ml-auto ${PRIMARY_BTN}`} onClick={openNew}>
-          <Plus size={11} />
+          <Plus size={12} />
           Add chart
         </button>
       </div>
@@ -395,16 +395,16 @@ export function BiPanel({ tab }: { tab: Tab }) {
           <div className="grid h-full place-items-center">
             <div className="max-w-[380px] text-center">
               <BarChart3 size={26} className="mx-auto text-slate-300" />
-              <div className="mt-2 text-[12px] font-semibold text-slate-600">
+              <div className="mt-2 text-[13px] font-semibold text-slate-700">
                 No charts yet
               </div>
-              <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
                 Build a dashboard from any SQL query. Tiles refresh on demand or
                 on a schedule, and parameterize with{" "}
-                <code className="font-mono">{"{{name}}"}</code>.
+                <code className="font-code">{"{{name}}"}</code>.
               </p>
               <button className={`mt-3 inline-flex ${PRIMARY_BTN}`} onClick={openNew}>
-                <Plus size={11} />
+                <Plus size={12} />
                 Add chart
               </button>
             </div>
@@ -553,13 +553,13 @@ function ChartForm({
 
   return (
     <div className="absolute inset-0 z-30 flex items-start justify-center overflow-y-auto bg-slate-900/25 p-6">
-      <div className="w-full max-w-[760px] rounded-lg border border-slate-200 bg-white shadow-2xl">
-        <header className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-          <span className="text-[12px] font-semibold text-slate-700">
+      <div className="w-full max-w-[760px] rounded-xl border border-slate-300/70 bg-white shadow-[0_24px_70px_rgba(0,0,0,0.25)]">
+        <header className="flex h-11 items-center justify-between border-b border-slate-200/80 px-4">
+          <span className="text-[15px] font-semibold text-slate-900">
             {mode === "edit" ? "Edit chart" : "Add chart"}
           </span>
           <button
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-600"
             onClick={onCancel}
             title="Close"
           >
@@ -567,7 +567,7 @@ function ChartForm({
           </button>
         </header>
 
-        <div className="space-y-3 px-3 py-3">
+        <div className="space-y-3 p-4">
           <div className="flex flex-wrap gap-2">
             <Field label="Title" className="min-w-[200px] flex-1">
               <input
@@ -612,7 +612,7 @@ function ChartForm({
 
           <Field label="SQL query (use {{name}} for parameters)">
             <textarea
-              className={`${INPUT_CLS} h-24 w-full resize-y font-mono`}
+              className={`${INPUT_CLS} h-24 w-full resize-y font-code`}
               value={draft.sql}
               onChange={(e) => patch({ sql: e.target.value })}
               placeholder="SELECT category, COUNT(*) AS total FROM orders GROUP BY category"
@@ -621,18 +621,18 @@ function ChartForm({
           </Field>
 
           {placeholders.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5">
-              <span className="text-[10px] font-medium text-amber-700">
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
+              <span className="text-[11px] font-semibold text-slate-500">
                 Parameters:
               </span>
               {placeholders.map((name) => (
                 <label
                   key={name}
-                  className="flex items-center gap-1 text-[10px] text-slate-600"
+                  className="flex items-center gap-1 text-[11px] text-slate-600"
                 >
-                  <span className="font-mono text-amber-700">{`{{${name}}}`}</span>
+                  <span className="font-code text-slate-700">{`{{${name}}}`}</span>
                   <input
-                    className="w-28 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px]"
+                    className="h-6 w-28 rounded-md border border-slate-300 bg-white px-1.5 text-[11px] focus:ring-2 focus:ring-accent/40 focus:outline-none"
                     value={draft.params[name] ?? ""}
                     onChange={(e) =>
                       patch({ params: { ...draft.params, [name]: e.target.value } })
@@ -651,23 +651,23 @@ function ChartForm({
               disabled={loading || !draft.sessionId}
             >
               {loading ? (
-                <Loader2 size={11} className="animate-spin" />
+                <Loader2 size={12} className="animate-spin" />
               ) : (
-                <RefreshCw size={11} />
+                <RefreshCw size={12} />
               )}
               Run preview
             </button>
             {preview && (
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[11px] text-slate-500">
                 {preview.rows.length.toLocaleString()} rows ·{" "}
                 {preview.columns.length} columns · {preview.stats.elapsed_ms} ms
               </span>
             )}
-            {error && <span className="text-[10px] text-rose-600">{error}</span>}
+            {error && <span className="text-[11px] text-rose-600">{error}</span>}
           </div>
 
           {preview && (
-            <div className="max-h-[150px] overflow-hidden rounded border border-slate-200">
+            <div className="max-h-[150px] overflow-hidden rounded-md border border-slate-200">
               <MiniTable
                 columns={preview.columns
                   .slice(0, 8)
@@ -738,7 +738,7 @@ function ChartForm({
 
           {draft.chart !== "table" && chipColumns.length > 0 && (
             <div>
-              <div className="mb-1 text-[10px] font-medium text-slate-500">
+              <div className="mb-1 text-[12px] font-medium text-slate-500">
                 Y columns{" "}
                 <span className="font-normal text-slate-400">
                   (up to {MAX_Y_COLUMNS} — leave empty to chart row count)
@@ -751,10 +751,10 @@ function ChartForm({
                   return (
                     <button
                       key={name}
-                      className={`rounded-full border px-2 py-0.5 text-[10px] ${
+                      className={`rounded-md border px-2 py-0.5 text-[11px] ${
                         selected
-                          ? "border-sky-500 bg-sky-100 text-sky-700"
-                          : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+                          ? "border-accent/30 bg-accent/10 text-accent"
+                          : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
                       } disabled:cursor-not-allowed disabled:opacity-40`}
                       onClick={() => toggleY(name)}
                       disabled={disabled}
@@ -768,14 +768,14 @@ function ChartForm({
           )}
 
           {!preview && (
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[11px] text-slate-400">
               Run a preview to load the result columns, then pick the X axis and
               value columns.
             </p>
           )}
         </div>
 
-        <footer className="flex items-center justify-end gap-2 border-t border-slate-200 px-3 py-2">
+        <footer className="flex h-12 items-center justify-end gap-2 border-t border-slate-200/80 bg-sidebar px-4">
           <button className={SECONDARY_BTN} onClick={onCancel}>
             Cancel
           </button>
@@ -799,7 +799,7 @@ function Field({
 }) {
   return (
     <label className={`block ${className ?? ""}`}>
-      <span className="mb-0.5 block text-[10px] font-medium text-slate-500">
+      <span className="mb-0.5 block text-[12px] font-medium text-slate-500">
         {label}
       </span>
       {children}
@@ -941,43 +941,43 @@ function BiTileView({
 
   return (
     <div
-      className={`flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm ${
+      className={`flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white ${
         tile.width === 2 ? "col-span-2" : ""
       }`}
     >
       {/* Header */}
-      <div className="flex items-center gap-1.5 border-b border-slate-200 bg-[#f8fafc] px-2.5 py-1.5">
-        <ChartIcon size={12} className="shrink-0 text-cyan-600" />
+      <div className="flex items-center gap-1.5 border-b border-slate-200 bg-sidebar px-2.5 py-1.5">
+        <ChartIcon size={12} className="shrink-0 text-slate-500" />
         <span
-          className="min-w-0 flex-1 truncate text-[12px] font-semibold text-slate-700"
+          className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-slate-800"
           title={tile.title}
         >
           {tile.title}
         </span>
         {tile.autoRefreshSec > 0 && (
-          <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] text-emerald-600">
+          <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10.5px] font-medium text-emerald-600">
             auto {tile.autoRefreshSec}s
           </span>
         )}
         <button
-          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          className="grid h-6 w-6 place-items-center rounded-md text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-700"
           title="Refresh now"
           onClick={() => setNonce((n) => n + 1)}
         >
-          <RefreshCw size={11} className={state.loading ? "animate-spin" : ""} />
+          <RefreshCw size={12} className={state.loading ? "animate-spin" : ""} />
         </button>
         <div className="relative" ref={menuRef}>
           <button
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="grid h-6 w-6 place-items-center rounded-md text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-700"
             title="Chart menu"
             onClick={() => setMenuOpen((v) => !v)}
           >
             <ChevronDown size={12} />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-full z-20 mt-1 w-40 rounded border border-slate-200 bg-white py-1 text-[11px] shadow-lg">
+            <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-md border border-slate-300/70 bg-white py-1 text-[13px] shadow-[0_10px_34px_rgba(0,0,0,0.16)]">
               <MenuItem
-                icon={<Pencil size={11} />}
+                icon={<Pencil size={12} />}
                 label="Edit chart"
                 onClick={() => {
                   setMenuOpen(false);
@@ -986,7 +986,7 @@ function BiTileView({
               />
               <MenuItem
                 icon={
-                  tile.width === 2 ? <Minimize2 size={11} /> : <Maximize2 size={11} />
+                  tile.width === 2 ? <Minimize2 size={12} /> : <Maximize2 size={12} />
                 }
                 label={tile.width === 2 ? "Size 1x" : "Size 2x"}
                 onClick={() => {
@@ -995,7 +995,7 @@ function BiTileView({
                 }}
               />
               <MenuItem
-                icon={<Copy size={11} />}
+                icon={<Copy size={12} />}
                 label="Duplicate"
                 onClick={() => {
                   setMenuOpen(false);
@@ -1003,7 +1003,7 @@ function BiTileView({
                 }}
               />
               <MenuItem
-                icon={<Trash2 size={11} />}
+                icon={<Trash2 size={12} />}
                 label="Remove"
                 danger
                 onClick={() => {
@@ -1018,16 +1018,16 @@ function BiTileView({
 
       {/* Parameters */}
       {placeholders.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 bg-amber-50/60 px-2.5 py-1">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-2.5 py-1">
           {placeholders.map((name) => (
             <label
               key={name}
-              className="flex items-center gap-1 text-[10px] text-slate-600"
+              className="flex items-center gap-1 text-[11px] text-slate-600"
               title={`{{${name}}}`}
             >
-              <span className="font-mono text-amber-700">{name}</span>
+              <span className="font-code text-slate-600">{name}</span>
               <input
-                className="w-24 rounded border border-slate-300 bg-white px-1 py-0.5 text-[10px]"
+                className="h-6 w-24 rounded-md border border-slate-300 bg-white px-1.5 text-[11px] focus:ring-2 focus:ring-accent/40 focus:outline-none"
                 value={draftParams[name] ?? ""}
                 onChange={(e) =>
                   setDraftParams((d) => ({ ...d, [name]: e.target.value }))
@@ -1078,13 +1078,13 @@ function BiTileView({
         {state.loading && state.data && (
           <Loader2
             size={12}
-            className="absolute right-2 top-1 animate-spin text-sky-500"
+            className="absolute right-2 top-1 animate-spin text-accent"
           />
         )}
       </div>
 
       {/* Footer */}
-      <div className="flex items-center gap-1.5 border-t border-slate-100 px-2.5 py-1 text-[10px] text-slate-400">
+      <div className="flex items-center gap-1.5 border-t border-slate-200 px-2.5 py-1 text-[11px] text-slate-400">
         <span>{(state.data?.rows.length ?? 0).toLocaleString()} rows</span>
         <span>·</span>
         <span>{state.elapsedMs != null ? `${state.elapsedMs} ms` : "–"}</span>
@@ -1113,8 +1113,10 @@ function MenuItem({
 }) {
   return (
     <button
-      className={`flex w-full items-center gap-2 px-2.5 py-1 text-left hover:bg-slate-100 ${
-        danger ? "text-rose-600" : "text-slate-700"
+      className={`flex w-full items-center gap-2 px-3 py-[5px] text-left ${
+        danger
+          ? "text-rose-600 hover:bg-rose-500 hover:text-white"
+          : "text-slate-800 hover:bg-accent hover:text-white"
       }`}
       onClick={onClick}
     >

@@ -32,6 +32,7 @@ pub struct PostgresDriver {
 
 pub(crate) fn postgres_capabilities() -> Capabilities {
     Capabilities {
+        engine_kind: mieosql_core::EngineKind::Sql,
         placeholder: PlaceholderStyle::DollarNumbered,
         list_databases: true,
         list_schemas: true,

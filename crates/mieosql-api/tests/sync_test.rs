@@ -60,6 +60,7 @@ async fn setup(tag: &str) -> Env {
                 ssh: None,
                 color: None,
                 group: None,
+                variant: None,
                 password: Some("test".into()),
                 ssh_password: None,
             })

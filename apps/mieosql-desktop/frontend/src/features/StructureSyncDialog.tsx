@@ -33,13 +33,13 @@ type TableDiff = StructureSyncPlan["diffs"][number];
 type ColumnDiff = TableDiff["columns"][number];
 
 const INPUT_CLS =
-  "w-full rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-800 focus:border-sky-400 focus:outline-none";
+  "h-7 w-full rounded-md border border-slate-300 bg-white px-2 text-[13px] text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-accent/40 focus:outline-none";
 const LABEL_CLS =
-  "mb-0.5 block text-[10px] font-medium tracking-wide text-slate-500 uppercase";
+  "mb-1 block text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase";
 const BTN_SECONDARY =
-  "flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50 disabled:opacity-50";
 const BTN_PRIMARY =
-  "flex items-center gap-1.5 rounded bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-sky-700 disabled:opacity-50";
+  "flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover disabled:opacity-50";
 
 const KIND_LABEL: Record<SyncStatementKind, string> = {
   create_table: "create table",
@@ -61,22 +61,22 @@ const STATUS_META: Record<
   added: {
     text: "text-emerald-600",
     label: "only in source",
-    badge: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    badge: "bg-emerald-50 text-emerald-700",
   },
   removed: {
     text: "text-rose-600",
     label: "only in target",
-    badge: "border-rose-200 bg-rose-50 text-rose-700",
+    badge: "bg-rose-50 text-rose-700",
   },
   changed: {
     text: "text-amber-600",
     label: "differs",
-    badge: "border-amber-200 bg-amber-50 text-amber-700",
+    badge: "bg-amber-50 text-amber-700",
   },
   same: {
-    text: "text-slate-400",
+    text: "text-slate-500",
     label: "in sync",
-    badge: "border-slate-200 bg-slate-50 text-slate-500",
+    badge: "bg-slate-900/[0.06] text-slate-600",
   },
 };
 
@@ -91,25 +91,25 @@ function columnDiffText(cd: ColumnDiff): { text: string; cls: string } {
   if (cd.change === "added") {
     return {
       text: `+ ${cd.name}${cd.source_type ? ` ${cd.source_type}` : ""}`,
-      cls: "text-emerald-600",
+      cls: "bg-emerald-50 px-1.5 py-px text-emerald-700",
     };
   }
   if (cd.change === "removed") {
     return {
       text: `- ${cd.name}${cd.target_type ? ` ${cd.target_type}` : ""}`,
-      cls: "text-rose-600",
+      cls: "bg-rose-50 px-1.5 py-px text-rose-700",
     };
   }
   return {
     text: `~ ${cd.name}: ${cd.source_type ?? "?"} → ${cd.target_type ?? "?"}`,
-    cls: "text-amber-600",
+    cls: "bg-amber-50 px-1.5 py-px text-amber-700",
   };
 }
 
 function fkLineCls(line: string): string {
-  if (line.startsWith("+")) return "text-emerald-600";
-  if (line.startsWith("-")) return "text-rose-600";
-  return "text-amber-600";
+  if (line.startsWith("+")) return "bg-emerald-50 px-1.5 py-px text-emerald-700";
+  if (line.startsWith("-")) return "bg-rose-50 px-1.5 py-px text-rose-700";
+  return "bg-amber-50 px-1.5 py-px text-amber-700";
 }
 
 function Chip({
@@ -121,7 +121,7 @@ function Chip({
 }) {
   return (
     <span
-      className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${className}`}
+      className={`rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${className}`}
     >
       {children}
     </span>
@@ -287,7 +287,7 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
         </>
       }
     >
-      <div className="space-y-3 p-3">
+      <div className="space-y-3 p-4">
         <div className="grid grid-cols-2 gap-2">
           <EndpointPicker
             label="Source"
@@ -315,7 +315,7 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
               onChange={(e) => setTablesFilter(e.target.value)}
             />
           </div>
-          <label className="flex items-center gap-1.5 pb-1 text-[11px] text-slate-600">
+          <label className="flex items-center gap-1.5 pb-1 text-[13px] text-slate-700">
             <input
               type="checkbox"
               checked={includeIndexes}
@@ -326,7 +326,7 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         {sameScope && (
-          <div className="flex items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+          <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-700">
             <AlertTriangle size={13} className="shrink-0" />
             Source and target point to the same session and scope — the diff
             will be empty.
@@ -334,13 +334,13 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
         )}
 
         {error && (
-          <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] whitespace-pre-wrap text-rose-700">
+          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[12.5px] whitespace-pre-wrap text-rose-700">
             {error}
           </div>
         )}
 
         {loading && (
-          <div className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+          <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] text-slate-500">
             <Loader2 size={12} className="animate-spin" />
             Comparing schemas…
           </div>
@@ -349,23 +349,23 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
         {plan && (
           <>
             <div className="flex flex-wrap items-center gap-1.5">
-              <Chip className="border-slate-200 bg-slate-50 text-slate-600">
+              <Chip className="bg-slate-900/[0.06] text-slate-600">
                 {plan.diffs.length} table(s) compared
               </Chip>
-              <Chip className="border-emerald-200 bg-emerald-50 text-emerald-700">
+              <Chip className="bg-emerald-50 text-emerald-700">
                 +{plan.summary.tables_added} added
               </Chip>
-              <Chip className="border-rose-200 bg-rose-50 text-rose-700">
+              <Chip className="bg-rose-50 text-rose-700">
                 −{plan.summary.tables_removed} removed
               </Chip>
-              <Chip className="border-amber-200 bg-amber-50 text-amber-700">
+              <Chip className="bg-amber-50 text-amber-700">
                 ~{plan.summary.tables_changed} changed
               </Chip>
-              <Chip className="border-sky-200 bg-sky-50 text-sky-700">
+              <Chip className="bg-slate-900/[0.06] text-slate-600">
                 {plan.summary.statements} statement(s)
               </Chip>
               {sourceSession && targetSession && (
-                <span className="ml-1 text-[10px] text-slate-400">
+                <span className="ml-1 text-[11px] text-slate-500">
                   {engineLabel(sourceSession.engine)} →{" "}
                   {engineLabel(targetSession.engine)}
                 </span>
@@ -373,7 +373,7 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
             </div>
 
             {(!plan.same_engine || plan.warnings.length > 0) && (
-              <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-700">
                 <div className="flex items-center gap-1.5 font-medium">
                   <AlertTriangle size={12} className="shrink-0" />
                   {!plan.same_engine
@@ -392,12 +392,12 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
 
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-[12px] font-semibold text-slate-700">
+                <span className="text-[13px] font-semibold text-slate-900">
                   Table diffs
                 </span>
                 {sameDiffs.length > 0 && (
                   <button
-                    className="text-[10px] text-sky-600 hover:underline"
+                    className="text-[12px] text-accent hover:underline"
                     onClick={() => setShowSame((v) => !v)}
                   >
                     {showSame ? "Hide" : "Show"} {sameDiffs.length} identical
@@ -407,7 +407,7 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
               </div>
               <div className="space-y-1">
                 {changedDiffs.length === 0 && !showSame && (
-                  <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] text-slate-500">
                     No structural differences found.
                   </div>
                 )}
@@ -418,11 +418,11 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
                   sameDiffs.map((diff) => (
                     <div
                       key={diff.table}
-                      className="flex items-center gap-2 rounded border border-slate-100 bg-white px-2 py-1 text-[11px] text-slate-400"
+                      className="flex items-center gap-2 rounded-md border border-slate-200/70 bg-white px-2.5 py-1.5 text-[12.5px] text-slate-500"
                     >
                       <Check size={11} />
                       <span className="font-code">{diff.table}</span>
-                      <span className="text-[10px]">in sync</span>
+                      <span className="text-[11px]">in sync</span>
                     </div>
                   ))}
               </div>
@@ -430,21 +430,21 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
 
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-[12px] font-semibold text-slate-700">
+                <span className="text-[13px] font-semibold text-slate-900">
                   Statements ({plan.statements.length})
                 </span>
                 {plan.statements.length > 0 && (
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-[11px] text-slate-500">
                     destructive statements are shown in red
                   </span>
                 )}
               </div>
               {plan.statements.length === 0 ? (
-                <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] text-slate-500">
                   Nothing to apply — the target already matches the source.
                 </div>
               ) : (
-                <pre className="custom-scrollbar max-h-64 overflow-auto rounded border border-slate-200 bg-[#0f172a] p-2 font-code text-[10px] leading-relaxed">
+                <pre className="custom-scrollbar max-h-64 overflow-auto rounded-md border border-slate-200 bg-slate-900 p-3 font-code text-[12.5px] leading-5">
                   {plan.statements.map((stmt, i) => (
                     <div key={i} className={stmt.destructive ? "text-rose-400" : "text-slate-200"}>
                       <span className="text-slate-500">
@@ -463,10 +463,10 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
 
             {applyResult && (
               <div
-                className={`rounded border px-3 py-2 text-[11px] ${
+                className={`rounded-md border px-3 py-2 text-[12.5px] ${
                   applyResult.failed > 0
                     ? "border-rose-200 bg-rose-50 text-rose-700"
-                    : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
                 }`}
               >
                 <div className="font-medium">
@@ -500,33 +500,33 @@ function TableDiffCard({ diff }: { diff: TableDiff }) {
     diff.fk_report.length > 0;
 
   return (
-    <div className="overflow-hidden rounded border border-slate-200 bg-white">
-      <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-2 py-1">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex items-center gap-2 border-b border-slate-200/70 bg-sidebar px-2.5 py-1.5">
         <span className={`flex items-center gap-1 ${meta.text}`}>
           <StatusIcon status={diff.status} />
         </span>
-        <span className="font-code text-[11px] font-medium text-slate-700">
+        <span className="font-code text-[12.5px] font-medium text-slate-900">
           {diff.table}
         </span>
         <span
-          className={`rounded border px-1.5 py-px text-[10px] ${meta.badge}`}
+          className={`rounded px-1 py-px text-[10.5px] font-semibold ${meta.badge}`}
         >
           {meta.label}
         </span>
         {diff.columns.length > 0 && (
-          <span className="text-[10px] text-slate-400">
+          <span className="text-[11px] text-slate-500">
             {diff.columns.length} column change(s)
           </span>
         )}
         {diff.indexes_added.length + diff.indexes_removed.length > 0 && (
-          <span className="text-[10px] text-slate-400">
+          <span className="text-[11px] text-slate-500">
             {diff.indexes_added.length + diff.indexes_removed.length} index
             change(s)
           </span>
         )}
       </div>
       {hasBody && (
-        <div className="space-y-0.5 px-2 py-1 font-code text-[10px]">
+        <div className="space-y-px p-1.5 font-code text-[12px]">
           {diff.columns.map((cd) => {
             const { text, cls } = columnDiffText(cd);
             return (
@@ -536,13 +536,19 @@ function TableDiffCard({ diff }: { diff: TableDiff }) {
             );
           })}
           {diff.indexes_added.map((idx) => (
-            <div key={`+${idx.name}`} className="text-emerald-600">
+            <div
+              key={`+${idx.name}`}
+              className="bg-emerald-50 px-1.5 py-px text-emerald-700"
+            >
               + index {idx.name}
               {idx.is_unique ? " (unique)" : ""} ({idx.columns.join(", ")})
             </div>
           ))}
           {diff.indexes_removed.map((idx) => (
-            <div key={`-${idx.name}`} className="text-rose-600">
+            <div
+              key={`-${idx.name}`}
+              className="bg-rose-50 px-1.5 py-px text-rose-700"
+            >
               - index {idx.name} ({idx.columns.join(", ")})
             </div>
           ))}

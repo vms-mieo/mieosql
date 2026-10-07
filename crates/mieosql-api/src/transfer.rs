@@ -23,7 +23,7 @@ use mieosql_core::{
 
 use crate::dto::{ApiError, ApiResult};
 use crate::export::cell_text;
-use crate::service::{quote_ident, Api};
+use crate::service::{quote_ident, select_limited, Api};
 use crate::sync::SyncEndpoint;
 
 /// How the target table is prepared before inserting.
@@ -470,15 +470,16 @@ fn build_transfer_select(
         .map(|c| quote_ident(engine, c))
         .collect::<Vec<_>>()
         .join(", ");
-    let mut sql = format!("SELECT {cols} FROM {}", qualified_table(engine, scope, table));
+    let mut from_where = format!("FROM {}", qualified_table(engine, scope, table));
     if let Some(where_clause) = where_clause.map(str::trim).filter(|w| !w.is_empty()) {
-        sql.push_str(" WHERE ");
-        sql.push_str(where_clause.trim_end_matches(';').trim_end());
+        from_where.push_str(" WHERE ");
+        from_where.push_str(where_clause.trim_end_matches(';').trim_end());
     }
-    if let Some(limit) = limit {
-        sql.push_str(&format!(" LIMIT {}", limit.saturating_add(1)));
+    match limit {
+        // One extra row so the caller can report `truncated` exactly.
+        Some(limit) => select_limited(engine, &cols, &from_where, limit.saturating_add(1)),
+        None => format!("SELECT {cols} {from_where}"),
     }
-    sql
 }
 
 /// Parameter placeholder for the target engine (`?` / `$n`), 1-based index.

@@ -314,11 +314,11 @@ export function ErdPanel({ tab }: { tab: Tab }) {
   const canRender = !!sessionId && !error && !!layout && layout.boxes.length > 0;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#f8fafc]">
+    <div className="flex min-h-0 flex-1 flex-col bg-sidebar">
       {/* Toolbar */}
-      <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-slate-200 bg-[#f1f5f9] px-2">
-        <Network size={13} className="text-fuchsia-600" />
-        <span className="text-[12px] font-semibold text-slate-700">ER Diagram</span>
+      <div className="flex h-[34px] shrink-0 items-center gap-2 border-b border-slate-200/70 bg-sidebar px-2">
+        <Network size={13} strokeWidth={1.8} className="text-slate-500" />
+        <span className="text-[13px] font-semibold text-slate-700">ER Diagram</span>
         {session && (
           <span className="truncate text-[11px] text-slate-500">
             {session.name}
@@ -326,19 +326,19 @@ export function ErdPanel({ tab }: { tab: Tab }) {
           </span>
         )}
         {layout && (
-          <span className="hidden text-[11px] text-slate-400 lg:inline">
+          <span className="hidden text-[11px] text-slate-500 lg:inline">
             {layout.stats.tables} tables · {layout.stats.columns} columns ·{" "}
             {layout.stats.foreignKeys} FKs
           </span>
         )}
         {layout?.stats.truncated && (
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-700">
             truncated at 300 tables
           </span>
         )}
         {layout && layout.stats.unresolved > 0 && (
           <span
-            className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600"
+            className="rounded bg-slate-900/[0.06] px-1.5 py-0.5 text-[10.5px] font-semibold text-slate-600"
             title="FKs referencing a table outside this scope"
           >
             {layout.stats.unresolved} external FK
@@ -346,10 +346,10 @@ export function ErdPanel({ tab }: { tab: Tab }) {
           </span>
         )}
         <div className="ml-auto flex items-center gap-1.5">
-          <label className="flex items-center gap-1 rounded border border-slate-300 bg-white px-1.5 py-1">
-            <Search size={11} className="text-slate-400" />
+          <label className="flex h-7 items-center gap-1.5 rounded-md bg-slate-900/[0.04] px-2">
+            <Search size={12} className="text-slate-500" />
             <input
-              className="w-32 bg-transparent text-[11px] text-slate-700 placeholder:text-slate-400 focus:outline-none"
+              className="w-32 bg-transparent text-[12px] text-slate-800 placeholder:text-slate-500 focus:outline-none"
               placeholder="Find table…"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -375,18 +375,18 @@ export function ErdPanel({ tab }: { tab: Tab }) {
       {/* Body */}
       {!sessionId ? (
         <CenteredNote
-          icon={<Database size={22} className="text-slate-300" />}
+          icon={<Database size={16} strokeWidth={1.6} className="text-slate-300" />}
           title="No connection selected"
           detail="Open a connection and select a database / schema, then reopen the ER diagram."
         />
       ) : error ? (
         <CenteredNote
-          icon={<Database size={22} className="text-rose-300" />}
+          icon={<Database size={16} strokeWidth={1.6} className="text-rose-400" />}
           title="Could not load the schema"
           detail={error}
           action={
             <button
-              className="rounded bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-sky-700"
+              className="h-7 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover"
               onClick={() => void load()}
             >
               Retry
@@ -395,13 +395,13 @@ export function ErdPanel({ tab }: { tab: Tab }) {
         />
       ) : !snapshot && loading ? (
         <CenteredNote
-          icon={<RefreshCw size={22} className="animate-spin text-slate-300" />}
+          icon={<RefreshCw size={16} strokeWidth={1.6} className="animate-spin text-slate-300" />}
           title="Loading schema…"
           detail="Fetching tables, columns and foreign keys."
         />
       ) : snapshot && layout && layout.boxes.length === 0 ? (
         <CenteredNote
-          icon={<Database size={22} className="text-slate-300" />}
+          icon={<Database size={16} strokeWidth={1.6} className="text-slate-300" />}
           title="No tables or views in this scope"
           detail="Pick another database or schema in the connection tree and try again."
         />
@@ -433,10 +433,10 @@ export function ErdPanel({ tab }: { tab: Tab }) {
             >
               <defs>
                 <pattern id="erd-grid" width={24} height={24} patternUnits="userSpaceOnUse">
-                  <circle cx={1} cy={1} r={1} fill="#dde5ee" />
+                  <circle cx={1} cy={1} r={1} fill="#d2d2d7" />
                 </pattern>
               </defs>
-              <rect x={0} y={0} width={layout.width} height={layout.height} fill="#f8fafc" />
+              <rect x={0} y={0} width={layout.width} height={layout.height} fill="#f2f2f7" />
               <rect x={0} y={0} width={layout.width} height={layout.height} fill="url(#erd-grid)" />
 
               {/* FK edges first so boxes sit on top of the lines. */}
@@ -469,7 +469,7 @@ export function ErdPanel({ tab }: { tab: Tab }) {
           </div>
 
           {/* Legend */}
-          <div className="pointer-events-none absolute bottom-2 left-2 flex items-center gap-3 rounded border border-slate-200 bg-white/95 px-2 py-1 text-[10px] text-slate-600 shadow-sm">
+          <div className="pointer-events-none absolute bottom-2 left-2 flex items-center gap-3 rounded-md border border-slate-200/80 bg-white px-2 py-1 text-[11px] text-slate-600 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
             <span className="flex items-center gap-1">
               <LegendIcon kind="pk" /> PK
             </span>
@@ -483,22 +483,22 @@ export function ErdPanel({ tab }: { tab: Tab }) {
 
           {/* Zoom controls */}
           <div
-            className="absolute bottom-2 right-2 flex items-center gap-0.5 rounded border border-slate-200 bg-white/95 px-1 py-0.5 shadow-sm"
+            className="absolute bottom-2 right-2 flex items-center gap-0.5 rounded-md border border-slate-200/80 bg-white px-0.5 py-0.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
             onPointerDown={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
           >
             <button
-              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+              className="grid h-6 w-6 place-items-center rounded-md text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-700"
               title="Zoom out"
               onClick={() => zoomBy(1 / 1.25)}
             >
               <ZoomOut size={12} />
             </button>
-            <span className="w-9 text-center text-[10px] tabular-nums text-slate-500">
+            <span className="w-9 text-center text-[11px] tabular-nums text-slate-500">
               {Math.round(view.k * 100)}%
             </span>
             <button
-              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+              className="grid h-6 w-6 place-items-center rounded-md text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-700"
               title="Zoom in"
               onClick={() => zoomBy(1.25)}
             >
@@ -516,7 +516,7 @@ export function ErdPanel({ tab }: { tab: Tab }) {
 // ---------------------------------------------------------------------------
 
 function EdgePath({ edge, active }: { edge: ErdEdge; active: boolean }) {
-  const stroke = active ? "#94a3b8" : "#cbd5e1";
+  const stroke = active ? "#8e8e93" : "#d2d2d7";
   const opacity = active ? 0.9 : 0.2;
   return (
     <g>
@@ -551,7 +551,8 @@ function TableBoxG({
   highlight: boolean;
 }) {
   const table = box.table;
-  const header = table.kind === "table" ? "#0284c7" : "#7c3aed";
+  // Neutral header strip (matches bg-sidebar); kind is conveyed by the icon/title.
+  const header = "#f2f2f7";
   const instance = table.name;
   return (
     <g opacity={dim ? 0.22 : 1}>
@@ -569,7 +570,7 @@ function TableBoxG({
         height={box.height}
         rx={6}
         fill="#ffffff"
-        stroke={highlight ? "#0284c7" : "#cbd5e1"}
+        stroke={highlight ? "#007aff" : "#e5e5ea"}
         strokeWidth={highlight ? 2 : 1}
       />
       <rect
@@ -590,7 +591,7 @@ function TableBoxG({
       <text
         x={box.x + 10}
         y={box.y + 19.5}
-        fill="#ffffff"
+        fill="#1d1d1f"
         fontSize={12}
         fontWeight={600}
       >
@@ -601,7 +602,7 @@ function TableBoxG({
           x={box.x + box.width - 8}
           y={box.y + 19.5}
           textAnchor="end"
-          fill="#e0f2fe"
+          fill="#8e8e93"
           fontSize={9}
         >
           ~{compactCount(table.rows_estimate)}
@@ -618,7 +619,7 @@ function TableBoxG({
                 y={rowY}
                 width={box.width}
                 height={COLUMN_ROW_HEIGHT}
-                fill="#f8fafc"
+                fill="#fafafc"
               />
             )}
             {col.pk && <KeyIcon x={box.x + 11} y={centerY} />}
@@ -627,7 +628,7 @@ function TableBoxG({
               x={box.x + 28}
               y={centerY + 3.5}
               fontSize={10.5}
-              fill={col.pk ? "#92400e" : "#334155"}
+              fill={col.pk ? "#1d1d1f" : "#3a3a3c"}
               fontWeight={col.pk ? 600 : 400}
             >
               {truncate(col.name, 22)}
@@ -637,7 +638,7 @@ function TableBoxG({
               y={centerY + 3.5}
               textAnchor="end"
               fontSize={9}
-              fill="#94a3b8"
+              fill="#8e8e93"
             >
               {truncate(col.type, 18)}
             </text>
@@ -655,7 +656,7 @@ function TableBoxG({
           }
           fontSize={9}
           fontStyle="italic"
-          fill="#94a3b8"
+          fill="#8e8e93"
         >
           +{box.hiddenColumns} more column{box.hiddenColumns === 1 ? "" : "s"}
         </text>
@@ -666,7 +667,7 @@ function TableBoxG({
 
 function KeyIcon({ x, y }: { x: number; y: number }) {
   return (
-    <g stroke="#d97706" strokeWidth={1.3} fill="none" strokeLinecap="round">
+    <g stroke="#e68200" strokeWidth={1.3} fill="none" strokeLinecap="round">
       <circle cx={x - 1.2} cy={y} r={2.1} />
       <line x1={x + 0.9} y1={y} x2={x + 4.6} y2={y} />
       <line x1={x + 3.2} y1={y} x2={x + 3.2} y2={y + 2.1} />
@@ -677,7 +678,7 @@ function KeyIcon({ x, y }: { x: number; y: number }) {
 function ArrowIcon({ x, y }: { x: number; y: number }) {
   return (
     <g
-      stroke="#0284c7"
+      stroke="#8e8e93"
       strokeWidth={1.3}
       fill="none"
       strokeLinecap="round"
@@ -696,8 +697,8 @@ function LegendIcon({ kind }: { kind: "pk" | "fk" | "edge" }) {
       {kind === "fk" && <ArrowIcon x={7} y={6} />}
       {kind === "edge" && (
         <>
-          <path d="M 1 6 C 5 6, 9 6, 13 6" fill="none" stroke="#94a3b8" strokeWidth={1.2} />
-          <path d="M 9.4 3.4 L 13 6 L 9.4 8.6 Z" fill="#94a3b8" />
+          <path d="M 1 6 C 5 6, 9 6, 13 6" fill="none" stroke="#8e8e93" strokeWidth={1.2} />
+          <path d="M 9.4 3.4 L 13 6 L 9.4 8.6 Z" fill="#8e8e93" />
         </>
       )}
     </svg>
@@ -721,7 +722,7 @@ function ToolButton({
 }) {
   return (
     <button
-      className="flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex h-7 items-center gap-1 rounded-md border border-slate-300 bg-white px-2 text-[12.5px] text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
       title={title}
       onClick={onClick}
       disabled={disabled}
@@ -746,7 +747,7 @@ function CenteredNote({
     <div className="grid min-h-0 flex-1 place-items-center bg-white">
       <div className="max-w-[420px] px-6 text-center">
         <div className="mb-2 flex justify-center">{icon}</div>
-        <div className="text-[12px] font-semibold text-slate-700">{title}</div>
+        <div className="text-[13px] font-semibold text-slate-700">{title}</div>
         <div className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-slate-500">
           {detail}
         </div>

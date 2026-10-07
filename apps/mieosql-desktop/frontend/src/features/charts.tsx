@@ -18,20 +18,21 @@ import type { Value } from "../lib/bindings";
 export type ChartPoint = { label: string; value: number };
 export type ChartSeries = { name: string; color: string; points: ChartPoint[] };
 
-export const SERIES_COLORS = ["#0ea5e9", "#f59e0b", "#10b981", "#8b5cf6"] as const;
+// Calm Apple-like palette: the single accent blue + neutral grays. Series
+// names/colors are arbitrary (grouped BI data), so hue carries no meaning and
+// no semantic colors are used here.
+export const SERIES_COLORS = ["#007aff", "#8e8e93", "#aeaeb2", "#6e6e73"] as const;
 
+// Accent + neutral scale, ordered to keep adjacent slices distinguishable.
 export const PIE_COLORS = [
-  "#0ea5e9",
-  "#f59e0b",
-  "#10b981",
-  "#8b5cf6",
-  "#ef4444",
-  "#14b8a6",
-  "#f97316",
-  "#6366f1",
-  "#84cc16",
-  "#ec4899",
-  "#64748b",
+  "#007aff", // accent
+  "#8e8e93", // slate-500
+  "#d2d2d7", // slate-300
+  "#3a3a3c", // slate-700
+  "#aeaeb2", // slate-400
+  "#6e6e73", // slate-600
+  "#e5e5ea", // slate-200
+  "#2c2c2e", // slate-800
 ] as const;
 
 const AXIS_LEFT = 54;
@@ -158,10 +159,16 @@ function AxisGrid({
               y1={y}
               x2={plotRight}
               y2={y}
-              stroke="#e2e8f0"
+              className="stroke-slate-200"
               strokeWidth={1}
             />
-            <text x={plotLeft - 6} y={y + 3} fontSize={9} fill="#94a3b8" textAnchor="end">
+            <text
+              x={plotLeft - 6}
+              y={y + 3}
+              fontSize={9}
+              className="fill-slate-500"
+              textAnchor="end"
+            >
               {formatNumber(tick)}
             </text>
           </g>
@@ -172,7 +179,7 @@ function AxisGrid({
         y1={zeroY}
         x2={plotRight}
         y2={zeroY}
-        stroke="#cbd5e1"
+        className="stroke-slate-300"
         strokeWidth={1}
       />
     </g>
@@ -202,7 +209,7 @@ function XLabels({
             x={x}
             y={baseY}
             fontSize={9}
-            fill="#64748b"
+            className="fill-slate-600"
             textAnchor="end"
             transform={`rotate(-32 ${x} ${baseY})`}
           >
@@ -210,7 +217,14 @@ function XLabels({
             {truncateLabel(label, 16)}
           </text>
         ) : (
-          <text key={i} x={x} y={baseY} fontSize={9} fill="#64748b" textAnchor="middle">
+          <text
+            key={i}
+            x={x}
+            y={baseY}
+            fontSize={9}
+            className="fill-slate-600"
+            textAnchor="middle"
+          >
             <title>{label}</title>
             {truncateLabel(label, 12)}
           </text>
@@ -231,7 +245,7 @@ function SeriesLegend({ series, x }: { series: ChartSeries[]; x: number }) {
         return (
           <g key={s.name} transform={`translate(${itemX}, 0)`}>
             <rect x={0} y={-7} width={8} height={8} rx={2} fill={s.color} />
-            <text x={12} y={0.5} fontSize={9} fill="#475569">
+            <text x={12} y={0.5} fontSize={9} className="fill-slate-700">
               {truncateLabel(s.name, 13)}
             </text>
           </g>
@@ -244,7 +258,7 @@ function SeriesLegend({ series, x }: { series: ChartSeries[]; x: number }) {
 function EmptyChart({ height }: { height: number }) {
   return (
     <div
-      className="grid place-items-center text-[11px] text-slate-400"
+      className="grid place-items-center text-[11px] text-slate-500"
       style={{ height }}
     >
       No data
@@ -380,7 +394,7 @@ export function LineChart({
             <g key={s.name}>
               <path d={d} fill="none" stroke={s.color} strokeWidth={1.8} />
               {dots.map((dot, i) => (
-                <circle key={i} cx={dot.x} cy={dot.y} r={2.5} fill="#ffffff" stroke={s.color} strokeWidth={1.5}>
+                <circle key={i} cx={dot.x} cy={dot.y} r={2.5} className="fill-surface" stroke={s.color} strokeWidth={1.5}>
                   <title>
                     {series.length > 1 ? `${s.name} · ` : ""}
                     {dot.label} · {formatNumber(dot.value)}
@@ -458,7 +472,13 @@ export function PieChart({
       ) : (
         <svg width="100%" height={height} viewBox={`0 0 ${viewWidth} ${height}`}>
           {arcs.map((arc, i) => (
-            <path key={i} d={arc.d} fill={arc.color} stroke="#ffffff" strokeWidth={1}>
+            <path
+              key={i}
+              d={arc.d}
+              fill={arc.color}
+              className="stroke-surface"
+              strokeWidth={1}
+            >
               <title>
                 {arc.slice.label}: {formatNumber(arc.slice.value)} ({arc.percent.toFixed(1)}%)
               </title>
@@ -467,7 +487,7 @@ export function PieChart({
           {arcs.slice(0, visibleRows).map((arc, i) => (
             <g key={i} transform={`translate(${legendX}, ${12 + i * rowHeight})`}>
               <rect x={0} y={-1} width={8} height={8} rx={2} fill={arc.color} />
-              <text x={12} y={7} fontSize={9.5} fill="#475569">
+              <text x={12} y={7} fontSize={9.5} className="fill-slate-700">
                 <title>{arc.slice.label}</title>
                 {truncateLabel(arc.slice.label, 20)}
               </text>
@@ -475,7 +495,7 @@ export function PieChart({
                 x={viewWidth - 8}
                 y={7}
                 fontSize={9.5}
-                fill="#334155"
+                className="fill-slate-900"
                 textAnchor="end"
               >
                 {formatNumber(arc.slice.value)} · {arc.percent.toFixed(1)}%
@@ -483,7 +503,12 @@ export function PieChart({
             </g>
           ))}
           {arcs.length > visibleRows && (
-            <text x={legendX} y={12 + visibleRows * rowHeight + 7} fontSize={9} fill="#94a3b8">
+            <text
+              x={legendX}
+              y={12 + visibleRows * rowHeight + 7}
+              fontSize={9}
+              className="fill-slate-500"
+            >
               +{arcs.length - visibleRows} more…
             </text>
           )}
@@ -512,13 +537,13 @@ export function MiniTable({
   const shown = rows.slice(0, maxRows);
   return (
     <div className="h-full overflow-auto">
-      <table className="w-full border-collapse text-left text-[11px]">
-        <thead className="sticky top-0 bg-[#f1f5f9] text-slate-600 shadow-[0_1px_0_#e2e8f0]">
+      <table className="w-full border-collapse text-left text-[12.5px]">
+        <thead className="sticky top-0 bg-sidebar text-slate-500">
           <tr>
             {columns.map((col) => (
               <th
                 key={col}
-                className="whitespace-nowrap px-2 py-1 font-medium"
+                className="whitespace-nowrap border-b border-slate-200 px-2 py-1 text-[11.5px] font-semibold"
                 title={col}
               >
                 {col}
@@ -528,11 +553,14 @@ export function MiniTable({
         </thead>
         <tbody>
           {shown.map((row, i) => (
-            <tr key={i} className={i % 2 === 1 ? "bg-slate-50" : ""}>
+            <tr
+              key={i}
+              className={`hover:bg-slate-900/[0.03] ${i % 2 === 1 ? "bg-slate-50" : ""}`}
+            >
               {columns.map((_, j) => (
                 <td
                   key={j}
-                  className="max-w-[220px] truncate border-t border-slate-100 px-2 py-[3px] text-slate-700"
+                  className="max-w-[220px] truncate border-b border-slate-200/70 px-2 py-[3px] text-slate-700"
                   title={row[j] ?? ""}
                 >
                   {row[j] ?? ""}
@@ -543,7 +571,7 @@ export function MiniTable({
         </tbody>
       </table>
       {rows.length > maxRows && (
-        <div className="px-2 py-1 text-[10px] text-slate-400">
+        <div className="px-2 py-1 text-[11px] text-slate-500">
           Showing first {maxRows.toLocaleString()} of {rows.length.toLocaleString()} rows
         </div>
       )}

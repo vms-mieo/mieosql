@@ -18,7 +18,7 @@ export function FeatureHost({ tab }: { tab: Tab }) {
       return <BiPanel tab={tab} />;
     default:
       return (
-        <div className="grid flex-1 place-items-center bg-white text-[11px] text-slate-400">
+        <div className="grid flex-1 place-items-center bg-surface text-[13px] text-slate-500">
           Unknown feature “{tab.featureId}”
         </div>
       );

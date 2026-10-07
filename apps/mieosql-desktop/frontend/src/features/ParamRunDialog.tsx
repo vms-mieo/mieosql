@@ -86,7 +86,7 @@ export function ParamRunDialog({ onClose }: { onClose: () => void }) {
       footer={
         <>
           <button
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-100"
+            className="h-7 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50"
             onClick={() => {
               closeParamDialog();
               onClose();
@@ -95,7 +95,7 @@ export function ParamRunDialog({ onClose }: { onClose: () => void }) {
             Cancel
           </button>
           <button
-            className="rounded bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+            className="h-7 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover disabled:opacity-50"
             disabled={!paramDialog || placeholders.length === 0 || running}
             onClick={() => void run()}
           >
@@ -105,7 +105,7 @@ export function ParamRunDialog({ onClose }: { onClose: () => void }) {
       }
     >
       {!paramDialog ? (
-        <div className="p-6 text-[11px] text-slate-400">
+        <div className="p-6 text-[13px] text-slate-500">
           No parameterized query is waiting to run.
         </div>
       ) : (
@@ -118,18 +118,18 @@ export function ParamRunDialog({ onClose }: { onClose: () => void }) {
             <span className="text-slate-400">Enter runs the query</span>
           </div>
 
-          <pre className="custom-scrollbar max-h-24 overflow-auto rounded border border-slate-200 bg-[#f8fafc] p-2 font-code text-[11px] leading-snug whitespace-pre-wrap text-slate-600">
+          <pre className="custom-scrollbar max-h-24 overflow-auto rounded-md border border-slate-200 bg-sidebar p-2 font-code text-[12.5px] leading-snug whitespace-pre-wrap text-slate-700">
             {paramDialog.sql}
           </pre>
 
           <div className="space-y-1.5">
             {placeholders.map((info, i) => (
               <div key={`${info.index}-${info.position}`} className="flex items-center gap-2">
-                <span className="w-14 shrink-0 rounded bg-sky-50 px-1.5 py-0.5 text-center font-code text-[11px] font-medium text-sky-700">
+                <span className="w-14 shrink-0 rounded bg-slate-900/[0.06] px-1.5 py-0.5 text-center font-code text-[11px] font-medium text-slate-600">
                   {label(info)}
                 </span>
                 <select
-                  className="w-[84px] shrink-0 rounded border border-slate-300 bg-white px-1 py-1 text-[11px] text-slate-700 focus:border-sky-400 focus:outline-none"
+                  className="h-7 w-[84px] shrink-0 rounded-md border border-slate-300 bg-white px-1.5 text-[12.5px] text-slate-700 focus:ring-2 focus:ring-accent/40 focus:outline-none"
                   value={types[i] ?? "auto"}
                   onChange={(e) => setTypes((m) => ({ ...m, [i]: e.target.value as ParamType }))}
                 >
@@ -140,7 +140,7 @@ export function ParamRunDialog({ onClose }: { onClose: () => void }) {
                   ))}
                 </select>
                 <input
-                  className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 font-code text-[11px] text-slate-800 focus:border-sky-400 focus:outline-none"
+                  className="h-7 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 font-code text-[12.5px] text-slate-800 focus:ring-2 focus:ring-accent/40 focus:outline-none"
                   placeholder={
                     (types[i] ?? "auto") === "null" ? "(NULL)" : `Value for ${label(info)}`
                   }

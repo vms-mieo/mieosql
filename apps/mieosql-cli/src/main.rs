@@ -199,6 +199,7 @@ async fn run() -> Result<()> {
                     ssh: None,
                     color: None,
                     group: None,
+                    variant: None,
                     password: args.password,
                     ssh_password: None,
                 };

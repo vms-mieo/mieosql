@@ -27,4 +27,10 @@ color?: string,
 /**
  * UI grouping folder.
  */
-group?: string, created_at: string, updated_at: string, };
+group?: string, 
+/**
+ * Connector preset / cloud flavor, e.g. `aurora`, `documentdb`,
+ * `elasticache`, `memorystore`, `redshift`, `azure`. Purely descriptive:
+ * the underlying driver is chosen by `engine`.
+ */
+variant?: string, created_at: string, updated_at: string, };

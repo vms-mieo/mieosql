@@ -61,6 +61,7 @@ pub mod export_manifest {
             mieosql_core::Capabilities,
             mieosql_core::ProfileId,
             mieosql_core::Engine,
+            mieosql_core::EngineKind,
             mieosql_core::SslMode,
             mieosql_core::SshAuthKind,
             mieosql_core::SshSpec,

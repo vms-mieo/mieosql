@@ -84,17 +84,17 @@ export function ResultPanel({ tab }: { tab: Tab }) {
   const errorCount = tab.messages.filter((m) => m.level === "error").length;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#eef2f7]">
+    <div className="flex min-h-0 flex-1 flex-col bg-sidebar">
       {/* sub-tab bar + timing */}
-      <div className="flex h-[28px] shrink-0 items-center justify-between bg-[#e9edf2] px-2 select-none">
+      <div className="flex h-8 shrink-0 items-center justify-between border-b border-slate-200/80 bg-sidebar px-2 select-none">
         <div className="flex h-full items-center">
           {tab.results.map((r, i) => (
             <button
               key={r.queryId}
-              className={`relative flex h-full items-center gap-1.5 px-3 text-[13px] ${
+              className={`relative flex h-full items-center gap-1.5 px-3 text-[12.5px] transition-colors ${
                 i === tab.activeResult && subTab === "result"
-                  ? "bg-white font-medium text-sky-700"
-                  : "text-slate-500 hover:bg-white/60 hover:text-slate-700"
+                  ? "font-medium text-slate-900"
+                  : "text-slate-500 hover:text-slate-700"
               }`}
               onClick={() => {
                 store.setActiveResult(tab.id, i);
@@ -102,9 +102,9 @@ export function ResultPanel({ tab }: { tab: Tab }) {
               }}
             >
               {i === tab.activeResult && subTab === "result" && (
-                <span className="absolute top-0 right-0 left-0 h-[2px] bg-sky-500" />
+                <span className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-accent" />
               )}
-              <Grid3x3 size={12} />
+              <Grid3x3 size={12} strokeWidth={1.7} />
               Result {i + 1}
               <span className="text-slate-400">
                 ({r.rows.length.toLocaleString()}
@@ -115,7 +115,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
                 title={r.pinned ? "Unpin result" : "Pin result"}
                 className={`rounded p-0.5 ${
                   r.pinned
-                    ? "text-sky-600"
+                    ? "text-accent"
                     : "text-slate-300 hover:text-slate-500"
                 }`}
                 onClick={(e) => {
@@ -123,26 +123,26 @@ export function ResultPanel({ tab }: { tab: Tab }) {
                   store.togglePin(tab.id, i);
                 }}
               >
-                <Pin size={10} />
+                <Pin size={10} strokeWidth={1.8} />
               </span>
             </button>
           ))}
           <button
-            className={`flex h-full items-center gap-1.5 px-3 text-[13px] ${
+            className={`relative flex h-full items-center gap-1.5 px-3 text-[12.5px] transition-colors ${
               subTab === "messages"
-                ? "bg-white font-medium text-sky-700"
-                : "text-slate-500 hover:bg-white/60 hover:text-slate-700"
+                ? "font-medium text-slate-900 after:absolute after:inset-x-2 after:bottom-0 after:h-[2px] after:rounded-full after:bg-accent"
+                : "text-slate-500 hover:text-slate-700"
             }`}
             onClick={() => setSubTab("messages")}
           >
-            <Terminal size={12} />
+            <Terminal size={12} strokeWidth={1.7} />
             Messages
             {messageCount > 0 && (
               <span
-                className={`rounded-full px-1 text-[11px] ${
+                className={`rounded-full px-1 text-[10.5px] font-semibold ${
                   errorCount > 0
                     ? "bg-rose-100 text-rose-700"
-                    : "bg-slate-200 text-slate-600"
+                    : "bg-slate-900/[0.06] text-slate-600"
                 }`}
               >
                 {messageCount}
@@ -150,29 +150,30 @@ export function ResultPanel({ tab }: { tab: Tab }) {
             )}
           </button>
           <button
-            className={`flex h-full items-center gap-1.5 px-3 text-[13px] ${
+            className={`relative flex h-full items-center gap-1.5 px-3 text-[12.5px] transition-colors ${
               subTab === "status"
-                ? "bg-white font-medium text-sky-700"
-                : "text-slate-500 hover:bg-white/60 hover:text-slate-700"
+                ? "font-medium text-slate-900 after:absolute after:inset-x-2 after:bottom-0 after:h-[2px] after:rounded-full after:bg-accent"
+                : "text-slate-500 hover:text-slate-700"
             }`}
             onClick={() => setSubTab("status")}
           >
-            <ScrollText size={12} />
+            <ScrollText size={12} strokeWidth={1.7} />
             Status
           </button>
         </div>
-        <div className="flex items-center gap-2 pr-1 text-[13px] text-slate-500">
+        <div className="flex items-center gap-2 pr-1 text-[11px] text-slate-500">
           {result && (
             <>
               {result.status === "running" ? (
-                <span className="flex items-center gap-1 text-sky-600">
-                  <RotateCw size={11} className="animate-spin" />
+                <span className="flex items-center gap-1 text-accent">
+                  <RotateCw size={12} strokeWidth={1.7} className="animate-spin" />
                   running…
                 </span>
               ) : (
                 <span className="flex items-center gap-1">
                   <CheckCircle2
-                    size={11}
+                    size={12}
+                    strokeWidth={1.7}
                     className={result.error ? "text-rose-500" : "text-emerald-500"}
                   />
                   {result.elapsedMs !== null
@@ -188,7 +189,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
                 <>
                   <span>•</span>
                   <span className="flex items-center gap-1 text-amber-600">
-                    <AlertTriangle size={11} /> limit reached
+                    <AlertTriangle size={12} strokeWidth={1.7} /> limit reached
                   </span>
                 </>
               )}
@@ -198,19 +199,19 @@ export function ResultPanel({ tab }: { tab: Tab }) {
       </div>
 
       {/* toolbar */}
-      <div className="flex h-[30px] shrink-0 items-center justify-between bg-[#f1f5f9] px-2 text-[13px]">
-        <div className="flex items-center gap-1.5">
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 text-[12.5px]">
+        <div className="flex items-center gap-1">
           <button
-            className="rounded p-1 text-slate-500 hover:bg-white hover:text-slate-700 disabled:opacity-40"
+            className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-700 disabled:opacity-40"
             title="Re-run"
             disabled={running || !tab.sessionId}
             onClick={rerun}
           >
-            <RotateCw size={13} />
+            <RotateCw size={13} strokeWidth={1.7} />
           </button>
           {running && (
             <button
-              className="rounded p-1 text-rose-500 hover:bg-white"
+              className="grid h-7 w-7 place-items-center rounded-md text-rose-500 hover:bg-rose-50"
               title="Stop query"
               onClick={() => {
                 if (result) void store.cancelQuery(result.queryId);
@@ -221,19 +222,19 @@ export function ResultPanel({ tab }: { tab: Tab }) {
           )}
           <div className="relative">
             <button
-              className="flex items-center gap-1 rounded px-2 py-0.5 text-slate-600 hover:bg-white disabled:opacity-40"
+              className="flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] font-medium text-slate-600 hover:bg-slate-900/[0.05] disabled:opacity-40"
               disabled={!result || result.rows.length === 0}
               onClick={() => setExportOpen((v) => !v)}
             >
-              <FileDown size={13} className="text-teal-600" />
+              <FileDown size={13} strokeWidth={1.7} className="text-slate-500" />
               Export
             </button>
             {exportOpen && (
-              <div className="absolute top-full left-0 z-40 mt-1 w-52 rounded border border-slate-300 bg-white py-1 shadow-lg">
+              <div className="absolute top-full left-0 z-40 mt-1 w-52 overflow-hidden rounded-md border border-slate-300/70 bg-white py-1 shadow-[0_10px_34px_rgba(0,0,0,0.16)]">
                 {EXPORT_FORMATS.map((format) => (
                   <button
                     key={format}
-                    className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-sky-50"
+                    className="group flex w-full items-center gap-2 px-3 py-[5px] text-left text-[13px] text-slate-800 hover:bg-accent hover:text-white"
                     disabled={!result || result.rows.length === 0}
                     onClick={() => {
                       setExportOpen(false);
@@ -246,30 +247,30 @@ export function ResultPanel({ tab }: { tab: Tab }) {
                 ))}
                 <div className="my-1 h-px bg-slate-200" />
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-sky-50"
+                  className="group flex w-full items-center gap-2 px-3 py-[5px] text-left text-[13px] text-slate-800 hover:bg-accent hover:text-white"
                   onClick={() => {
                     setExportOpen(false);
                     copyData("csv");
                   }}
                 >
-                  <Copy size={11} /> Copy as CSV
+                  <Copy size={12} strokeWidth={1.7} className="text-slate-500 group-hover:text-white/75" /> Copy as CSV
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-sky-50"
+                  className="group flex w-full items-center gap-2 px-3 py-[5px] text-left text-[13px] text-slate-800 hover:bg-accent hover:text-white"
                   onClick={() => {
                     setExportOpen(false);
                     copyData("json");
                   }}
                 >
-                  <Copy size={11} /> Copy as JSON lines
+                  <Copy size={12} strokeWidth={1.7} className="text-slate-500 group-hover:text-white/75" /> Copy as JSON lines
                 </button>
               </div>
             )}
           </div>
-          <div className="ml-1 flex items-center rounded bg-white px-2 py-0.5 ring-1 ring-slate-200">
-            <Filter size={11} className="mr-1 text-slate-400" />
+          <div className="ml-1 flex h-7 items-center rounded-md bg-slate-900/[0.04] px-2 focus-within:ring-2 focus-within:ring-accent/40">
+            <Filter size={12} strokeWidth={1.7} className="mr-1 text-slate-500" />
             <input
-              className="w-44 border-none bg-transparent p-0 text-[13px] placeholder:text-slate-400 focus:outline-none"
+              className="w-44 border-none bg-transparent p-0 text-[12.5px] placeholder:text-slate-400 focus:outline-none"
               placeholder="Filter loaded rows…"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -277,39 +278,39 @@ export function ResultPanel({ tab }: { tab: Tab }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[13px] text-slate-500">
+          <span className="text-[12px] text-slate-500">
             {matchIndices
               ? `${matchIndices.length.toLocaleString()} / ${(result?.rows.length ?? 0).toLocaleString()} rows`
               : `${(result?.rows.length ?? 0).toLocaleString()} rows`}
           </span>
-          <div className="flex items-center gap-0.5 rounded bg-white p-0.5 ring-1 ring-slate-200">
+          <div className="flex items-center rounded-md bg-slate-900/[0.04] p-0.5">
             <button
-              className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="grid h-6 w-6 place-items-center rounded-[5px] text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-700"
               title="First row"
               onClick={() => gridApiRef.current?.scrollToTop()}
             >
-              <ChevronsLeft size={13} />
+              <ChevronsLeft size={12} strokeWidth={1.7} />
             </button>
             <button
-              className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="grid h-6 w-6 place-items-center rounded-[5px] text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-700"
               title="Scroll up"
               onClick={() => gridApiRef.current?.scrollBy(-220)}
             >
-              <ChevronLeft size={13} />
+              <ChevronLeft size={12} strokeWidth={1.7} />
             </button>
             <button
-              className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="grid h-6 w-6 place-items-center rounded-[5px] text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-700"
               title="Scroll down"
               onClick={() => gridApiRef.current?.scrollBy(220)}
             >
-              <ChevronRight size={13} />
+              <ChevronRight size={12} strokeWidth={1.7} />
             </button>
             <button
-              className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="grid h-6 w-6 place-items-center rounded-[5px] text-slate-500 hover:bg-slate-900/[0.06] hover:text-slate-700"
               title="Last row"
               onClick={() => gridApiRef.current?.scrollToBottom()}
             >
-              <ChevronsRight size={13} />
+              <ChevronsRight size={12} strokeWidth={1.7} />
             </button>
           </div>
         </div>
@@ -319,7 +320,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
       {subTab === "result" && (
         <>
           {!result ? (
-            <div className="grid flex-1 place-items-center bg-white text-slate-400">
+            <div className="grid flex-1 place-items-center bg-surface text-[13px] text-slate-500">
               Run the query to see results
             </div>
           ) : result.error ? (
@@ -362,14 +363,14 @@ function ExportIcon({ format }: { format: ExportFormat }) {
   switch (format) {
     case "csv":
     case "xlsx":
-      return <FileSpreadsheet size={11} className="text-emerald-600" />;
+      return <FileSpreadsheet size={12} strokeWidth={1.7} className="text-slate-500 group-hover:text-white/75" />;
     case "tsv":
-      return <FileText size={11} className="text-teal-600" />;
+      return <FileText size={12} strokeWidth={1.7} className="text-slate-500 group-hover:text-white/75" />;
     case "json":
     case "json_lines":
-      return <FileJson size={11} className="text-violet-600" />;
+      return <FileJson size={12} strokeWidth={1.7} className="text-slate-500 group-hover:text-white/75" />;
     case "sql":
-      return <Database size={11} className="text-sky-600" />;
+      return <Database size={12} strokeWidth={1.7} className="text-slate-500 group-hover:text-white/75" />;
   }
 }
 
@@ -381,16 +382,16 @@ function ErrorPanel({
   onShowMessages: () => void;
 }) {
   return (
-    <div className="flex-1 overflow-auto bg-[#fff7f7] p-4">
-      <div className="flex items-start gap-2 rounded border border-rose-200 bg-white p-3">
-        <AlertTriangle size={16} className="mt-0.5 shrink-0 text-rose-500" />
+    <div className="flex-1 overflow-auto bg-rose-50 p-4">
+      <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-white p-3">
+        <AlertTriangle size={16} strokeWidth={1.7} className="mt-0.5 shrink-0 text-rose-500" />
         <div className="min-w-0">
-          <div className="font-code text-[12px] text-rose-600">{error.code}</div>
-          <div className="mt-0.5 text-[12px] font-medium text-slate-800">
+          <div className="font-code text-[12.5px] text-rose-600">{error.code}</div>
+          <div className="mt-0.5 text-[13px] font-medium text-slate-900">
             {error.message}
           </div>
           {error.detail && (
-            <div className="mt-1 font-code text-[12px] whitespace-pre-wrap text-slate-600">
+            <div className="mt-1 font-code text-[12.5px] whitespace-pre-wrap text-slate-600">
               {error.detail}
             </div>
           )}
@@ -400,12 +401,12 @@ function ErrorPanel({
             </div>
           )}
           {error.db_code && (
-            <div className="mt-1 font-code text-[12px] text-slate-400">
+            <div className="mt-1 font-code text-[12.5px] text-slate-400">
               code: {error.db_code}
             </div>
           )}
           <button
-            className="mt-2 text-[13px] text-sky-600 hover:underline"
+            className="mt-2 text-[13px] text-accent hover:underline"
             onClick={onShowMessages}
           >
             Open Messages tab
@@ -423,9 +424,9 @@ function MessagesView({
   onClear: () => void;
 }) {
   return (
-    <div className="custom-scrollbar flex-1 overflow-auto bg-white p-3 font-code text-[12px]">
+    <div className="custom-scrollbar flex-1 overflow-auto bg-surface p-3 font-code text-[12.5px]">
       {messages.length === 0 && (
-        <div className="text-slate-400">Nothing here yet.</div>
+        <div className="text-slate-500">Nothing here yet.</div>
       )}
       {messages.map((m) => (
         <div
@@ -438,7 +439,7 @@ function MessagesView({
                 : "text-slate-600"
           }`}
         >
-          <span className="w-[52px] shrink-0 text-[13px] text-slate-400">
+          <span className="w-[52px] shrink-0 text-[11px] text-slate-400">
             {new Date(m.at).toLocaleTimeString()}
           </span>
           <span className="whitespace-pre-wrap">
@@ -473,8 +474,8 @@ function StatusView({ tab, result }: { tab: Tab; result?: ResultSet }) {
     ["In transaction", session?.in_transaction ? "yes" : "no"],
   ];
   return (
-    <div className="custom-scrollbar flex-1 overflow-auto bg-white p-4">
-      <div className="grid grid-cols-[180px_1fr] gap-x-4 gap-y-1.5 text-[13px]">
+    <div className="custom-scrollbar flex-1 overflow-auto bg-surface p-4">
+      <div className="grid grid-cols-[180px_1fr] gap-x-4 gap-y-1.5 text-[12.5px]">
         {rows.map(([k, v]) => (
           <div key={k} className="contents">
             <div className="text-slate-500">{k}</div>

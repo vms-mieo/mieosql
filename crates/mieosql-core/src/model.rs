@@ -226,6 +226,8 @@ pub enum PlaceholderStyle {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Capabilities {
+    /// Broad category of the engine (SQL / document / key-value / broker).
+    pub engine_kind: crate::profile::EngineKind,
     pub placeholder: PlaceholderStyle,
     /// Can enumerate databases on the server (MySQL `SHOW DATABASES`).
     pub list_databases: bool,

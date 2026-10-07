@@ -29,6 +29,7 @@ pub struct SqliteDriver {
 
 pub(crate) fn sqlite_capabilities() -> Capabilities {
     Capabilities {
+        engine_kind: mieosql_core::EngineKind::Sql,
         placeholder: PlaceholderStyle::Question,
         list_databases: true,
         list_schemas: false,

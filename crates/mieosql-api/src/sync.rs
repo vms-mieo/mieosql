@@ -34,7 +34,7 @@ use mieosql_core::{
 
 use crate::dto::ApiResult;
 use crate::export::{cell_text, sql_literal};
-use crate::service::{quote_ident, Api};
+use crate::service::{quote_ident, select_limited, Api};
 
 /// One side of a synchronization.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -995,9 +995,14 @@ impl Api {
             .map(|c| quote_ident(engine, c))
             .collect::<Vec<_>>()
             .join(", ");
-        let sql = format!(
-            "SELECT {cols} FROM {} ORDER BY {order} LIMIT {limit}",
-            qualified_table(engine, scope, table)
+        let sql = select_limited(
+            engine,
+            &cols,
+            &format!(
+                "FROM {} ORDER BY {order}",
+                qualified_table(engine, scope, table)
+            ),
+            limit,
         );
         let out = self
             .collect_query(session_id, sql, Vec::new(), QueryMode::Prepared, Some(limit))

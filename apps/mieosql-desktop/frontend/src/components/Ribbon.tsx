@@ -180,22 +180,6 @@ export function Ribbon() {
           </button>
         )}
       />
-      <div className="flex-1" />
-      <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
-        <span
-          className={`inline-block h-1.5 w-1.5 rounded-full ${
-            session ? "bg-emerald-500" : "bg-slate-300"
-          }`}
-        />
-        {session ? (
-          <>
-            {session.name}
-            {session.database ? ` · ${session.database}` : ""}
-          </>
-        ) : (
-          "No connection"
-        )}
-      </span>
     </section>
   );
 }

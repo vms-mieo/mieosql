@@ -18,3 +18,9 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 dirs = { workspace = true }
+
+# NoSQL / non-sqlx engines (feature pack v2 connectors)
+tiberius = { version = "0.13", default-features = false, features = ["rustls", "chrono", "tds73"] }
+mongodb = { version = "3.9", default-features = true }
+redis = { version = "1.7", default-features = false, features = ["tokio-rustls-comp", "tls-rustls-webpki-roots"] }
+rskafka = { version = "0.6", default-features = false, features = ["transport-tls", "compression-gzip", "compression-lz4", "compression-snappy", "compression-zstd"] }
