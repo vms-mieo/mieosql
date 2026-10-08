@@ -40,6 +40,7 @@ use mieosql_core::{
     Value,
 };
 
+use crate::ssh_tunnel::{SshTunnel, prepare_endpoint};
 use crate::util::{
     b64_decode, b64_encode, fmt_naive_date, fmt_naive_dt, fmt_naive_time, quote_literal,
 };
@@ -52,6 +53,8 @@ pub struct SqlServerDriver {
     spec: ConnectionSpec,
     /// Mirrors the server-side transaction state; toggled by `begin`/`commit`/`rollback`.
     tx_open: bool,
+    /// Keeps the SSH tunnel (if any) alive for the connection lifetime.
+    _ssh_tunnel: Option<SshTunnel>,
 }
 
 pub(crate) fn sqlserver_capabilities() -> Capabilities {
@@ -72,14 +75,7 @@ pub(crate) fn sqlserver_capabilities() -> Capabilities {
 
 impl SqlServerDriver {
     pub async fn connect(spec: &ConnectionSpec) -> MieoResult<Self> {
-        if spec.ssh.is_some() {
-            return Err(MieoError::unsupported(
-                "SSH tunnels are not implemented yet (planned phase P1) — refusing to connect directly",
-            ));
-        }
-
-        let host = spec.host.clone().unwrap_or_else(|| "127.0.0.1".into());
-        let port = spec.port.unwrap_or(1433);
+        let (host, port, _ssh_tunnel) = prepare_endpoint(spec, "127.0.0.1", 1433).await?;
         let username = spec.username.clone().ok_or_else(|| {
             MieoError::new(
                 ErrorCode::Auth,
@@ -129,6 +125,7 @@ impl SqlServerDriver {
             client,
             spec: spec.clone(),
             tx_open: false,
+            _ssh_tunnel,
         })
     }
 
@@ -244,7 +241,8 @@ impl SqlServerDriver {
                 return Ok(Vec::new());
             };
             let mut sql = format!(
-                "SELECT s.name, o.name FROM {prefix}sys.objects o \
+                "SELECT s.name, o.name, OBJECT_NAME(o.parent_object_id) AS parent_name \
+                 FROM {prefix}sys.objects o \
                  JOIN {prefix}sys.schemas s ON s.schema_id = o.schema_id \
                  WHERE o.type IN ({in_list})"
             );
@@ -262,15 +260,25 @@ impl SqlServerDriver {
             let rows = self.fetch_rows(&sql, params).await?;
             return Ok(rows
                 .iter()
-                .map(|row| ObjectRef {
-                    name: cell_str(row, 1),
-                    kind: want,
-                    database: db.clone(),
-                    schema: Some(cell_str(row, 0)),
-                    comment: None,
-                    rows_estimate: None,
-                    size_bytes: None,
-                    updated_at: None,
+                .map(|row| {
+                    // Triggers carry their table in the comment so the UI can
+                    // group them per table; routines have no parent.
+                    let parent = cell_str(row, 2);
+                    let comment = if want == ObjectKind::Trigger && !parent.is_empty() {
+                        Some(format!("ON {parent}"))
+                    } else {
+                        None
+                    };
+                    ObjectRef {
+                        name: cell_str(row, 1),
+                        kind: want,
+                        database: db.clone(),
+                        schema: Some(cell_str(row, 0)),
+                        comment,
+                        rows_estimate: None,
+                        size_bytes: None,
+                        updated_at: None,
+                    }
                 })
                 .collect());
         }

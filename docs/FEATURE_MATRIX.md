@@ -15,6 +15,7 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 | MongoDB (+ Atlas) | ✅ | ✅ v0.5 (mongodb 3.9; AWS DocumentDB = preset `documentdb` + TLS) |
 | Redis / ElastiCache / Memorystore | ✅ | ✅ v0.5 (redis 1.7; presets `elasticache`/`memorystore`, TLS `rediss://`) |
 | Apache Kafka (+ Confluent / Aiven) | ✅ | ✅ v0.5 (rskafka thuần Rust; SASL PLAIN/SCRAM, TLS; topic browser + consume/produce JSON) |
+| ClickHouse (+ ClickHouse Cloud) | ✅ | ✅ v0.6 (clickhouse 0.15, HTTP 8123/8443; JSONCompact streaming, Decimal/Array/Nullable/Datetime64 lossless; preset `cloud`) |
 | Oracle | ✅ | P3 (`oracledb`/OCI — cần client lib, đóng gói phức tạp hơn) |
 | Snowflake | ✅ | P4 (REST API) |
 | Cloud: RDS/Aurora/Azure DB/GCP SQL/Redshift/… | ✅ | ✅ v0.5 — presets `aurora` (MySQL/PG), `redshift` (PG, port 5439), `azure` (SQL Server), `documentdb`, `elasticache`, `memorystore`; kế thừa driver gốc |
@@ -25,7 +26,7 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 |---|---|
 | Quản lý nhiều connection, group, folder, màu | ✅ v0.1 profile store (`profiles.json`), 🔜 group/folder/color (P1, chủ yếu FE) |
 | Password **lưu mã hoá** | ✅ v0.1 vault (XChaCha20-Poly1305, master key riêng, file 0600) → 🔜 OS Keychain (P2) |
-| SSH Tunnel (password / private key / agent) | P1 (`russh` — thuần Rust, không cần `ssh` binary) |
+| SSH Tunnel (password / private key / agent) | ✅ v0.6 — `russh` thuần Rust (không cần `ssh` binary), direct-tcpip; Postgres/MySQL/MariaDB/SQL Server/ClickHouse + UI fields, host key check theo `known_hosts`; NoSQL (Mongo/Redis/Kafka) báo lỗi chưa hỗ trợ |
 | SSL/TLS (Require / Verify-CA / Verify-Full, client cert) | ✅ v0.1 ssl_mode; 🔜 client cert & CA file (P1) |
 | HTTP Tunnel | P4 |
 | Proxy (HTTP/SOCKS5) | P3 |

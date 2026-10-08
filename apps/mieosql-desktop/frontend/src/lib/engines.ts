@@ -91,6 +91,19 @@ export const ENGINE_META: Record<Engine, EngineMeta> = {
     implemented: true,
     hints: [],
   },
+  clickhouse: {
+    engine: "clickhouse",
+    label: "ClickHouse",
+    group: "SQL",
+    kind: "sql",
+    defaultPort: 8123,
+    implemented: true,
+    hostPlaceholder: "127.0.0.1",
+    databasePlaceholder: "default",
+    hints: [
+      "HTTP interface: 8123 (plain) · 8443 (TLS). Enable an SSL mode to use HTTPS.",
+    ],
+  },
   oracle: {
     engine: "oracle",
     label: "Oracle",
@@ -285,6 +298,18 @@ export const PRESETS: readonly EnginePreset[] = [
       params: { sasl_mechanism: "scram-sha-256" },
       hostPlaceholder: "kafka-xxxxx-project.aivencloud.com",
       databaseHint: "cluster (optional)",
+    },
+  },
+  {
+    id: "clickhouse-cloud",
+    label: "ClickHouse Cloud",
+    engine: "clickhouse",
+    variant: "cloud",
+    defaults: {
+      port: 8443,
+      ssl_mode: "require",
+      hostPlaceholder: "xxxxx.us-east-1.aws.clickhouse.cloud",
+      databaseHint: "default",
     },
   },
 ];

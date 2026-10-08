@@ -3,4 +3,4 @@
 /**
  * Supported database engines.
  */
-export type Engine = "mysql" | "mariadb" | "postgres" | "sqlite" | "sql_server" | "mongodb" | "redis" | "kafka" | "oracle" | "snowflake";
+export type Engine = "mysql" | "mariadb" | "postgres" | "sqlite" | "sql_server" | "mongodb" | "redis" | "kafka" | "clickhouse" | "oracle" | "snowflake";

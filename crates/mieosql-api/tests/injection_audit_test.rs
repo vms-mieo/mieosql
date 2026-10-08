@@ -110,7 +110,13 @@ async fn preview_table_quotes_weird_table_names() {
     exec(api, &sid, "INSERT INTO \"we\"\"ird;name\" (id, v) VALUES (1, 'x')").await;
 
     let (mut stream, sql) = api
-        .preview_table(sid.clone(), Scope::default(), "we\"ird;name".into(), Some(10))
+        .preview_table(
+            sid.clone(),
+            Scope::default(),
+            "we\"ird;name".into(),
+            Some(10),
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(sql, "SELECT * FROM \"we\"\"ird;name\" LIMIT 10");
@@ -134,7 +140,10 @@ async fn injection_in_preview_table_name_fails_without_executing() {
     exec(api, &sid, "INSERT INTO users (id, name) VALUES (1, 'alice')").await;
 
     let hostile = "users; DROP TABLE users;--";
-    match api.preview_table(sid.clone(), Scope::default(), hostile.into(), Some(10)).await {
+    match api
+        .preview_table(sid.clone(), Scope::default(), hostile.into(), Some(10), None)
+        .await
+    {
         Err(e) => assert!(matches!(e.code, ErrorCode::NotFound | ErrorCode::Syntax)),
         Ok((mut stream, sql)) => {
             // The payload must stay inside one quoted identifier.

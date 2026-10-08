@@ -376,7 +376,11 @@ impl Api {
                         )
                         .await?;
                     let sql = match ddl.filter(|d| !d.trim().is_empty()) {
-                        Some(ddl) => trim_statement(ddl),
+                        Some(ddl) => qualify_create_table(
+                            &trim_statement(ddl),
+                            dst_engine,
+                            &request.target.scope,
+                        ),
                         None => {
                             if same_engine {
                                 warnings.push(format!(
@@ -633,6 +637,73 @@ impl Api {
                 }
                 (None, None) => {}
             }
+        }
+
+        // A CREATE TABLE that embeds a foreign key must not run before its
+        // parent table exists (MySQL 1824, PostgreSQL 42P01, …). Order the
+        // created tables parents-first and warn about parents that are neither
+        // synced nor already present on the target.
+        {
+            let mut deps: HashMap<String, Vec<String>> = HashMap::new();
+            for stmt in &buckets.create_tables {
+                let refs = self
+                    .foreign_keys(
+                        source_id.clone(),
+                        request.source.scope.clone(),
+                        stmt.table.clone(),
+                    )
+                    .await
+                    .unwrap_or_default();
+                deps.insert(
+                    stmt.table.to_lowercase(),
+                    refs.iter().map(|f| f.ref_table.to_lowercase()).collect(),
+                );
+            }
+            sort_create_tables_by_deps(&mut buckets.create_tables, &deps);
+            for stmt in &buckets.create_tables {
+                let Some(refs) = deps.get(&stmt.table.to_lowercase()) else {
+                    continue;
+                };
+                for dep in refs {
+                    let created_here = buckets
+                        .create_tables
+                        .iter()
+                        .any(|s| s.table.to_lowercase() == *dep);
+                    let on_target = dst_map.contains_key(dep);
+                    if !created_here && !on_target {
+                        warnings.push(format!(
+                            "`{}` has a foreign key to `{}`, but that table is neither \
+                             included in this sync nor present on the target — sync it first, \
+                             otherwise the CREATE TABLE will fail",
+                            stmt.table, dep
+                        ));
+                    }
+                }
+            }
+        }
+
+        // Dropping runs children-first for the same FK reason (a parent that
+        // is still referenced by a table outside this plan will fail at apply
+        // time and surface the driver error).
+        if !buckets.drop_tables.is_empty() {
+            let mut drop_deps: HashMap<String, Vec<String>> = HashMap::new();
+            for stmt in &buckets.drop_tables {
+                let refs = self
+                    .foreign_keys(
+                        target_id.clone(),
+                        request.target.scope.clone(),
+                        stmt.table.clone(),
+                    )
+                    .await
+                    .unwrap_or_default();
+                drop_deps.insert(
+                    stmt.table.to_lowercase(),
+                    refs.iter().map(|f| f.ref_table.to_lowercase()).collect(),
+                );
+            }
+            // Sort parents-first, then reverse → children are dropped first.
+            sort_create_tables_by_deps(&mut buckets.drop_tables, &drop_deps);
+            buckets.drop_tables.reverse();
         }
 
         let statements = buckets.ordered();
@@ -1129,6 +1200,75 @@ fn join_cells(values: &[Value]) -> String {
 }
 
 /// `schema.table` (Postgres) / `database.table` (others), engine-quoted.
+/// Same-engine `SHOW CREATE TABLE` text is unqualified. A MySQL target session
+/// without a default database fails with 1046 "No database selected", so
+/// rewrite `CREATE TABLE \`t\`` to the fully qualified target name.
+fn qualify_create_table(ddl: &str, engine: Engine, scope: &Scope) -> String {
+    if !matches!(engine, Engine::MySql | Engine::MariaDb) {
+        return ddl.to_string();
+    }
+    if scope.database.as_deref().filter(|s| !s.is_empty()).is_none() {
+        return ddl.to_string();
+    }
+    let Ok(re) = regex::Regex::new(
+        r"(?is)^(\s*CREATE\s+(?:TEMPORARY\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)([^\s(]+)",
+    ) else {
+        return ddl.to_string();
+    };
+    let Some(caps) = re.captures(ddl) else {
+        return ddl.to_string();
+    };
+    let token = caps[2].trim();
+    if identifier_is_qualified(token) {
+        return ddl.to_string(); // already `db`.`t` or db.t
+    }
+    let name = unquote_identifier(token);
+    let replacement = qualified_table(engine, scope, name);
+    format!(
+        "{}{}{}",
+        &caps[1],
+        replacement,
+        &ddl[caps[0].len()..]
+    )
+}
+
+/// True when the token contains a `.` outside quoted segments — i.e. it is
+/// already `db.table` / `schema.table`.
+fn identifier_is_qualified(token: &str) -> bool {
+    let mut quote: Option<char> = None;
+    for ch in token.chars() {
+        match quote {
+            Some(closing) => {
+                if ch == closing {
+                    quote = None;
+                }
+            }
+            None => match ch {
+                '.' => return true,
+                '`' | '"' => quote = Some(ch),
+                '[' => quote = Some(']'),
+                _ => {}
+            },
+        }
+    }
+    false
+}
+
+/// Strips the outer quoting of a single identifier (`` `t` ``, `"t"`, `[t]`).
+fn unquote_identifier(token: &str) -> &str {
+    let t = token.trim();
+    let first = t.chars().next();
+    let last = t.chars().last();
+    match (first, last) {
+        (Some('`'), Some('`')) | (Some('"'), Some('"')) | (Some('['), Some(']'))
+            if t.len() >= 2 =>
+        {
+            &t[1..t.len() - 1]
+        }
+        _ => t,
+    }
+}
+
 fn qualified_table(engine: Engine, scope: &Scope, table: &str) -> String {
     let table = quote_ident(engine, table);
     match engine {
@@ -1443,6 +1583,49 @@ fn fk_line(sign: char, fk: &ForeignKeyDef) -> String {
 }
 
 /// FK differences as `+` (source only), `-` (target only), `~` (changed).
+/// Stable topological sort: parents before children, original order kept
+/// wherever dependencies allow. Table names are lower-case keys in `deps`;
+/// a self-reference never blocks (the table is created in the same statement).
+fn sort_create_tables_by_deps(
+    statements: &mut Vec<SyncStatement>,
+    deps: &HashMap<String, Vec<String>>,
+) {
+    let pending: HashSet<String> = statements.iter().map(|s| s.table.to_lowercase()).collect();
+    let mut emitted: HashSet<String> = HashSet::new();
+    let mut out: Vec<SyncStatement> = Vec::with_capacity(statements.len());
+    let mut remaining: Vec<SyncStatement> = std::mem::take(statements);
+
+    while !remaining.is_empty() {
+        let mut bumped: Vec<SyncStatement> = Vec::with_capacity(remaining.len());
+        let mut progressed = false;
+        for stmt in remaining {
+            let self_name = stmt.table.to_lowercase();
+            let ready = deps
+                .get(&self_name)
+                .map(|refs| {
+                    refs.iter().all(|r| {
+                        *r == self_name || !pending.contains(r) || emitted.contains(r)
+                    })
+                })
+                .unwrap_or(true);
+            if ready {
+                emitted.insert(self_name);
+                out.push(stmt);
+                progressed = true;
+            } else {
+                bumped.push(stmt);
+            }
+        }
+        remaining = bumped;
+        if !progressed {
+            // Dependency cycle: emit the rest as-is rather than losing them.
+            out.extend(remaining.drain(..));
+            break;
+        }
+    }
+    *statements = out;
+}
+
 fn fk_diff_lines(source: &[ForeignKeyDef], target: &[ForeignKeyDef]) -> Vec<String> {
     let source_names: HashSet<&str> = source.iter().map(|f| f.name.as_str()).collect();
     let target_by_name: HashMap<&str, &ForeignKeyDef> =
@@ -1573,6 +1756,35 @@ fn map_kind(engine: Engine, kind: &DataTypeKind, col: &ColumnDef) -> String {
             DataTypeKind::Unknown => "NVARCHAR(MAX)".into(),
         },
         // Engines beyond the implemented SQL drivers keep the native type.
+        Engine::ClickHouse => {
+            let base = match kind {
+                DataTypeKind::Bool | DataTypeKind::Bit => "UInt8".to_string(),
+                DataTypeKind::Int => "Int64".to_string(),
+                DataTypeKind::UInt => "UInt64".to_string(),
+                DataTypeKind::Float => "Float64".to_string(),
+                DataTypeKind::Decimal => match col.numeric_precision {
+                    Some(p) => match col.numeric_scale {
+                        Some(s) => format!("Decimal({p},{s})"),
+                        None => format!("Decimal({p})"),
+                    },
+                    None => "Decimal(38,10)".to_string(),
+                },
+                DataTypeKind::Date => "Date".to_string(),
+                DataTypeKind::DateTime | DataTypeKind::TimestampTz => {
+                    "DateTime64(3)".to_string()
+                }
+                DataTypeKind::Uuid => "UUID".to_string(),
+                DataTypeKind::Array(_) => "Array(String)".to_string(),
+                _ => "String".to_string(),
+            };
+            // ClickHouse types are non-nullable by default; Array cannot be
+            // wrapped in Nullable.
+            if col.nullable && !base.starts_with("Array(") {
+                format!("Nullable({base})")
+            } else {
+                base
+            }
+        }
         _ => {
             if col.native_type.trim().is_empty() {
                 "TEXT".into()
@@ -1615,11 +1827,20 @@ fn generated_create_table_sql(
     if !pk.is_empty() {
         defs.push(format!("PRIMARY KEY ({})", pk.join(", ")));
     }
-    format!(
+    let mut sql = format!(
         "CREATE TABLE {} ({})",
         qualified_table(engine, scope, table),
         defs.join(", ")
-    )
+    );
+    if engine == Engine::ClickHouse {
+        // MergeTree needs an explicit sort key.
+        if pk.is_empty() {
+            sql.push_str(" ENGINE = MergeTree ORDER BY tuple()");
+        } else {
+            sql.push_str(&format!(" ENGINE = MergeTree ORDER BY ({})", pk.join(", ")));
+        }
+    }
+    sql
 }
 
 fn add_column_sql(
@@ -1665,6 +1886,13 @@ fn alter_column_sql(
         Engine::Postgres => Some(format!(
             "ALTER TABLE {qualified} ALTER COLUMN {name} TYPE {type_sql}"
         )),
+        Engine::ClickHouse => {
+            // `type_sql` already carries Nullable(...) when the column allows
+            // NULL, so no separate NOT NULL clause is needed.
+            Some(format!(
+                "ALTER TABLE {qualified} MODIFY COLUMN {name} {type_sql}"
+            ))
+        }
         _ => None,
     }
 }
@@ -2195,6 +2423,55 @@ mod tests {
             database: None,
             schema: Some(schema.to_string()),
         }
+    }
+
+    #[test]
+    fn qualify_create_table_for_mysql() {
+        // Unqualified DDL copied from SHOW CREATE TABLE gets the target db.
+        assert_eq!(
+            qualify_create_table(
+                "CREATE TABLE `users` (\n  `id` int\n) ENGINE=InnoDB",
+                Engine::MySql,
+                &table_scope("tgt"),
+            ),
+            "CREATE TABLE `tgt`.`users` (\n  `id` int\n) ENGINE=InnoDB"
+        );
+        // Already qualified: untouched.
+        assert_eq!(
+            qualify_create_table(
+                "CREATE TABLE `src`.`users` (`id` int)",
+                Engine::MySql,
+                &table_scope("tgt"),
+            ),
+            "CREATE TABLE `src`.`users` (`id` int)"
+        );
+        // Quoted name containing a dot stays a single identifier.
+        assert_eq!(
+            qualify_create_table(
+                "CREATE TABLE `we.ird` (`id` int)",
+                Engine::MySql,
+                &table_scope("tgt"),
+            ),
+            "CREATE TABLE `tgt`.`we.ird` (`id` int)"
+        );
+        // IF NOT EXISTS keeps its clause.
+        assert_eq!(
+            qualify_create_table(
+                "CREATE TABLE IF NOT EXISTS users (id int)",
+                Engine::MariaDb,
+                &table_scope("tgt"),
+            ),
+            "CREATE TABLE IF NOT EXISTS `tgt`.`users` (id int)"
+        );
+        // Other engines are left alone (SQLite tests expect unqualified DDL).
+        assert_eq!(
+            qualify_create_table(
+                "CREATE TABLE items (id INTEGER PRIMARY KEY)",
+                Engine::Sqlite,
+                &table_scope("main"),
+            ),
+            "CREATE TABLE items (id INTEGER PRIMARY KEY)"
+        );
     }
 
     fn idx(name: &str, columns: &[&str], unique: bool, primary: bool) -> IndexDef {

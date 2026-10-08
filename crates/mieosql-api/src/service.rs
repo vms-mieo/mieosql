@@ -82,7 +82,10 @@ impl Api {
     /// Test connection parameters that may not be saved yet.
     pub async fn test_connection(&self, input: ProfileInput) -> ApiResult<ServerInfo> {
         let (profile, secrets) = build_profile(input)?;
-        let spec = ConnectionSpec::from_profile(&profile, secrets.password);
+        let mut spec = ConnectionSpec::from_profile(&profile, secrets.password);
+        // Test with the transient SSH secret too (mirrors `resolve_spec`,
+        // which loads it from the vault for saved profiles).
+        spec.ssh_password = secrets.ssh_password;
         self.engine.test_connection(&spec).await.map_err(Into::into)
     }
 
@@ -431,21 +434,24 @@ impl Api {
             .map_err(Into::into)
     }
 
-    /// Start a `SELECT * FROM <table> LIMIT n` grid preview with correctly
-    /// quoted identifiers for the session's engine. Returns the stream and the
-    /// generated SQL (so it can be re-run verbatim for exports).
+    /// Start a `SELECT * FROM <table> LIMIT n [OFFSET m]` grid preview with
+    /// correctly quoted identifiers for the session's engine. Returns the
+    /// stream and the generated SQL (so it can be re-run verbatim for exports).
     pub async fn preview_table(
         &self,
         session_id: String,
         scope: Scope,
         table: String,
         limit: Option<u64>,
+        offset: Option<u64>,
     ) -> ApiResult<(QueryStream, String)> {
         let info = self.engine.session_info(&session_id).await?;
         let limit = limit.unwrap_or(200).clamp(1, 1_000_000);
+        let offset = offset.unwrap_or(0);
         let sql = if info.engine.is_sql() {
-            build_select_sql(info.engine, &scope, &table, limit)
+            build_select_sql_paged(info.engine, &scope, &table, limit, offset)
         } else {
+            // NoSQL previews are single-page for now (no OFFSET support).
             self.engine
                 .preview_statement(&session_id, &scope, &table, limit)
                 .await?
@@ -466,6 +472,33 @@ impl Api {
             .await
             .map_err(ApiError::from)?;
         Ok((stream, sql))
+    }
+
+    /// Exact row count of a table — powers the "last page" jump in the grid.
+    pub async fn count_table_rows(
+        &self,
+        session_id: String,
+        scope: Scope,
+        table: String,
+    ) -> ApiResult<u64> {
+        let info = self.engine.session_info(&session_id).await?;
+        if !info.engine.is_sql() {
+            return Err(MieoError::unsupported(
+                "row count is only available for SQL engines",
+            )
+            .into());
+        }
+        let sql = format!(
+            "SELECT COUNT(*) FROM {}",
+            qualified_table(info.engine, &scope, &table)
+        );
+        let out = self
+            .collect_query(&session_id, sql, Vec::new(), QueryMode::Simple, Some(1))
+            .await?;
+        let value = out.rows.first().and_then(|row| row.first()).cloned();
+        value.and_then(|v| value_as_u64(&v)).ok_or_else(|| {
+            MieoError::new(ErrorCode::Data, "the COUNT(*) result was not a number").into()
+        })
     }
 
     /// Re-run `sql` and stream the result straight into a file.
@@ -593,8 +626,33 @@ pub fn quote_ident(engine: Engine, name: &str) -> String {
 /// - SQL Server: identifiers are schema-qualified the same way.
 /// - MySQL/MariaDB/SQLite: identifiers are database-qualified.
 pub fn build_select_sql(engine: Engine, scope: &Scope, table: &str, limit: u64) -> String {
+    build_select_sql_paged(engine, scope, table, limit, 0)
+}
+
+/// Like [`build_select_sql`] but with an `OFFSET` for grid pagination.
+pub fn build_select_sql_paged(
+    engine: Engine,
+    scope: &Scope,
+    table: &str,
+    limit: u64,
+    offset: u64,
+) -> String {
+    let qualified = qualified_table(engine, scope, table);
+    match engine {
+        // OFFSET/FETCH needs an ORDER BY; `(SELECT NULL)` keeps the scan order.
+        Engine::SqlServer if offset > 0 => format!(
+            "SELECT * FROM {qualified} ORDER BY (SELECT NULL) OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
+        ),
+        Engine::SqlServer => format!("SELECT TOP ({limit}) * FROM {qualified}"),
+        _ if offset > 0 => format!("SELECT * FROM {qualified} LIMIT {limit} OFFSET {offset}"),
+        _ => format!("SELECT * FROM {qualified} LIMIT {limit}"),
+    }
+}
+
+/// Schema/database-qualified table name with engine-correct quoting.
+fn qualified_table(engine: Engine, scope: &Scope, table: &str) -> String {
     let table = quote_ident(engine, table);
-    let qualified = match engine {
+    match engine {
         Engine::Postgres | Engine::SqlServer => {
             match scope.schema.as_deref().filter(|s| !s.is_empty()) {
                 Some(schema) => format!("{}.{table}", quote_ident(engine, schema)),
@@ -605,8 +663,18 @@ pub fn build_select_sql(engine: Engine, scope: &Scope, table: &str, limit: u64) 
             Some(database) => format!("{}.{table}", quote_ident(engine, database)),
             None => table,
         },
-    };
-    format!("SELECT * FROM {qualified} LIMIT {limit}")
+    }
+}
+
+/// Best-effort numeric interpretation of a `COUNT(*)` cell.
+fn value_as_u64(value: &Value) -> Option<u64> {
+    match value {
+        Value::Int(v) => u64::try_from(*v).ok(),
+        Value::UInt(v) => Some(*v),
+        Value::Float(f) if *f >= 0.0 && f.fract() == 0.0 => Some(*f as u64),
+        Value::Decimal(s) | Value::Text(s) => s.parse::<u64>().ok(),
+        _ => None,
+    }
 }
 
 /// Render a `SELECT` with an engine-correct row cap.
@@ -659,5 +727,38 @@ mod tests {
     fn sqlite_uses_database_qualifier() {
         let sql = build_select_sql(Engine::Sqlite, &scope(Some("main"), None), "items", 10);
         assert_eq!(sql, "SELECT * FROM \"main\".\"items\" LIMIT 10");
+    }
+
+    #[test]
+    fn paged_select_adds_offset() {
+        let sql = build_select_sql_paged(
+            Engine::Postgres,
+            &scope(Some("main_db"), Some("public")),
+            "users",
+            100,
+            200,
+        );
+        assert_eq!(
+            sql,
+            "SELECT * FROM \"public\".\"users\" LIMIT 100 OFFSET 200"
+        );
+    }
+
+    #[test]
+    fn sql_server_preview_uses_top_and_offset_fetch() {
+        assert_eq!(
+            build_select_sql_paged(Engine::SqlServer, &scope(None, Some("dbo")), "users", 50, 0),
+            "SELECT TOP (50) * FROM [dbo].[users]"
+        );
+        assert_eq!(
+            build_select_sql_paged(
+                Engine::SqlServer,
+                &scope(None, Some("dbo")),
+                "users",
+                50,
+                100
+            ),
+            "SELECT * FROM [dbo].[users] ORDER BY (SELECT NULL) OFFSET 100 ROWS FETCH NEXT 50 ROWS ONLY"
+        );
     }
 }

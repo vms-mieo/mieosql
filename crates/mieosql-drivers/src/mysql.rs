@@ -22,6 +22,7 @@ use mieosql_core::{
 };
 
 use crate::error_map::map_err;
+use crate::ssh_tunnel::{SshTunnel, prepare_endpoint};
 use crate::stream::{Binder, Decoder, KindFn, stream_query};
 use crate::util::*;
 
@@ -29,6 +30,8 @@ pub struct MySqlDriver {
     pool: MySqlPool,
     tx: Option<Transaction<'static, MySql>>,
     spec: ConnectionSpec,
+    /// Keeps the SSH tunnel (if any) alive for the connection lifetime.
+    _ssh_tunnel: Option<SshTunnel>,
 }
 
 pub(crate) fn mysql_capabilities() -> Capabilities {
@@ -48,13 +51,7 @@ pub(crate) fn mysql_capabilities() -> Capabilities {
 
 impl MySqlDriver {
     pub async fn connect(spec: &ConnectionSpec) -> MieoResult<Self> {
-        if spec.ssh.is_some() {
-            return Err(MieoError::unsupported(
-                "SSH tunnels are not implemented yet (planned phase P1) — refusing to connect directly",
-            ));
-        }
-        let host = spec.host.clone().unwrap_or_else(|| "127.0.0.1".into());
-        let port = spec.port.unwrap_or(3306);
+        let (host, port, _ssh_tunnel) = prepare_endpoint(spec, "127.0.0.1", 3306).await?;
 
         let mut opts = MySqlConnectOptions::new()
             .host(&host)
@@ -91,6 +88,7 @@ impl MySqlDriver {
             pool,
             tx: None,
             spec: spec.clone(),
+            _ssh_tunnel,
         })
     }
 

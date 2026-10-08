@@ -26,6 +26,8 @@ const SCHEME_ENGINE: Record<string, Engine> = {
   redis: "redis",
   rediss: "redis",
   kafka: "kafka",
+  clickhouse: "clickhouse",
+  clickhouses: "clickhouse",
   sqlite: "sqlite",
   file: "sqlite",
 };
@@ -162,7 +164,7 @@ export function parseConnectionString(input: string): ParsedConnection {
   const engine = SCHEME_ENGINE[scheme];
   if (!engine) {
     throw new Error(
-      `Unsupported scheme "${scheme}". Use postgres, mysql, mariadb, sqlserver, mongodb, redis, kafka or sqlite.`,
+      `Unsupported scheme "${scheme}". Use postgres, mysql, mariadb, sqlserver, mongodb, redis, kafka, clickhouse or sqlite.`,
     );
   }
 
@@ -204,7 +206,11 @@ export function parseConnectionString(input: string): ParsedConnection {
   const username = url.username ? decode(url.username) : undefined;
   const password = url.password ? decode(url.password) : undefined;
   // mongodb+srv resolves hosts via DNS — never pin a port for it.
-  const port = isSrv ? undefined : parsePort(url.port, engine);
+  let port = isSrv ? undefined : parsePort(url.port, engine);
+  // ClickHouse: `clickhouses://` implies TLS on 8443.
+  if (engine === "clickhouse" && scheme === "clickhouses" && !url.port) {
+    port = 8443;
+  }
 
   // Database: first path segment (mongodb may carry options after `/db`).
   let database: string | undefined;
@@ -248,6 +254,18 @@ export function parseConnectionString(input: string): ParsedConnection {
   } else if (engine === "kafka") {
     consume((k, v) => {
       params[k] = v;
+    });
+  } else if (engine === "clickhouse") {
+    // Common params: secure=true / protocol=https select the TLS interface.
+    const secure = (query.get("secure") ?? query.get("protocol") ?? "").toLowerCase();
+    if (scheme === "clickhouses" || secure === "true" || secure === "https") {
+      sslMode = "require";
+    } else if (secure === "false" || secure === "http") {
+      sslMode = "disable";
+    }
+    consume((k, v) => {
+      const lk = k.toLowerCase();
+      if (lk !== "secure" && lk !== "protocol") params[k] = v;
     });
   } else if (engine === "sql_server") {
     const encrypt = (query.get("encrypt") ?? "").toLowerCase();

@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Braces,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   CirclePlay,
   Eraser,
   FileCode2,
   GitBranch,
   Layers,
   ListTree,
+  Loader2,
   Plus,
   Plug,
   RefreshCw,
@@ -21,7 +26,9 @@ import {
 import type { Engine, ObjectRef } from "../lib/bindings";
 import { api, errorText } from "../lib/api";
 import { confirmDialog } from "../lib/dialog";
+import { ENGINE_META } from "../lib/engines";
 import { autofixSql, type SqlFix } from "../lib/sql-fix";
+import { getSchema } from "../lib/sql-insight";
 import type { Tab } from "../lib/store";
 import { useStore } from "../lib/store";
 import { FeatureHost } from "../features/registry";
@@ -74,17 +81,61 @@ export function Workspace() {
       if (!text.trim()) return;
       const state = useStore.getState();
       const active = state.tabs.find((t) => t.id === state.activeTabId);
-      const engine =
-        state.sessions.find((s) => s.id === active?.sessionId)?.engine ?? null;
-      const result = autofixSql(engine, text);
-      if (result.fixes.length === 0) {
-        state.toast(
-          "info",
-          result.notes[0] ?? "No common syntax issue found — nothing to fix.",
-        );
+      const session = state.sessions.find((s) => s.id === active?.sessionId);
+      const engine = session?.engine ?? null;
+
+      const show = (result: ReturnType<typeof autofixSql>) => {
+        if (result.fixes.length === 0) {
+          state.toast(
+            "info",
+            result.notes[0] ?? "No common syntax issue found — nothing to fix.",
+          );
+          return;
+        }
+        setFixDialog({ original: text, ...result });
+      };
+
+      const sessionId = active?.sessionId;
+      const wantsIdentifiers =
+        /\b(FROM|JOIN|UPDATE|INTO|USING|TABLE)\b/i.test(text);
+      if (!session || !sessionId || !wantsIdentifiers) {
+        show(autofixSql(engine, text));
         return;
       }
-      setFixDialog({ original: text, ...result });
+
+      // Load table/schema names so identifier typos (FROM userz → FROM users)
+      // are repaired too. Cached by sql-insight; any failure falls back to the
+      // keyword-only heuristics.
+      void (async () => {
+        const scope = active.scope ?? null;
+        const [schema, names] = await Promise.all([
+          getSchema(sessionId, scope),
+          (async (): Promise<string[]> => {
+            try {
+              if (session.capabilities.list_schemas) {
+                const list = await api.listSchemas(
+                  sessionId,
+                  scope?.database ?? null,
+                );
+                return list.map((s) => s.name);
+              }
+              if (session.capabilities.list_databases) {
+                const list = await api.listDatabases(sessionId);
+                return list.map((d) => d.name);
+              }
+            } catch {
+              /* identifier hints are optional */
+            }
+            return [];
+          })(),
+        ]);
+        show(
+          autofixSql(engine, text, {
+            tables: schema?.list.map((t) => t.name) ?? [],
+            schemas: names,
+          }),
+        );
+      })();
     };
     window.addEventListener("mieosql:clear-editor", clear);
     window.addEventListener("mieosql:focus-editor", focus);
@@ -191,7 +242,13 @@ export function Workspace() {
                 {activeTab.table}
               </span>
             </div>
-            <LimitSelect />
+            <div className="flex items-center gap-2">
+              <TablePagination
+                tab={activeTab}
+                engine={activeSession?.engine ?? null}
+              />
+              <LimitSelect />
+            </div>
           </div>
           <ResultPanel tab={activeTab} />
         </div>
@@ -486,6 +543,85 @@ function LimitSelect() {
         ))}
       </select>
     </label>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Table pagination — next / previous / last page of a table preview. Page
+// size is the global Limit; the "last" button runs COUNT(*) on first use.
+// ---------------------------------------------------------------------------
+
+function TablePagination({ tab, engine }: { tab: Tab; engine: Engine | null }) {
+  const store = useStore();
+  const limit = store.limit;
+  const offset = tab.offset ?? 0;
+  const result =
+    tab.results[tab.activeResult] ?? tab.results[tab.results.length - 1];
+  const rows = result?.rows.length ?? 0;
+  const sqlEngine = engine !== null && ENGINE_META[engine].kind === "sql";
+  if (!sqlEngine || limit <= 0) return null;
+
+  const page = Math.floor(offset / limit) + 1;
+  const total = tab.totalRows ?? null;
+  const totalPages =
+    total !== null ? Math.max(1, Math.ceil(total / limit)) : null;
+  const atLastKnown = total !== null && offset + limit >= total;
+  const canPrev = !tab.running && offset > 0;
+  const canNext = !tab.running && rows >= limit && !atLastKnown;
+  const canLast = !tab.running && !tab.counting && !atLastKnown;
+
+  const btn =
+    "grid h-7 w-7 place-items-center rounded-md text-slate-500 transition-colors hover:bg-slate-900/[0.05] hover:text-slate-700 disabled:pointer-events-none disabled:text-slate-300";
+
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <button
+        className={btn}
+        title="First page"
+        disabled={!canPrev}
+        onClick={() => void store.previewPage(tab.id, 0)}
+      >
+        <ChevronsLeft size={13} strokeWidth={1.8} />
+      </button>
+      <button
+        className={btn}
+        title="Previous page"
+        disabled={!canPrev}
+        onClick={() => void store.previewPage(tab.id, Math.max(0, offset - limit))}
+      >
+        <ChevronLeft size={13} strokeWidth={1.8} />
+      </button>
+      <span className="min-w-[64px] text-center font-num text-[11.5px] text-slate-500">
+        Page {page.toLocaleString()}
+        {totalPages !== null ? ` / ${totalPages.toLocaleString()}` : ""}
+      </span>
+      <button
+        className={btn}
+        title="Next page"
+        disabled={!canNext}
+        onClick={() => void store.previewPage(tab.id, offset + limit)}
+      >
+        <ChevronRight size={13} strokeWidth={1.8} />
+      </button>
+      <button
+        className={btn}
+        title="Last page (runs COUNT(*))"
+        disabled={!canLast}
+        onClick={() => void store.previewLastPage(tab.id)}
+      >
+        {tab.counting ? (
+          <Loader2 size={13} className="animate-spin" />
+        ) : (
+          <ChevronsRight size={13} strokeWidth={1.8} />
+        )}
+      </button>
+      {rows > 0 && (
+        <span className="ml-1 hidden font-num text-[11px] text-slate-400 xl:inline">
+          {(offset + 1).toLocaleString()}–{(offset + rows).toLocaleString()}
+          {total !== null ? ` of ${total.toLocaleString()}` : ""}
+        </span>
+      )}
+    </div>
   );
 }
 

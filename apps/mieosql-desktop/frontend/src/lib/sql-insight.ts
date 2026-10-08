@@ -288,6 +288,19 @@ const ENGINE_KEYWORDS: Partial<Record<Engine, string[]>> = {
     "WITHOUT",
     "REPLACE",
   ],
+  clickhouse: [
+    "PREWHERE",
+    "SAMPLE",
+    "FINAL",
+    "SETTINGS",
+    "FORMAT",
+    "MATERIALIZED",
+    "TTL",
+    "DICTIONARY",
+    "NULLABLE",
+    "LOWCARDINALITY",
+    "ENGINE",
+  ],
 };
 
 function keywordsFor(engine: Engine | null): string[] {

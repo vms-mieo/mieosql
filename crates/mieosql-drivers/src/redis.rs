@@ -83,6 +83,8 @@ use mieosql_core::{
     PrivilegeEntry,
 };
 
+use crate::ssh_tunnel::ensure_no_tunnel;
+
 /// Maximum number of keys `list_objects` returns from `SCAN`.
 const SCAN_KEY_CAP: usize = 1000;
 /// Maximum number of hash fields `table_columns` reports.
@@ -120,6 +122,7 @@ pub(crate) fn redis_capabilities() -> Capabilities {
 
 impl RedisDriver {
     pub async fn connect(spec: &ConnectionSpec) -> MieoResult<Self> {
+        ensure_no_tunnel(spec, "Redis")?;
         let database = spec
             .database
             .as_deref()

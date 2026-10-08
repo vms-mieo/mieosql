@@ -26,3 +26,9 @@ redis = { version = "1.7", default-features = false, features = ["tokio-rustls-c
 rskafka = { version = "0.6", default-features = false, features = ["transport-tls", "compression-gzip", "compression-lz4", "compression-snappy", "compression-zstd"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std"] }
 webpki-roots = "1"
+clickhouse = { version = "0.15", default-features = false, features = ["lz4", "rustls-tls-ring", "rustls-tls-webpki-roots"] }
+bytes = "1"
+russh = { version = "0.64", default-features = false, features = ["ring", "rsa"] }
+
+[dev-dependencies]
+rand = "0.10"

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Database, HardDrive, Loader2, Plug, Trash2, X } from "lucide-react";
+import { Database, FolderOpen, HardDrive, Loader2, Plug, Trash2, X } from "lucide-react";
+import { homeDir, join } from "@tauri-apps/api/path";
+import { open as openFile } from "@tauri-apps/plugin-dialog";
 
-import type { Engine, ProfileInput, SslMode } from "../lib/bindings";
+import type { Engine, ProfileInput, SshAuthKind, SslMode } from "../lib/bindings";
 import { api, errorText } from "../lib/api";
 import { parseConnectionString } from "../lib/connection-string";
 import {
@@ -35,6 +37,17 @@ type FormState = {
   color: string;
   /** Preset/engine parameters sent as `ProfileInput.params`. */
   params: Record<string, string>;
+  /** SSH tunnel (`ProfileInput.ssh`); ignored for file-based engines. */
+  sshEnabled: boolean;
+  sshHost: string;
+  sshPort: string;
+  sshUser: string;
+  sshAuth: SshAuthKind;
+  sshKeyPath: string;
+  sshHostKeyCheck: boolean;
+  /** SSH password / key passphrase; transient unless saved. */
+  sshPassword: string;
+  sshPasswordTouched: boolean;
 };
 
 const SSL_MODES: { value: SslMode; label: string }[] = [
@@ -62,6 +75,15 @@ function emptyForm(): FormState {
     group: "",
     color: "",
     params: {},
+    sshEnabled: false,
+    sshHost: "127.0.0.1",
+    sshPort: "22",
+    sshUser: "",
+    sshAuth: "password",
+    sshKeyPath: "",
+    sshHostKeyCheck: true,
+    sshPassword: "",
+    sshPasswordTouched: false,
   };
 }
 
@@ -106,6 +128,15 @@ export function ConnectionModal() {
         group: editing.group ?? "",
         color: editing.color ?? "",
         params: { ...editing.params },
+        sshEnabled: !!editing.ssh,
+        sshHost: editing.ssh?.host ?? "127.0.0.1",
+        sshPort: editing.ssh ? String(editing.ssh.port) : "22",
+        sshUser: editing.ssh?.username ?? "",
+        sshAuth: editing.ssh?.auth ?? "password",
+        sshKeyPath: editing.ssh?.private_key_path ?? "",
+        sshHostKeyCheck: editing.ssh?.host_key_check ?? true,
+        sshPassword: "",
+        sshPasswordTouched: false,
       });
     } else {
       setForm(emptyForm());
@@ -201,36 +232,84 @@ export function ConnectionModal() {
     }
   };
 
-  const buildInput = (): ProfileInput => ({
-    id: editing ? editing.id : undefined,
-    name: form.name.trim() || "Unnamed",
-    engine: form.engine,
-    variant: form.variant ?? undefined,
-    host: isFile ? undefined : form.host.trim() || undefined,
-    port: isFile
-      ? undefined
-      : form.port.trim()
-        ? Number(form.port)
-        : undefined,
-    username: isFile ? undefined : form.user.trim() || undefined,
-    database: form.database.trim() || undefined,
-    file: isFile ? form.file.trim() || undefined : undefined,
-    params: isFile ? {} : { ...form.params },
-    ssl_mode: isFile ? "disable" : form.sslMode,
-    ssh: undefined,
-    color: form.color.trim() || undefined,
-    group: form.group.trim() || undefined,
-    // Save password unchecked → never persist: new connections send nothing,
-    // edits send "" to clear any previously stored secret.
-    password: !form.savePassword
-      ? editing
-        ? ""
-        : undefined
-      : form.passwordTouched
-        ? form.password
-        : undefined,
-    ssh_password: undefined,
-  });
+  /** SQL engines support the tunnel; file-based and NoSQL engines don't (yet). */
+  const tunnelCapable = !isFile && meta.kind === "sql";
+
+  const sshSpec = (): ProfileInput["ssh"] => {
+    if (!tunnelCapable || !form.sshEnabled) return undefined;
+    const host = form.sshHost.trim();
+    const username = form.sshUser.trim();
+    if (!host || !username) return undefined;
+    return {
+      host,
+      port: Number(form.sshPort) || 22,
+      username,
+      auth: form.sshAuth,
+      private_key_path:
+        form.sshAuth === "private_key"
+          ? form.sshKeyPath.trim() || undefined
+          : undefined,
+      host_key_check: form.sshHostKeyCheck,
+    };
+  };
+
+  const buildInput = (): ProfileInput => {
+    const ssh = sshSpec();
+    return {
+      id: editing ? editing.id : undefined,
+      name: form.name.trim() || "Unnamed",
+      engine: form.engine,
+      variant: form.variant ?? undefined,
+      host: isFile ? undefined : form.host.trim() || undefined,
+      port: isFile
+        ? undefined
+        : form.port.trim()
+          ? Number(form.port)
+          : undefined,
+      username: isFile ? undefined : form.user.trim() || undefined,
+      database: form.database.trim() || undefined,
+      file: isFile ? form.file.trim() || undefined : undefined,
+      params: isFile ? {} : { ...form.params },
+      ssl_mode: isFile ? "disable" : form.sslMode,
+      ssh,
+      color: form.color.trim() || undefined,
+      group: form.group.trim() || undefined,
+      // Save password unchecked → never persist: new connections send nothing,
+      // edits send "" to clear any previously stored secret.
+      password: !form.savePassword
+        ? editing
+          ? ""
+          : undefined
+        : form.passwordTouched
+          ? form.password
+          : undefined,
+      // SSH secret: untouched edits keep the stored secret; a touched field
+      // replaces it (empty string clears).
+      ssh_password: ssh && form.sshPasswordTouched ? form.sshPassword : undefined,
+    };
+  };
+
+  const pickSshKey = async () => {
+    try {
+      let defaultPath: string | undefined;
+      try {
+        defaultPath = await join(await homeDir(), ".ssh");
+      } catch {
+        // Browser preview / restricted env: open without a default path.
+      }
+      const selection = await openFile({
+        title: "Choose SSH private key",
+        multiple: false,
+        directory: false,
+        defaultPath,
+      });
+      if (typeof selection === "string" && selection) {
+        set({ sshKeyPath: selection });
+      }
+    } catch (err) {
+      store.toast("error", errorText(err));
+    }
+  };
 
   const onTest = async () => {
     setTesting(true);
@@ -346,8 +425,8 @@ export function ConnectionModal() {
                 </div>
                 <p className="text-[11px] leading-relaxed text-slate-400">
                   URL (postgres, mysql, sqlserver, mongodb, redis, kafka,
-                  sqlite) or SQL Server key=value;… pairs. Fills host, port,
-                  user, password and database below.
+                  clickhouse, sqlite) or SQL Server key=value;… pairs. Fills
+                  host, port, user, password and database below.
                 </p>
                 {connStrError && (
                   <p className="text-[11.5px] leading-relaxed text-rose-600">
@@ -518,6 +597,132 @@ export function ConnectionModal() {
                 </select>
               </div>
             </>
+          )}
+
+          {tunnelCapable && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5">
+              <label className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-[#007aff]"
+                  checked={form.sshEnabled}
+                  onChange={(e) => set({ sshEnabled: e.target.checked })}
+                />
+                <span className="font-medium">Connect through SSH tunnel</span>
+              </label>
+              {form.sshEnabled && (
+                <div className="mt-2.5 space-y-2.5 border-t border-slate-200 pt-2.5">
+                  <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+                    <label className={labelCls}>SSH host</label>
+                    <input
+                      className={inputCls}
+                      value={form.sshHost}
+                      placeholder="jump.example.com"
+                      onChange={(e) => set({ sshHost: e.target.value })}
+                    />
+                  </div>
+                  <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+                    <label className={labelCls}>SSH port</label>
+                    <input
+                      className={inputCls}
+                      value={form.sshPort}
+                      onChange={(e) =>
+                        set({ sshPort: e.target.value.replace(/[^0-9]/g, "") })
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+                    <label className={labelCls}>SSH user</label>
+                    <input
+                      className={inputCls}
+                      value={form.sshUser}
+                      placeholder="ubuntu"
+                      onChange={(e) => set({ sshUser: e.target.value })}
+                    />
+                  </div>
+                  <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+                    <label className={labelCls}>SSH auth</label>
+                    <select
+                      className={inputCls}
+                      value={form.sshAuth}
+                      onChange={(e) =>
+                        set({ sshAuth: e.target.value as SshAuthKind })
+                      }
+                    >
+                      <option value="password">Password</option>
+                      <option value="private_key">Private key</option>
+                      <option value="agent">SSH agent</option>
+                    </select>
+                  </div>
+                  {form.sshAuth === "private_key" && (
+                    <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+                      <label className={labelCls}>Private key</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          className={inputCls}
+                          value={form.sshKeyPath}
+                          placeholder="~/.ssh/id_ed25519"
+                          onChange={(e) => set({ sshKeyPath: e.target.value })}
+                        />
+                        <button
+                          type="button"
+                          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50"
+                          title="Browse for a private key file"
+                          onClick={() => void pickSshKey()}
+                        >
+                          <FolderOpen size={12} strokeWidth={1.7} />
+                          Browse
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {form.sshAuth !== "agent" && (
+                    <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+                      <label className={labelCls}>
+                        {form.sshAuth === "private_key"
+                          ? "Key passphrase"
+                          : "SSH password"}
+                      </label>
+                      <input
+                        className={inputCls}
+                        type="password"
+                        value={form.sshPassword}
+                        placeholder={
+                          editing?.ssh
+                            ? "(leave blank to keep stored secret)"
+                            : ""
+                        }
+                        onChange={(e) =>
+                          set({
+                            sshPassword: e.target.value,
+                            sshPasswordTouched: true,
+                          })
+                        }
+                      />
+                    </div>
+                  )}
+                  <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+                    <span />
+                    <label className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[#007aff]"
+                        checked={form.sshHostKeyCheck}
+                        onChange={(e) =>
+                          set({ sshHostKeyCheck: e.target.checked })
+                        }
+                      />
+                      <span>
+                        Verify host key{" "}
+                        <span className="text-slate-400">
+                          — against ~/.ssh/known_hosts
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           <div className="grid grid-cols-[130px_1fr] items-center gap-3">

@@ -491,6 +491,8 @@ fn parse_engine(s: &str) -> Result<DbEngine, String> {
         "sqlserver" | "mssql" => Ok(DbEngine::SqlServer),
         "mongodb" | "mongo" => Ok(DbEngine::MongoDb),
         "redis" => Ok(DbEngine::Redis),
+        "kafka" => Ok(DbEngine::Kafka),
+        "clickhouse" | "ch" => Ok(DbEngine::ClickHouse),
         "oracle" => Ok(DbEngine::Oracle),
         "snowflake" => Ok(DbEngine::Snowflake),
         other => Err(format!("unknown engine `{other}`")),

@@ -73,6 +73,7 @@ fn main() {
             commands::rollback_transaction,
             commands::start_query,
             commands::preview_table,
+            commands::count_table_rows,
             commands::export_result,
             commands::cancel_query,
             commands::list_history,

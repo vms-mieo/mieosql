@@ -203,6 +203,12 @@ export function SettingsDialog() {
               checked={settings.formatOnSave}
               onToggle={(formatOnSave) => updateSettings({ formatOnSave })}
             />
+            <ToggleRow
+              label="Word wrap"
+              hint="Long lines wrap in place — a wrapped segment is not counted as a new line (like VS Code)"
+              checked={settings.wordWrap}
+              onToggle={(wordWrap) => updateSettings({ wordWrap })}
+            />
           </Section>
 
           <Section title="Data">

@@ -51,11 +51,11 @@ type SubTab = "result" | "messages" | "status";
 type TableDefs = { columns: ColumnDef[]; failed: boolean };
 
 const editBtnClass =
-  "flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] font-medium text-slate-600 hover:bg-slate-900/[0.05] disabled:opacity-40";
+  "flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[12.5px] font-medium text-slate-600 hover:bg-slate-900/[0.05] disabled:opacity-40";
 const editIconClass =
-  "grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-900/[0.05] hover:text-rose-600 disabled:opacity-40";
+  "grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-slate-900/[0.05] hover:text-rose-600 disabled:opacity-40";
 const applyBtnClass =
-  "flex h-7 items-center gap-1 rounded-md bg-accent px-2.5 text-[12.5px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40";
+  "flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-accent px-2.5 text-[12.5px] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40";
 
 /**
  * A committed editor value is always text (the backend binds text and the DB
@@ -528,6 +528,17 @@ export function ResultPanel({ tab }: { tab: Tab }) {
               >
                 <Pin size={10} strokeWidth={1.8} />
               </span>
+              <span
+                role="button"
+                title={`Close Result ${i + 1}`}
+                className="rounded p-0.5 text-slate-300 hover:bg-slate-900/[0.06] hover:text-rose-500"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  store.closeResult(tab.id, i);
+                }}
+              >
+                <X size={10} strokeWidth={2} />
+              </span>
             </button>
           ))}
           <button
@@ -563,6 +574,15 @@ export function ResultPanel({ tab }: { tab: Tab }) {
             <ScrollText size={12} strokeWidth={1.7} />
             Status
           </button>
+          {tab.results.length > 0 && (
+            <button
+              className="ml-1 grid h-6 w-6 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.05] hover:text-rose-500"
+              title="Close all results"
+              onClick={() => store.closeAllResults(tab.id)}
+            >
+              <X size={12} strokeWidth={1.7} />
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 pr-1 text-[11px] text-slate-500">
           {result && (
@@ -602,8 +622,8 @@ export function ResultPanel({ tab }: { tab: Tab }) {
       </div>
 
       {/* toolbar */}
-      <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3 text-[12.5px]">
-        <div className="flex items-center gap-1">
+      <div className="flex min-h-10 shrink-0 flex-wrap items-center justify-between gap-y-1 border-b border-slate-200/80 bg-white px-3 py-1 text-[12.5px]">
+        <div className="flex flex-wrap items-center gap-1">
           <button
             className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-700 disabled:opacity-40"
             title="Re-run"
@@ -625,7 +645,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
           )}
           <div className="relative">
             <button
-              className="flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] font-medium text-slate-600 hover:bg-slate-900/[0.05] disabled:opacity-40"
+              className="flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[12.5px] font-medium text-slate-600 hover:bg-slate-900/[0.05] disabled:opacity-40"
               disabled={!result || result.rows.length === 0}
               onClick={() => setExportOpen((v) => !v)}
             >
@@ -746,7 +766,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
                 Discard
               </button>
               {pendingCount > 0 && (
-                <span className="ml-0.5 text-[11.5px] text-slate-400">
+                <span className="ml-0.5 whitespace-nowrap text-[11.5px] text-slate-400">
                   {[
                     editCount > 0
                       ? `${editCount} edit${editCount === 1 ? "" : "s"}`
@@ -759,11 +779,11 @@ export function ResultPanel({ tab }: { tab: Tab }) {
                 </span>
               )}
               {editHint && (
-                <span className="ml-0.5 text-[11.5px] text-slate-400">{editHint}</span>
+                <span className="ml-0.5 whitespace-nowrap text-[11.5px] text-slate-400">{editHint}</span>
               )}
             </>
           )}
-          <div className="ml-1 flex h-7 items-center rounded-md bg-slate-900/[0.04] px-2 focus-within:ring-2 focus-within:ring-accent/40">
+          <div className="ml-1 flex h-7 shrink-0 items-center rounded-md bg-slate-900/[0.04] px-2 focus-within:ring-2 focus-within:ring-accent/40">
             <Filter size={12} strokeWidth={1.7} className="mr-1 text-slate-500" />
             <input
               className="w-44 border-none bg-transparent p-0 text-[12.5px] placeholder:text-slate-400 focus:outline-none"
@@ -773,7 +793,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
             />
           </div>
           {findOpen ? (
-            <div className="ml-1 flex h-7 items-center gap-0.5 rounded-md bg-slate-900/[0.04] px-1.5 focus-within:ring-2 focus-within:ring-accent/40">
+            <div className="ml-1 flex h-7 shrink-0 items-center gap-0.5 rounded-md bg-slate-900/[0.04] px-1.5 focus-within:ring-2 focus-within:ring-accent/40">
               <input
                 ref={findInputRef}
                 className="w-36 border-none bg-transparent p-0 text-[12.5px] placeholder:text-slate-400 focus:outline-none"
@@ -825,13 +845,13 @@ export function ResultPanel({ tab }: { tab: Tab }) {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {rangeCells !== null && (
-            <span className="text-[12px] font-medium text-accent">
+            <span className="text-[12px] font-medium whitespace-nowrap text-accent">
               {rangeCells.toLocaleString()} selected
             </span>
           )}
-          <div className="flex items-center rounded-md bg-slate-900/[0.04] p-0.5">
+          <div className="flex shrink-0 items-center rounded-md bg-slate-900/[0.04] p-0.5">
             <button
               className={`grid h-6 w-7 place-items-center rounded-[5px] transition-colors ${
                 viewMode === "grid"
@@ -856,7 +876,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
             </button>
           </div>
           {stripVisible && (
-            <span className="text-[11.5px] text-slate-500">
+            <span className="whitespace-nowrap text-[11.5px] text-slate-500">
               {pendingCount > 0
                 ? "⌘/Ctrl+Enter apply · ⌫ delete row"
                 : editable
@@ -864,7 +884,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
                   : ""}
             </span>
           )}
-          <span className="text-[12px] text-slate-600">
+          <span className="whitespace-nowrap text-[12px] text-slate-600">
             {matchIndices
               ? `${matchIndices.length.toLocaleString()} / ${(result?.rows.length ?? 0).toLocaleString()} rows`
               : `${(result?.rows.length ?? 0).toLocaleString()} rows`}

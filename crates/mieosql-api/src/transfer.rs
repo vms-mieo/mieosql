@@ -660,7 +660,17 @@ fn generate_create_table(engine: Engine, scope: &Scope, table: &str, columns: &[
     if !pk.is_empty() && !sqlite_inline_pk {
         defs.push(format!("PRIMARY KEY ({})", pk.join(", ")));
     }
-    format!("CREATE TABLE {qualified} (\n  {}\n)", defs.join(",\n  "))
+    let mut sql = format!("CREATE TABLE {qualified} (\n  {}\n)", defs.join(",\n  "));
+    if engine == Engine::ClickHouse {
+        // MergeTree needs an explicit sort key; use the primary key when there
+        // is one, otherwise an empty tuple.
+        if pk.is_empty() {
+            sql.push_str(" ENGINE = MergeTree ORDER BY tuple()");
+        } else {
+            sql.push_str(&format!(" ENGINE = MergeTree ORDER BY ({})", pk.join(", ")));
+        }
+    }
+    sql
 }
 
 /// Map a source column to the target engine's native type.
@@ -724,6 +734,41 @@ fn target_type_for(engine: Engine, col: &ColumnDef) -> String {
             DataTypeKind::Array(_) => "NVARCHAR(MAX)".to_string(),
             DataTypeKind::Unknown => "NVARCHAR(MAX)".to_string(),
         },
+        Engine::ClickHouse => {
+            let base = match &col.data_type {
+                DataTypeKind::Bool | DataTypeKind::Bit => "UInt8".to_string(),
+                DataTypeKind::Int => "Int64".to_string(),
+                DataTypeKind::UInt => "UInt64".to_string(),
+                DataTypeKind::Float => "Float64".to_string(),
+                DataTypeKind::Decimal => match (col.numeric_precision, col.numeric_scale) {
+                    (Some(p), Some(s)) => format!("Decimal({p},{s})"),
+                    (Some(p), None) => format!("Decimal({p})"),
+                    _ => "Decimal(38,10)".to_string(),
+                },
+                DataTypeKind::Text
+                | DataTypeKind::Time
+                | DataTypeKind::Json
+                | DataTypeKind::Interval
+                | DataTypeKind::Enum
+                | DataTypeKind::Set
+                | DataTypeKind::Geometry
+                | DataTypeKind::Unknown => "String".to_string(),
+                DataTypeKind::Bytes => "String".to_string(),
+                DataTypeKind::Date => "Date".to_string(),
+                DataTypeKind::DateTime | DataTypeKind::TimestampTz => {
+                    "DateTime64(3)".to_string()
+                }
+                DataTypeKind::Uuid => "UUID".to_string(),
+                DataTypeKind::Array(_) => "Array(String)".to_string(),
+            };
+            // ClickHouse types are non-nullable by default; Array cannot be
+            // wrapped in Nullable.
+            if col.nullable && !base.starts_with("Array(") {
+                format!("Nullable({base})")
+            } else {
+                base
+            }
+        }
         _ => "TEXT".to_string(),
     }
 }

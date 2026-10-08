@@ -274,6 +274,7 @@ pub async fn start_query(
 
 /// Open a table as a data grid: generates `SELECT * FROM <table> LIMIT n`
 /// with engine-correct identifier quoting, then streams the result.
+/// `offset` powers the grid pagination (page 2+).
 #[tauri::command]
 pub async fn preview_table(
     app: AppHandle,
@@ -282,13 +283,29 @@ pub async fn preview_table(
     scope: Scope,
     table: String,
     limit: Option<u64>,
+    offset: Option<u64>,
 ) -> Result<PreviewStart, ApiError> {
     let (stream, sql) = state
         .api
-        .preview_table(session_id, scope, table, limit)
+        .preview_table(session_id, scope, table, limit, offset)
         .await?;
     let query_id = spawn_query_pump(app, stream);
     Ok(PreviewStart { query_id, sql })
+}
+
+/// Exact `COUNT(*)` of a table — used by the grid's "last page" button.
+#[tauri::command]
+pub async fn count_table_rows(
+    state: State<'_, AppState>,
+    session_id: String,
+    scope: Scope,
+    table: String,
+) -> Result<u64, ApiError> {
+    state
+        .api
+        .count_table_rows(session_id, scope, table)
+        .await
+        .map_err(Into::into)
 }
 
 /// Re-run a result's SQL server-side and write it straight to `path`

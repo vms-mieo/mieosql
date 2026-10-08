@@ -1,8 +1,9 @@
 // New Database dialog. Opened via `store.openObjectDialog("new-database",
-// { sessionId })`. MySQL/MariaDB optionally take a character set; PostgreSQL
-// and SQL Server take a bare name. All other engines are refused with a notice.
+// { sessionId })`. MySQL/MariaDB take a character set + matching collation
+// (defaulted from the current database when known); PostgreSQL and SQL Server
+// take a bare name. All other engines are refused with a notice.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Database, Loader2, Play } from "lucide-react";
 
 import type { Engine } from "../../lib/bindings";
@@ -28,10 +29,80 @@ const CREATE_DATABASE_ENGINES: readonly Engine[] = [
   "sql_server",
 ];
 
-function buildSql(engine: Engine, name: string, charset: string): string {
+/**
+ * Character sets with their collations (first entry = default). Covers the
+ * common MySQL/MariaDB sets — `utf8mb4_general_ci` is the safe default that
+ * exists on both MySQL and MariaDB (0900 collations are MySQL 8 only).
+ */
+const CHARSETS: readonly { charset: string; label?: string; collations: readonly string[] }[] = [
+  {
+    charset: "utf8mb4",
+    label: "utf8mb4 (recommended)",
+    collations: [
+      "utf8mb4_general_ci",
+      "utf8mb4_unicode_ci",
+      "utf8mb4_unicode_520_ci",
+      "utf8mb4_0900_ai_ci",
+      "utf8mb4_vietnamese_ci",
+      "utf8mb4_bin",
+    ],
+  },
+  {
+    charset: "utf8mb3",
+    collations: [
+      "utf8mb3_general_ci",
+      "utf8mb3_unicode_ci",
+      "utf8mb3_vietnamese_ci",
+      "utf8mb3_bin",
+    ],
+  },
+  {
+    charset: "latin1",
+    collations: [
+      "latin1_swedish_ci",
+      "latin1_general_ci",
+      "latin1_general_cs",
+      "latin1_bin",
+    ],
+  },
+  { charset: "ascii", collations: ["ascii_general_ci", "ascii_bin"] },
+  {
+    charset: "utf16",
+    collations: ["utf16_general_ci", "utf16_unicode_ci", "utf16_bin"],
+  },
+  { charset: "utf16le", collations: ["utf16le_general_ci", "utf16le_bin"] },
+  {
+    charset: "utf32",
+    collations: ["utf32_general_ci", "utf32_unicode_ci", "utf32_bin"],
+  },
+  {
+    charset: "ucs2",
+    collations: ["ucs2_general_ci", "ucs2_unicode_ci", "ucs2_bin"],
+  },
+  { charset: "cp1251", collations: ["cp1251_general_ci", "cp1251_bin"] },
+  { charset: "binary", collations: ["binary"] },
+];
+
+function collationsFor(charset: string, current?: string): readonly string[] {
+  const known = CHARSETS.find((c) => c.charset === charset)?.collations ?? [];
+  if (current && !known.includes(current)) return [current, ...known];
+  return known.length > 0 ? known : [current ?? ""];
+}
+
+function defaultCollation(charset: string): string {
+  return CHARSETS.find((c) => c.charset === charset)?.collations[0] ?? "";
+}
+
+function buildSql(
+  engine: Engine,
+  name: string,
+  charset: string,
+  collation: string,
+): string {
   const ident = quoteIdent(engine, name);
   if (engine === "mysql" || engine === "mariadb") {
-    return `CREATE DATABASE ${ident} CHARACTER SET ${charset}`;
+    const collate = collation ? ` COLLATE ${collation}` : "";
+    return `CREATE DATABASE ${ident} CHARACTER SET ${charset}${collate}`;
   }
   return `CREATE DATABASE ${ident}`;
 }
@@ -50,6 +121,7 @@ export function NewDatabaseDialog({
 
   const [name, setName] = useState("");
   const [charset, setCharset] = useState("utf8mb4");
+  const [collation, setCollation] = useState(defaultCollation("utf8mb4"));
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,15 +131,52 @@ export function NewDatabaseDialog({
   const nameValid = isValidObjectName(name);
   const showNameHint = name.trim().length > 0 && !nameValid;
   const sql =
-    supported && engine && nameValid ? buildSql(engine, name.trim(), charset) : null;
+    supported && engine && nameValid
+      ? buildSql(engine, name.trim(), charset, collation)
+      : null;
   const canRun = supported && nameValid && !running && sessionId !== null;
+  const collations = collationsFor(charset, collation);
+
+  // Default charset/collation from the database this session is connected to
+  // (MySQL/MariaDB report both in `list_databases`).
+  useEffect(() => {
+    if (!sessionId || (engine !== "mysql" && engine !== "mariadb")) return;
+    let cancelled = false;
+    void api
+      .listDatabases(sessionId)
+      .then((list) => {
+        if (cancelled) return;
+        const current = list.find((d) => d.name === session?.database);
+        if (!current?.charset) return;
+        setCharset(current.charset);
+        setCollation(
+          current.collation ?? defaultCollation(current.charset),
+        );
+      })
+      .catch(() => {
+        /* defaults are fine when the catalog is not readable */
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, engine, session?.database]);
+
+  const changeCharset = (next: string) => {
+    setCharset(next);
+    setCollation(defaultCollation(next));
+  };
 
   const run = async () => {
     if (!sessionId || !engine || !nameValid) return;
     setRunning(true);
     setError(null);
     try {
-      const res = await api.executeBatch(sessionId, [buildSql(engine, name.trim(), charset)], false);
+      const res = await api.executeBatch(
+        sessionId,
+        [buildSql(engine, name.trim(), charset, collation)],
+        false,
+      );
       if (res.failed > 0) {
         setError(res.errors.join("\n") || "The backend did not apply the statement.");
         return;
@@ -153,17 +262,40 @@ export function NewDatabaseDialog({
         </div>
 
         {(engine === "mysql" || engine === "mariadb") && (
-          <div>
-            <label className={DLG_LABEL}>Character set</label>
-            <select
-              className={DLG_INPUT}
-              value={charset}
-              disabled={running}
-              onChange={(e) => setCharset(e.target.value)}
-            >
-              <option value="utf8mb4">utf8mb4 (recommended)</option>
-              <option value="utf8mb3">utf8mb3</option>
-            </select>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={DLG_LABEL}>Character set</label>
+              <select
+                className={DLG_INPUT}
+                value={charset}
+                disabled={running}
+                onChange={(e) => changeCharset(e.target.value)}
+              >
+                {CHARSETS.map((c) => (
+                  <option key={c.charset} value={c.charset}>
+                    {c.label ?? c.charset}
+                  </option>
+                ))}
+                {!CHARSETS.some((c) => c.charset === charset) && (
+                  <option value={charset}>{charset}</option>
+                )}
+              </select>
+            </div>
+            <div>
+              <label className={DLG_LABEL}>Collation</label>
+              <select
+                className={DLG_INPUT}
+                value={collation}
+                disabled={running}
+                onChange={(e) => setCollation(e.target.value)}
+              >
+                {collations.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
 

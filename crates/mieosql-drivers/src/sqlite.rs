@@ -43,6 +43,7 @@ use mieosql_core::{
 };
 
 use crate::error_map::map_err;
+use crate::ssh_tunnel::ensure_no_tunnel;
 use crate::stream::{Binder, Decoder, KindFn, stream_query};
 use crate::util::*;
 
@@ -69,6 +70,7 @@ pub(crate) fn sqlite_capabilities() -> Capabilities {
 
 impl SqliteDriver {
     pub async fn connect(spec: &ConnectionSpec) -> MieoResult<Self> {
+        ensure_no_tunnel(spec, "SQLite")?;
         let path = spec
             .file
             .clone()

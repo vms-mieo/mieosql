@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronRight,
   Code2,
@@ -7,18 +7,33 @@ import {
   History,
   KeyRound,
   PanelRight,
+  Pencil,
+  Plus,
   RefreshCw,
   Search,
   Star,
   Table2,
   Trash2,
+  Zap,
 } from "lucide-react";
 
 import { api, errorText } from "../lib/api";
-import type { ColumnDef, IndexDef } from "../lib/bindings";
+import type { ColumnDef, IndexDef, ObjectRef } from "../lib/bindings";
+import { confirmDialog } from "../lib/dialog";
 import { copyText } from "../lib/format";
+import {
+  buildDropIndex,
+  supportsIndexEditor,
+} from "../lib/index-ddl";
+import {
+  buildDropTrigger,
+  supportsTriggers,
+  triggerTable,
+  triggerTemplate,
+} from "../lib/trigger-ddl";
 import type { HistoryEntry } from "../lib/bindings";
 import { useStore } from "../lib/store";
+import { IndexDialog } from "./dialogs/IndexDialog";
 
 export function RightPanel() {
   const store = useStore();
@@ -71,29 +86,65 @@ function ObjectInspector() {
   const store = useStore();
   const selected = store.selected;
   const session = store.sessions.find((s) => s.id === selected?.sessionId);
+  const engine = session?.engine ?? null;
   const [columns, setColumns] = useState<ColumnDef[] | null>(null);
   const [indexes, setIndexes] = useState<IndexDef[]>([]);
+  const [triggers, setTriggers] = useState<ObjectRef[] | null>(null);
+  const [indexDialog, setIndexDialog] = useState<{ editing: IndexDef | null } | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+  const reload = () => setReloadToken((t) => t + 1);
+
+  const selectedKey = selected
+    ? `${selected.sessionId}|${selected.scope.database ?? ""}|${selected.scope.schema ?? ""}|${selected.table}`
+    : "";
+  const prevKey = useRef("");
 
   useEffect(() => {
     if (!selected) return;
-    setColumns(null);
-    setIndexes([]);
     setError(null);
+    if (prevKey.current !== selectedKey) {
+      // Different object: clear stale rows instead of flashing them.
+      prevKey.current = selectedKey;
+      setColumns(null);
+      setIndexes([]);
+      setTriggers(null);
+    }
     let cancelled = false;
+    const wantsTriggers =
+      selected.kind === "table" && supportsTriggers(session?.engine);
     void (async () => {
       try {
-        const cols = await api.tableColumns(
-          selected.sessionId,
-          selected.scope,
-          selected.table,
-        );
-        const idx = await api
-          .tableIndexes(selected.sessionId, selected.scope, selected.table)
-          .catch(() => []);
-        if (!cancelled) {
-          setColumns(cols);
-          setIndexes(idx);
+        const [cols, idx, allTriggers] = await Promise.all([
+          api.tableColumns(selected.sessionId, selected.scope, selected.table),
+          api
+            .tableIndexes(selected.sessionId, selected.scope, selected.table)
+            .catch(() => [] as IndexDef[]),
+          wantsTriggers
+            ? api
+                .listObjects(
+                  selected.sessionId,
+                  selected.scope,
+                  "trigger",
+                  null,
+                )
+                .catch(() => [] as ObjectRef[])
+            : Promise.resolve([] as ObjectRef[]),
+        ]);
+        if (cancelled) return;
+        setColumns(cols);
+        setIndexes(idx);
+        if (wantsTriggers) {
+          const tableLc = selected.table.toLowerCase();
+          setTriggers(
+            allTriggers.filter(
+              (t) => triggerTable(t.comment)?.toLowerCase() === tableLc,
+            ),
+          );
+        } else {
+          setTriggers([]);
         }
       } catch (err) {
         if (!cancelled) setError(errorText(err));
@@ -102,7 +153,7 @@ function ObjectInspector() {
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [selectedKey, reloadToken, session?.engine, selected]);
 
   if (!selected) {
     return (
@@ -129,6 +180,81 @@ function ObjectInspector() {
     } catch (err) {
       store.toast("error", errorText(err));
     }
+  };
+
+  const dropIndex = async (idx: IndexDef) => {
+    if (!selected || !engine) return;
+    const sql = buildDropIndex(engine, selected.scope, selected.table, idx.name);
+    if (!sql) return;
+    const ok = await confirmDialog(
+      `Drop index “${idx.name}”? This cannot be undone.`,
+      { title: "Drop index", kind: "warning" },
+    );
+    if (!ok) return;
+    try {
+      const result = await api.executeBatch(selected.sessionId, [sql], false);
+      if (result.failed > 0) {
+        store.toast("error", result.errors[0] ?? "Drop index failed");
+        return;
+      }
+      store.toast("success", `Index “${idx.name}” dropped`);
+      reload();
+    } catch (err) {
+      store.toast("error", errorText(err));
+    }
+  };
+
+  const viewTriggerDdl = async (trigger: ObjectRef) => {
+    if (!selected) return;
+    try {
+      const ddl = await api.objectDdl(
+        selected.sessionId,
+        selected.scope,
+        "trigger",
+        trigger.name,
+      );
+      if (ddl) store.newQueryTab(selected.sessionId, ddl);
+      else store.toast("info", "Trigger DDL is not available on this engine");
+    } catch (err) {
+      store.toast("error", errorText(err));
+    }
+  };
+
+  const dropTrigger = async (trigger: ObjectRef) => {
+    if (!selected || !engine) return;
+    const sql = buildDropTrigger(
+      engine,
+      selected.scope,
+      selected.table,
+      trigger.name,
+    );
+    if (!sql) return;
+    const ok = await confirmDialog(
+      `Drop trigger “${trigger.name}”? This cannot be undone.`,
+      { title: "Drop trigger", kind: "warning" },
+    );
+    if (!ok) return;
+    try {
+      const result = await api.executeBatch(selected.sessionId, [sql], false);
+      if (result.failed > 0) {
+        store.toast("error", result.errors[0] ?? "Drop trigger failed");
+        return;
+      }
+      store.toast("success", `Trigger “${trigger.name}” dropped`);
+      reload();
+    } catch (err) {
+      store.toast("error", errorText(err));
+    }
+  };
+
+  const newTrigger = () => {
+    if (!selected || !engine) return;
+    const template = triggerTemplate(engine, selected.scope, selected.table);
+    if (!template) {
+      store.toast("info", "Triggers are not supported for this engine");
+      return;
+    }
+    store.newQueryTab(selected.sessionId, template);
   };
 
   return (
@@ -246,34 +372,143 @@ function ObjectInspector() {
         )}
       </div>
 
-      {indexes.length > 0 && (
+      {(indexes.length > 0 || supportsIndexEditor(engine)) && (
         <div className="mt-3 border-t border-slate-200/80 pt-2">
-          <div className="mb-1.5 text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
-            Indexes
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
+              Indexes
+            </span>
+            {supportsIndexEditor(engine) && (
+              <button
+                className="grid h-5 w-5 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-700"
+                title="Add index"
+                onClick={() => setIndexDialog({ editing: null })}
+              >
+                <Plus size={12} strokeWidth={1.8} />
+              </button>
+            )}
           </div>
+          {indexes.length === 0 && (
+            <div className="px-1 text-[12px] text-slate-500">No indexes.</div>
+          )}
           {indexes.map((idx) => (
-            <div key={idx.name} className="px-1 py-0.5">
-              <div className="flex items-center gap-1">
-                <span className="truncate font-code text-[12px] text-slate-700">
-                  {idx.name}
+            <div
+              key={idx.name}
+              className="group flex items-start gap-1 rounded-md px-1 py-0.5 hover:bg-slate-900/[0.04]"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1">
+                  <span className="truncate font-code text-[12px] text-slate-700">
+                    {idx.name}
+                  </span>
+                  {idx.is_primary && (
+                    <span className="shrink-0 rounded bg-amber-100 px-1 text-[10.5px] font-medium text-amber-700">
+                      PK
+                    </span>
+                  )}
+                  {!idx.is_primary && idx.is_unique && (
+                    <span className="shrink-0 rounded bg-accent/10 px-1 text-[10.5px] font-medium text-accent">
+                      UNIQUE
+                    </span>
+                  )}
+                </div>
+                <div className="truncate text-[11px] text-slate-500">
+                  ({idx.columns.join(", ")})
+                </div>
+              </div>
+              {!idx.is_primary && supportsIndexEditor(engine) && (
+                <span className="hidden shrink-0 items-center gap-0.5 pt-0.5 group-hover:flex">
+                  <button
+                    className="grid h-5 w-5 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-600"
+                    title="Edit index (drop + recreate)"
+                    onClick={() => setIndexDialog({ editing: idx })}
+                  >
+                    <Pencil size={11} />
+                  </button>
+                  <button
+                    className="grid h-5 w-5 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-rose-600"
+                    title="Drop index"
+                    onClick={() => void dropIndex(idx)}
+                  >
+                    <Trash2 size={11} />
+                  </button>
                 </span>
-                {idx.is_primary && (
-                  <span className="rounded bg-amber-100 px-1 text-[10.5px] font-medium text-amber-700">
-                    PK
-                  </span>
-                )}
-                {!idx.is_primary && idx.is_unique && (
-                  <span className="rounded bg-accent/10 px-1 text-[10.5px] font-medium text-accent">
-                    UNIQUE
-                  </span>
-                )}
-              </div>
-              <div className="truncate text-[11px] text-slate-500">
-                ({idx.columns.join(", ")})
-              </div>
+              )}
             </div>
           ))}
         </div>
+      )}
+
+      {selected.kind === "table" && supportsTriggers(engine) && (
+        <div className="mt-3 border-t border-slate-200/80 pt-2">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
+              Triggers
+            </span>
+            <button
+              className="grid h-5 w-5 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-700"
+              title="New trigger (opens a query tab with a template)"
+              onClick={newTrigger}
+            >
+              <Plus size={12} strokeWidth={1.8} />
+            </button>
+          </div>
+          {triggers === null && (
+            <div className="px-1 text-[12px] text-slate-500">Loading…</div>
+          )}
+          {triggers?.length === 0 && (
+            <div className="px-1 text-[12px] text-slate-500">
+              No triggers on this table.
+            </div>
+          )}
+          {triggers?.map((t) => (
+            <div
+              key={t.name}
+              className="group flex items-start gap-1 rounded-md px-1 py-0.5 hover:bg-slate-900/[0.04]"
+            >
+              <Zap size={11} className="mt-0.5 shrink-0 text-slate-400" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-code text-[12px] text-slate-700">
+                  {t.name}
+                </div>
+                {t.comment && (
+                  <div className="truncate text-[11px] text-slate-500">
+                    {t.comment}
+                  </div>
+                )}
+              </div>
+              <span className="hidden shrink-0 items-center gap-0.5 pt-0.5 group-hover:flex">
+                <button
+                  className="grid h-5 w-5 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-600"
+                  title="View trigger DDL"
+                  onClick={() => void viewTriggerDdl(t)}
+                >
+                  <FileCode2 size={11} />
+                </button>
+                <button
+                  className="grid h-5 w-5 place-items-center rounded-md text-slate-400 hover:bg-slate-900/[0.06] hover:text-rose-600"
+                  title="Drop trigger"
+                  onClick={() => void dropTrigger(t)}
+                >
+                  <Trash2 size={11} />
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {indexDialog && session && (
+        <IndexDialog
+          sessionId={selected.sessionId}
+          engine={session.engine}
+          scope={selected.scope}
+          table={selected.table}
+          columns={columns ?? []}
+          editing={indexDialog.editing}
+          onClose={() => setIndexDialog(null)}
+          onApplied={reload}
+        />
       )}
     </div>
   );

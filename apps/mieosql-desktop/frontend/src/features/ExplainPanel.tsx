@@ -40,6 +40,7 @@ const ENGINE_LABEL: Record<Engine, string> = {
   mongodb: "MongoDB",
   redis: "Redis",
   kafka: "Kafka",
+  clickhouse: "ClickHouse",
   oracle: "Oracle",
   snowflake: "Snowflake",
 };

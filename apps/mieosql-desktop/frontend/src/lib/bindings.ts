@@ -31,6 +31,7 @@ export type { Scope } from "@bindings/Scope";
 export type { ServerInfo } from "@bindings/ServerInfo";
 export type { SessionInfo } from "@bindings/SessionInfo";
 export type { SshSpec } from "@bindings/SshSpec";
+export type { SshAuthKind } from "@bindings/SshAuthKind";
 export type { SslMode } from "@bindings/SslMode";
 export type { Value } from "@bindings/Value";
 

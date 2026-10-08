@@ -356,6 +356,17 @@ body {
   scrollbar-width: thin;
 }
 
+/* ---- Colored connection rows (profile accent color) -------------------
+   The row background uses two CSS vars set inline by <TreeRow tint>: a soft
+   tint by default, slightly deeper on hover. Selected rows keep the accent
+   selection instead. */
+.conn-tinted {
+  background: var(--conn-bg, transparent);
+}
+.conn-tinted:hover {
+  background: var(--conn-bg-hover, var(--conn-bg, transparent));
+}
+
 /* ---- CodeMirror (SQL editor spec: JetBrains Mono 13px / 1.25) ---------- */
 .cm-editor {
   height: 100%;
@@ -390,6 +401,60 @@ body {
 .cm-selectionBackground,
 .cm-content ::selection {
   background: rgba(0, 122, 255, 0.18) !important;
+}
+
+/* ---- SQL lint markers (lintGutter): "!" like an IDE ------------------- */
+.cm-lint-marker {
+  cursor: pointer;
+}
+.cm-lint-marker-error,
+.cm-lint-marker-warning {
+  /* Kill the default dot SVG; the "!" comes from ::after below. */
+  content: none !important;
+  background: none !important;
+}
+.cm-lint-marker-error::after,
+.cm-lint-marker-warning::after {
+  content: "!";
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  font-family: var(--font-sans, Inter, sans-serif);
+}
+.cm-lint-marker-error::after {
+  color: #ffffff;
+  background: #ff3b30;
+}
+.cm-lint-marker-warning::after {
+  color: #5c4700;
+  background: #ffd60a;
+}
+
+/* SQL lint panel (opened by clicking a "!" marker). */
+.cm-panel.cm-panel-lint {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+[data-theme="dark"] .cm-panel.cm-panel-lint {
+  background: #232325 !important;
+  color: #f2f2f7 !important;
+  border-top-color: #3a3a3c !important;
+}
+[data-theme="dark"] .cm-panel.cm-panel-lint ul li {
+  border-bottom-color: #3a3a3c !important;
+}
+[data-theme="dark"] .cm-panel.cm-panel-lint button {
+  background: #2c2c2e !important;
+  color: #f2f2f7 !important;
+  border-color: #48484a !important;
+}
+[data-theme="dark"] .cm-panel.cm-panel-lint button:hover {
+  background: #3a3a3c !important;
 }
 
 /* ---- Data grid (spec: Inter 13px; numbers JetBrains Mono 12px) -------- */

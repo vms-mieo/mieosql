@@ -1,4 +1,6 @@
 import { MSSQL, MySQL, PostgreSQL, SQLite, sql } from "@codemirror/lang-sql";
+import { acceptCompletion } from "@codemirror/autocomplete";
+import { forceLinting, lintGutter, linter, openLintPanel } from "@codemirror/lint";
 import {
   Compartment,
   EditorState,
@@ -22,6 +24,7 @@ import {
   minifySql,
 } from "../lib/sql-format";
 import { insightExtensions } from "../lib/sql-insight";
+import { lintSql } from "../lib/sql-lint";
 
 export type EditorHandle = {
   getText: () => string;
@@ -132,7 +135,9 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
   const dialectCompartment = useRef(new Compartment());
   const insightCompartment = useRef(new Compartment());
   const themeCompartment = useRef(new Compartment());
+  const wrapCompartment = useRef(new Compartment());
   const themeSetting = useStore((s) => s.settings.theme);
+  const wordWrap = useStore((s) => s.settings.wordWrap);
   const [isDark, setIsDark] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -169,8 +174,25 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
           insightCompartment.current.of(
             insightExtensions(engineRef.current, sessionRef.current, () => scopeRef.current),
           ),
+          // VS Code-style word wrap: wrapped segments stay one logical line,
+          // so the gutter never renumbers them.
+          wrapCompartment.current.of(
+            wordWrap ? EditorView.lineWrapping : [],
+          ),
+          // Live syntax lint: "!" markers in the gutter + one-click fixes.
+          linter(
+            (view) => lintSql(engineRef.current, view.state.doc.toString()),
+            { delay: 400 },
+          ),
+          lintGutter(),
           Prec.highest(
             keymap.of([
+              {
+                // Tab accepts the highlighted suggestion (Enter still works);
+                // falls through to normal behavior when no popup is open.
+                key: "Tab",
+                run: acceptCompletion,
+              },
               {
                 key: "Mod-Enter",
                 run: () => {
@@ -220,6 +242,18 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
               return false;
             },
           }),
+          // Clicking a "!" marker opens the diagnostics panel, where every
+          // issue lists its one-click fix (hover shows the tooltip).
+          EditorView.domEventHandlers({
+            mousedown: (event, view) => {
+              const target = event.target as HTMLElement | null;
+              if (target?.closest(".cm-lint-marker")) {
+                openLintPanel(view);
+                return true;
+              }
+              return false;
+            },
+          }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) callbacks.current.onChange(u.state.doc.toString());
             if (u.selectionSet || u.docChanged) {
@@ -248,6 +282,9 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
         dialectExtension(engine),
       ),
     });
+    // Re-run the linter so markers follow the new dialect (or disappear for
+    // non-SQL engines) without waiting for the next keystroke.
+    forceLinting(view);
   }, [engine]);
 
   // Rebuild schema-aware completion/hover when the connection or scope changes.
@@ -278,6 +315,15 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
       ),
     });
   }, [isDark]);
+
+  // Settings → Editor → Word wrap.
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: wrapCompartment.current.reconfigure(
+        wordWrap ? EditorView.lineWrapping : [],
+      ),
+    });
+  }, [wordWrap]);
 
   // Menu/toolbar events (Edit → Format/Minify/Rename).
   useEffect(() => {

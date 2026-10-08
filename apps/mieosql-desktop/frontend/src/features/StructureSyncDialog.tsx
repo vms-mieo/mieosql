@@ -20,7 +20,6 @@ import type {
   StructureSyncPlan,
   SyncApplyResult,
   SyncEndpoint,
-  SyncStatementKind,
 } from "../lib/bindings";
 import { DialogShell } from "./DialogShell";
 import {
@@ -41,19 +40,6 @@ const BTN_SECONDARY =
   "flex h-7 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[13px] text-slate-700 hover:bg-slate-50 disabled:opacity-50";
 const BTN_PRIMARY =
   "flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover disabled:opacity-50";
-
-const KIND_LABEL: Record<SyncStatementKind, string> = {
-  create_table: "create table",
-  drop_table: "drop table",
-  add_column: "add column",
-  drop_column: "drop column",
-  alter_column: "alter column",
-  add_index: "add index",
-  drop_index: "drop index",
-  insert: "insert",
-  update: "update",
-  delete: "delete",
-};
 
 const STATUS_META: Record<
   TableDiff["status"],
@@ -150,6 +136,38 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Tables whose statements are included in the migration script. */
+  const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
+  /** Editable SQL — regenerated when the selection changes, edited freely before Apply. */
+  const [sqlText, setSqlText] = useState("");
+
+  const buildSqlText = (p: StructureSyncPlan, tables: Set<string>) =>
+    p.statements
+      .filter((s) => tables.has(s.table))
+      .map((s) => s.sql)
+      .join(";\n\n");
+
+  const selectTables = (p: StructureSyncPlan, tables: Set<string>) => {
+    setSelectedTables(tables);
+    setSqlText(buildSqlText(p, tables));
+    setApplyResult(null);
+  };
+
+  const toggleTable = (table: string) => {
+    if (!plan) return;
+    const next = new Set(selectedTables);
+    if (next.has(table)) next.delete(table);
+    else next.add(table);
+    selectTables(plan, next);
+  };
+
+  const selectAllTables = (on: boolean) => {
+    if (!plan) return;
+    selectTables(
+      plan,
+      on ? new Set(plan.statements.map((s) => s.table)) : new Set<string>(),
+    );
+  };
 
   const sameScope =
     !!source &&
@@ -170,11 +188,15 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
     setSource(endpoint);
     setPlan(null);
     setApplyResult(null);
+    setSelectedTables(new Set());
+    setSqlText("");
   };
   const changeTarget = (endpoint: SyncEndpoint | null) => {
     setTarget(endpoint);
     setPlan(null);
     setApplyResult(null);
+    setSelectedTables(new Set());
+    setSqlText("");
   };
 
   const runCompare = async () => {
@@ -186,6 +208,8 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
     setError(null);
     setPlan(null);
     setApplyResult(null);
+    setSelectedTables(new Set());
+    setSqlText("");
     try {
       const result = await api.structureSyncPlan({
         source,
@@ -197,6 +221,8 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
         include_indexes: includeIndexes,
       });
       setPlan(result);
+      // Everything with statements is selected by default; uncheck to skip.
+      selectTables(result, new Set(result.statements.map((s) => s.table)));
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -204,14 +230,17 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const selectedStatements =
+    plan?.statements.filter((s) => selectedTables.has(s.table)) ?? [];
+  const destructiveCount = selectedStatements.filter((s) => s.destructive).length;
+
   const onApply = async () => {
-    if (!plan || !target || plan.statements.length === 0) return;
-    const destructive = plan.statements.filter((s) => s.destructive).length;
+    if (!plan || !target || !sqlText.trim()) return;
     const message =
-      `Apply ${plan.statements.length} statement(s) to the target session ` +
-      `"${targetSession?.name ?? target.session_id}"?` +
-      (destructive > 0
-        ? `\n\n⚠ ${destructive} destructive statement(s) will drop data or objects.`
+      `Apply the SQL below (${selectedStatements.length} generated statement(s)) ` +
+      `to the target session "${targetSession?.name ?? target.session_id}"?` +
+      (destructiveCount > 0
+        ? `\n\n⚠ ${destructiveCount} destructive statement(s) will drop data or objects.`
         : "");
     if (
       !(await confirmDialog(message, { title: "Apply structure sync", kind: "warning" }))
@@ -220,17 +249,25 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
     setApplying(true);
     setError(null);
     try {
+      const parts = await api.splitSqlText(sqlText);
+      const statements = parts.statements.map((s) => s.trim()).filter(Boolean);
+      if (statements.length === 0) {
+        toast("info", "Nothing to apply — the SQL is empty.");
+        return;
+      }
       const result = await api.applySyncStatements(
         target.session_id,
-        plan.statements.map((s) => s.sql),
+        statements,
       );
       setApplyResult(result);
       if (result.failed > 0) {
+        const first =
+          result.errors[0]?.split("\n")[0]?.trim() || "unknown error";
         toast(
           "error",
-          `Structure sync applied ${result.applied} of ${
+          `Structure sync failed at statement ${result.applied + 1}/${
             result.applied + result.failed
-          } statement(s) before failing — see the dialog for details`,
+          }: ${first} — see the dialog for details`,
         );
       } else {
         toast(
@@ -248,6 +285,8 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
 
   const changedDiffs = plan?.diffs.filter((d) => d.status !== "same") ?? [];
   const sameDiffs = plan?.diffs.filter((d) => d.status === "same") ?? [];
+  /** Tables that have at least one generated statement (checkbox-enabled). */
+  const statementTables = new Set(plan?.statements.map((s) => s.table) ?? []);
 
   return (
     <DialogShell
@@ -274,10 +313,15 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
           <button
             className={BTN_PRIMARY}
             onClick={() => void onApply()}
-            disabled={!plan || plan.statements.length === 0 || applying}
+            disabled={
+              !plan ||
+              selectedStatements.length === 0 ||
+              !sqlText.trim() ||
+              applying
+            }
             title={
-              plan && plan.statements.length > 0
-                ? `Apply ${plan.statements.length} statement(s) to the target`
+              selectedStatements.length > 0
+                ? `Apply ${selectedStatements.length} statement(s) to the target`
                 : "Nothing to apply"
             }
           >
@@ -366,7 +410,8 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
                 ~{plan.summary.tables_changed} changed
               </Chip>
               <Chip className="bg-slate-900/[0.06] text-slate-600">
-                {plan.summary.statements} statement(s)
+                {selectedStatements.length} / {plan.summary.statements}{" "}
+                statement(s) selected
               </Chip>
               {sourceSession && targetSession && (
                 <span className="ml-1 text-[11px] text-slate-500">
@@ -399,15 +444,34 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
                 <span className="text-[13px] font-semibold text-slate-900">
                   Table diffs
                 </span>
-                {sameDiffs.length > 0 && (
-                  <button
-                    className="text-[12px] text-accent hover:underline"
-                    onClick={() => setShowSame((v) => !v)}
-                  >
-                    {showSame ? "Hide" : "Show"} {sameDiffs.length} identical
-                    table(s)
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {statementTables.size > 0 && (
+                    <>
+                      <button
+                        className="text-[12px] text-accent hover:underline"
+                        onClick={() => selectAllTables(true)}
+                      >
+                        Select all
+                      </button>
+                      <span className="text-slate-300">·</span>
+                      <button
+                        className="text-[12px] text-accent hover:underline"
+                        onClick={() => selectAllTables(false)}
+                      >
+                        None
+                      </button>
+                    </>
+                  )}
+                  {sameDiffs.length > 0 && (
+                    <button
+                      className="text-[12px] text-accent hover:underline"
+                      onClick={() => setShowSame((v) => !v)}
+                    >
+                      {showSame ? "Hide" : "Show"} {sameDiffs.length} identical
+                      table(s)
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="space-y-1">
                 {changedDiffs.length === 0 && !showSame && (
@@ -416,7 +480,13 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
                   </div>
                 )}
                 {changedDiffs.map((diff) => (
-                  <TableDiffCard key={diff.table} diff={diff} />
+                  <TableDiffCard
+                    key={diff.table}
+                    diff={diff}
+                    selectable={statementTables.has(diff.table)}
+                    checked={selectedTables.has(diff.table)}
+                    onToggle={() => toggleTable(diff.table)}
+                  />
                 ))}
                 {showSame &&
                   sameDiffs.map((diff) => (
@@ -433,35 +503,48 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
             </div>
 
             <div>
-              <div className="mb-1 flex items-center justify-between">
+              <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-[13px] font-semibold text-slate-900">
-                  Statements ({plan.statements.length})
+                  SQL to apply ({selectedStatements.length} statement(s),
+                  editable)
                 </span>
-                {plan.statements.length > 0 && (
-                  <span className="text-[11px] text-slate-500">
-                    destructive statements are shown in red
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {destructiveCount > 0 && (
+                    <span className="text-[11px] text-rose-600">
+                      {destructiveCount} destructive statement(s)
+                    </span>
+                  )}
+                  {plan.statements.length > 0 && (
+                    <button
+                      className="text-[12px] text-accent hover:underline"
+                      onClick={() => setSqlText(buildSqlText(plan, selectedTables))}
+                    >
+                      Reset to generated
+                    </button>
+                  )}
+                </div>
               </div>
               {plan.statements.length === 0 ? (
                 <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] text-slate-500">
                   Nothing to apply — the target already matches the source.
                 </div>
+              ) : selectedStatements.length === 0 ? (
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] text-slate-500">
+                  Select at least one table above to generate the SQL.
+                </div>
               ) : (
-                <pre className="custom-scrollbar max-h-64 overflow-auto rounded-md border border-slate-200 bg-slate-900 p-3 font-code text-[12.5px] leading-5">
-                  {plan.statements.map((stmt, i) => (
-                    <div key={i} className={stmt.destructive ? "text-rose-400" : "text-slate-200"}>
-                      <span className="text-slate-500">
-                        {`-- [${KIND_LABEL[stmt.kind]}] ${stmt.table}${
-                          stmt.destructive ? " (destructive)" : ""
-                        }`}
-                      </span>
-                      {"\n"}
-                      {stmt.sql}
-                      {"\n"}
-                    </div>
-                  ))}
-                </pre>
+                <>
+                  <textarea
+                    className="custom-scrollbar h-56 w-full resize-y rounded-md border border-slate-200 bg-slate-900 p-3 font-code text-[12.5px] leading-5 text-slate-100 focus:ring-2 focus:ring-accent/40 focus:outline-none"
+                    value={sqlText}
+                    spellCheck={false}
+                    onChange={(e) => setSqlText(e.target.value)}
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Review and edit the script before applying — it runs on the
+                    target session exactly as written.
+                  </p>
+                </>
               )}
             </div>
 
@@ -495,7 +578,17 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-function TableDiffCard({ diff }: { diff: TableDiff }) {
+function TableDiffCard({
+  diff,
+  selectable,
+  checked,
+  onToggle,
+}: {
+  diff: TableDiff;
+  selectable?: boolean;
+  checked?: boolean;
+  onToggle?: () => void;
+}) {
   const meta = STATUS_META[diff.status];
   const hasBody =
     diff.columns.length > 0 ||
@@ -506,6 +599,17 @@ function TableDiffCard({ diff }: { diff: TableDiff }) {
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
       <div className="flex items-center gap-2 border-b border-slate-200/70 bg-sidebar px-2.5 py-1.5">
+        {selectable ? (
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5 shrink-0 accent-[#007aff]"
+            checked={checked ?? false}
+            onChange={() => onToggle?.()}
+            title={checked ? "Skip this table" : "Include this table in the sync"}
+          />
+        ) : (
+          <span className="h-3.5 w-3.5 shrink-0" />
+        )}
         <span className={`flex items-center gap-1 ${meta.text}`}>
           <StatusIcon status={diff.status} />
         </span>

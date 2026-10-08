@@ -1041,7 +1041,8 @@ export function ResultGrid({
     );
   }
 
-  if (total === 0 && draftCount === 0) {
+  // No column metadata at all (nothing to draw a header from).
+  if (columns.length === 0) {
     return (
       <div className="grid flex-1 place-items-center bg-surface text-[13px] text-slate-500">
         {running ? "Waiting for rows…" : "Query returned no rows"}
@@ -1199,7 +1200,7 @@ export function ResultGrid({
                   onClick={() => cycleSort(i)}
                   title={`${col.name} — ${col.native_type} · click to sort`}
                 >
-                  <span className="min-w-0 truncate text-[12px] font-medium text-slate-600">
+                  <span className="min-w-0 truncate text-[12px] font-bold text-slate-800">
                     {col.name}
                   </span>
                   <span
@@ -1286,6 +1287,21 @@ export function ResultGrid({
             );
           })}
         </div>
+
+        {/* Empty result: keep the column headers visible and say why the
+            body is empty (no data vs. filter matched nothing). */}
+        {total === 0 && draftCount === 0 && (
+          <div
+            className="flex items-center justify-center border-b border-slate-200/60 py-6 text-[12.5px] text-slate-400"
+            style={{ minWidth: totalWidth }}
+          >
+            {running
+              ? "Waiting for rows…"
+              : indices
+                ? "No rows match the filter"
+                : "No rows in this table"}
+          </div>
+        )}
 
         {/* draft (new, unsaved) rows appended below the virtual list */}
         {draftCount > 0 && (

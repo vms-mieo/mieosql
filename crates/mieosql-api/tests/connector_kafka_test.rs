@@ -214,7 +214,13 @@ async fn kafka_produce_consume_roundtrip() {
     // ---- preview statement (data-grid path) ------------------------------
     let (mut preview_stream, preview_command) = env
         .api
-        .preview_table(session.id.clone(), Scope::default(), topic.clone(), Some(5))
+        .preview_table(
+            session.id.clone(),
+            Scope::default(),
+            topic.clone(),
+            Some(5),
+            None,
+        )
         .await
         .expect("preview starts");
     assert!(preview_command.contains(&topic));

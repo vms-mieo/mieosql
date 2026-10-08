@@ -23,6 +23,7 @@ use mieosql_core::{
 };
 
 use crate::error_map::map_err;
+use crate::ssh_tunnel::{SshTunnel, prepare_endpoint};
 use crate::stream::{Binder, Decoder, KindFn, stream_query};
 use crate::util::*;
 
@@ -30,6 +31,8 @@ pub struct PostgresDriver {
     pool: PgPool,
     tx: Option<Transaction<'static, Postgres>>,
     spec: ConnectionSpec,
+    /// Keeps the SSH tunnel (if any) alive for the connection lifetime.
+    _ssh_tunnel: Option<SshTunnel>,
 }
 
 pub(crate) fn postgres_capabilities() -> Capabilities {
@@ -49,13 +52,7 @@ pub(crate) fn postgres_capabilities() -> Capabilities {
 
 impl PostgresDriver {
     pub async fn connect(spec: &ConnectionSpec) -> MieoResult<Self> {
-        if spec.ssh.is_some() {
-            return Err(MieoError::unsupported(
-                "SSH tunnels are not implemented yet (planned phase P1) — refusing to connect directly",
-            ));
-        }
-        let host = spec.host.clone().unwrap_or_else(|| "127.0.0.1".into());
-        let port = spec.port.unwrap_or(5432);
+        let (host, port, _ssh_tunnel) = prepare_endpoint(spec, "127.0.0.1", 5432).await?;
 
         let mut opts = PgConnectOptions::new()
             .host(&host)
@@ -92,6 +89,7 @@ impl PostgresDriver {
             pool,
             tx: None,
             spec: spec.clone(),
+            _ssh_tunnel,
         })
     }
 

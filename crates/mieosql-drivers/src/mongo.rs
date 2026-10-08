@@ -63,6 +63,7 @@ use mieosql_core::{
     PrivilegeEntry,
 };
 
+use crate::ssh_tunnel::ensure_no_tunnel;
 use crate::util::b64_encode;
 
 /// Documents per streamed `Batch` event (contract: first batch = 256 docs).
@@ -105,6 +106,7 @@ impl MongoDriver {
     /// Open a client from `spec`. The connection string is assembled here so
     /// cloud variants (DocumentDB) and the `params` map drive TLS/auth setup.
     pub async fn connect(spec: &ConnectionSpec) -> MieoResult<Self> {
+        ensure_no_tunnel(spec, "MongoDB")?;
         let uri = build_uri(spec);
         let mut options = ClientOptions::parse(uri.as_str()).await.map_err(|e| {
             map_mongo_err(e).with_hint(

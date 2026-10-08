@@ -157,13 +157,22 @@ export const api = {
       params,
       options: options ?? null,
     }),
-  previewTable: (sessionId: string, scope: Scope, table: string, limit?: number) =>
+  previewTable: (
+    sessionId: string,
+    scope: Scope,
+    table: string,
+    limit?: number,
+    offset?: number,
+  ) =>
     invoke<PreviewStart>("preview_table", {
       sessionId,
       scope,
       table,
       limit: limit ?? null,
+      offset: offset ?? null,
     }),
+  countTableRows: (sessionId: string, scope: Scope, table: string) =>
+    invoke<number>("count_table_rows", { sessionId, scope, table }),
   exportResult: (
     sessionId: string,
     sql: string,

@@ -60,6 +60,7 @@ use mieosql_core::{
     DbPrincipalDetail,
 };
 
+use crate::ssh_tunnel::ensure_no_tunnel;
 use crate::util::b64_encode;
 
 /// Port used when neither the host string nor the spec carries one.
@@ -176,6 +177,7 @@ pub(crate) fn kafka_capabilities() -> Capabilities {
 
 impl KafkaDriver {
     pub async fn connect(spec: &ConnectionSpec) -> MieoResult<Self> {
+        ensure_no_tunnel(spec, "Kafka")?;
         let brokers = bootstrap_brokers(spec)?;
         let mut builder = ClientBuilder::new(brokers.clone());
 

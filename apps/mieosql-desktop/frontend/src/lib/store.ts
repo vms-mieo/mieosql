@@ -58,6 +58,12 @@ export type Tab = {
   scope?: Scope;
   table?: string;
   objectKind?: ObjectKind;
+  /** table tabs: current pagination offset (page size = global `limit`). */
+  offset?: number;
+  /** table tabs: exact row count once known (`COUNT(*)`), powers "last page". */
+  totalRows?: number | null;
+  /** table tabs: a `COUNT(*)` is in flight (last-page button spinner). */
+  counting?: boolean;
   /** feature tabs: id in the feature registry + opening props */
   featureId?: string;
   featureProps?: Record<string, unknown>;
@@ -81,6 +87,16 @@ export type SelectedObject = {
   kind: ObjectKind;
 };
 
+/**
+ * Database/schema the user picked in the connection tree. Shown as a full-row
+ * highlight in the sidebar and used as the default scope of new query tabs.
+ */
+export type TreeScope = {
+  sessionId: string;
+  database?: string;
+  schema?: string;
+};
+
 export type RightTab = "object" | "history" | "snippets";
 
 export type ThemeSetting = "system" | "light" | "dark";
@@ -93,6 +109,8 @@ export type AppSettings = {
   density: DensitySetting;
   /** Editor tab width in spaces (stored; enforcement is TODO). */
   tabSize: number;
+  /** Soft-wrap long lines in the SQL editor (wrapped segments keep one line number). */
+  wordWrap: boolean;
   /** Format SQL on save (stored; enforcement is TODO). */
   formatOnSave: boolean;
   /** Show the unsafe-write (UPDATE/DELETE without WHERE) warning. */
@@ -133,6 +151,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   fontSize: "medium",
   density: "comfortable",
   tabSize: 2,
+  wordWrap: true,
   formatOnSave: false,
   confirmUnsafe: true,
   historyRetentionDays: 15,
@@ -171,9 +190,6 @@ let historyRefreshTimer: number | null = null;
  * buffered here and replayed once the result set is attached.
  */
 const earlyEvents = new Map<string, QueryEvent[]>();
-
-/** Profiles with an in-flight `openSession` (dedupes fast double-clicks). */
-const connectingProfiles = new Set<string>();
 
 function uid(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -221,6 +237,10 @@ function loadSettings(): AppSettings {
         typeof parsed.formatOnSave === "boolean"
           ? parsed.formatOnSave
           : DEFAULT_SETTINGS.formatOnSave,
+      wordWrap:
+        typeof parsed.wordWrap === "boolean"
+          ? parsed.wordWrap
+          : DEFAULT_SETTINGS.wordWrap,
       confirmUnsafe:
         typeof parsed.confirmUnsafe === "boolean"
           ? parsed.confirmUnsafe
@@ -247,6 +267,8 @@ type State = {
   apiVersion: string;
   profiles: ConnectionProfile[];
   sessions: SessionInfo[];
+  /** Profile ids with an in-flight connect (drives the sidebar spinner). */
+  connecting: string[];
   serverInfos: Record<string, ServerInfo>;
   activeSessionId: string | null;
   tabs: Tab[];
@@ -254,6 +276,8 @@ type State = {
   toasts: Toast[];
   history: HistoryEntry[];
   selected: SelectedObject | null;
+  /** Highlighted database/schema in the connection tree (drives New Query). */
+  treeScope: TreeScope | null;
   rightTab: RightTab;
   connectionModal: { open: boolean; profileId: string | null };
   objectDialog: { kind: ObjectDialogKind; props: ObjectDialogProps } | null;
@@ -294,15 +318,29 @@ type State = {
   setActiveTab: (tabId: string) => void;
   setSql: (tabId: string, sql: string) => void;
   setActiveSession: (sessionId: string) => void;
+  /** Highlight (or clear) the database/schema selection in the tree. */
+  selectTreeScope: (scope: TreeScope | null) => void;
+  /** Switch the live session to `database`; no-op when already there. */
+  ensureSessionDatabase: (sessionId: string, database: string) => Promise<boolean>;
+  /** Apply a schema to the live session (Postgres `search_path`; no-op elsewhere). */
+  applySessionSchema: (sessionId: string, schema?: string) => Promise<void>;
   /** Replace a tab's scope (database/schema) — used by the toolbar pickers. */
   setTabScope: (tabId: string, scope: Scope) => void;
 
   // query execution
   runQuery: (tabId: string, sqlOverride?: string, params?: Value[]) => Promise<void>;
-  runPreview: (tabId: string) => Promise<void>;
+  runPreview: (tabId: string, offset?: number) => Promise<void>;
+  /** Jump to a pagination offset on a table preview (offset = page * limit). */
+  previewPage: (tabId: string, offset: number) => Promise<void>;
+  /** Jump to the last page (runs `COUNT(*)` first when the total is unknown). */
+  previewLastPage: (tabId: string) => Promise<void>;
   cancelQuery: (queryId: string) => Promise<void>;
   stopActive: () => Promise<void>;
   setActiveResult: (tabId: string, index: number) => void;
+  /** Close one result set of a tab (cancels it first when still running). */
+  closeResult: (tabId: string, index: number) => void;
+  /** Close every result set of a tab (cancels running ones first). */
+  closeAllResults: (tabId: string) => void;
   handleQueryEvent: (queryId: string, event: QueryEvent) => void;
   exportResult: (
     tabId: string,
@@ -360,6 +398,7 @@ export const useStore = create<State>((set, get) => ({
   apiVersion: "",
   profiles: [],
   sessions: [],
+  connecting: [],
   serverInfos: {},
   activeSessionId: null,
   tabs: [],
@@ -367,6 +406,7 @@ export const useStore = create<State>((set, get) => ({
   toasts: [],
   history: [],
   selected: null,
+  treeScope: null,
   rightTab: "history",
   connectionModal: { open: false, profileId: null },
   objectDialog: null,
@@ -435,11 +475,20 @@ export const useStore = create<State>((set, get) => ({
     // second one. Also dedupe while a connect for this profile is in flight.
     const existing = get().sessions.find((s) => s.profile_id === profileId);
     if (existing) {
-      set({ activeSessionId: existing.id });
+      set((s) => ({
+        activeSessionId: existing.id,
+        // Show the connection's database in the tree when nothing is picked.
+        treeScope:
+          s.treeScope?.sessionId === existing.id
+            ? s.treeScope
+            : existing.database
+              ? { sessionId: existing.id, database: existing.database }
+              : s.treeScope,
+      }));
       return;
     }
-    if (connectingProfiles.has(profileId)) return;
-    connectingProfiles.add(profileId);
+    if (get().connecting.includes(profileId)) return;
+    set((s) => ({ connecting: [...s.connecting, profileId] }));
     try {
       let transient = password ?? null;
       if (!transient) {
@@ -481,10 +530,17 @@ export const useStore = create<State>((set, get) => ({
           ? { ...s.serverInfos, [info.id]: serverInfo }
           : s.serverInfos,
         activeSessionId: info.id,
+        // Default the tree selection to the connection's own database so the
+        // sidebar shows which DB is active from the start.
+        treeScope: info.database
+          ? { sessionId: info.id, database: info.database }
+          : s.treeScope,
       }));
       get().toast("success", `Connected to ${info.name}`);
     } finally {
-      connectingProfiles.delete(profileId);
+      set((s) => ({
+        connecting: s.connecting.filter((id) => id !== profileId),
+      }));
     }
   },
 
@@ -505,6 +561,7 @@ export const useStore = create<State>((set, get) => ({
           s.activeSessionId === sessionId
             ? (sessions[0]?.id ?? null)
             : s.activeSessionId,
+        treeScope: s.treeScope?.sessionId === sessionId ? null : s.treeScope,
         tabs: s.tabs.map((t) =>
           t.sessionId === sessionId ? { ...t, running: false } : t,
         ),
@@ -539,6 +596,12 @@ export const useStore = create<State>((set, get) => ({
     const state = get();
     const sid =
       sessionId ?? state.activeSessionId ?? state.sessions[0]?.id ?? null;
+    // Target the database/schema highlighted in the tree, so "New Query"
+    // runs against whatever the user has selected.
+    const picked = sid && state.treeScope?.sessionId === sid ? state.treeScope : null;
+    const scope: Scope | undefined = picked
+      ? { database: picked.database, schema: picked.schema }
+      : undefined;
     const count = state.tabs.filter((t) => t.kind === "query").length + 1;
     const tab: Tab = {
       id: uid(),
@@ -546,6 +609,7 @@ export const useStore = create<State>((set, get) => ({
       title: `Query ${count}`,
       sessionId: sid,
       sql: sql ?? "",
+      scope,
       results: [],
       activeResult: 0,
       messages: [],
@@ -553,6 +617,16 @@ export const useStore = create<State>((set, get) => ({
       runStartedAt: null,
     };
     set({ tabs: [...state.tabs, tab], activeTabId: tab.id });
+    // Follow the selection on the live session right away (queries await the
+    // switch too, so an immediate Run still hits the right database).
+    if (sid && scope && (scope.database || scope.schema)) {
+      void (async () => {
+        if (scope.database && !(await get().ensureSessionDatabase(sid, scope.database))) {
+          return;
+        }
+        if (scope.schema) await get().applySessionSchema(sid, scope.schema);
+      })();
+    }
     return tab.id;
   },
 
@@ -578,6 +652,8 @@ export const useStore = create<State>((set, get) => ({
       sql: "",
       scope,
       table,
+      offset: 0,
+      totalRows: null,
       results: [],
       activeResult: 0,
       messages: [],
@@ -626,8 +702,16 @@ export const useStore = create<State>((set, get) => ({
 
   setActiveSession: (sessionId) => {
     const state = get();
+    const session = state.sessions.find((s) => s.id === sessionId);
     set({
       activeSessionId: sessionId,
+      // Keep the tree selection meaningful for the session being activated.
+      treeScope:
+        state.treeScope?.sessionId === sessionId
+          ? state.treeScope
+          : session?.database
+            ? { sessionId, database: session.database }
+            : state.treeScope,
       tabs: state.tabs.map((t) =>
         t.id === state.activeTabId && t.kind === "query"
           ? { ...t, sessionId }
@@ -636,10 +720,50 @@ export const useStore = create<State>((set, get) => ({
     });
   },
 
+  selectTreeScope: (scope) => set({ treeScope: scope }),
+
+  ensureSessionDatabase: async (sessionId, database) => {
+    const session = get().sessions.find((s) => s.id === sessionId);
+    if (!session || session.database === database) return true;
+    try {
+      await api.useDatabase(sessionId, database);
+      await get().refreshSessionInfo(sessionId);
+      return true;
+    } catch (err) {
+      get().toast("error", errorText(err));
+      return false;
+    }
+  },
+
+  applySessionSchema: async (sessionId, schema) => {
+    const session = get().sessions.find((s) => s.id === sessionId);
+    if (session?.engine !== "postgres") return;
+    try {
+      const sql = schema
+        ? `SET search_path TO "${schema.replace(/"/g, '""')}"`
+        : "SET search_path TO DEFAULT";
+      await api.executeBatch(sessionId, [sql], false);
+    } catch (err) {
+      get().toast("error", errorText(err));
+    }
+  },
+
   setTabScope: (tabId, scope) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, scope } : t)),
-    })),
+    set((s) => {
+      const tab = s.tabs.find((t) => t.id === tabId);
+      return {
+        tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, scope } : t)),
+        // Keep the tree highlight in sync with the toolbar pickers.
+        treeScope:
+          tab?.sessionId !== undefined && tab?.sessionId !== null
+            ? {
+                sessionId: tab.sessionId,
+                database: scope.database,
+                schema: scope.schema,
+              }
+            : s.treeScope,
+      };
+    }),
 
   // -------------------------------------------------------------- queries
 
@@ -658,6 +782,17 @@ export const useStore = create<State>((set, get) => ({
     if (!(await confirmUnsafeWrites(sql))) {
       get().toast("info", "Run cancelled");
       return;
+    }
+
+    // The tab may target a database picked in the tree that the live session
+    // has not switched to yet — follow it before running.
+    const targetDb = tab.scope?.database;
+    if (targetDb && !(await get().ensureSessionDatabase(sessionId, targetDb))) {
+      return;
+    }
+    // Postgres: make sure the session's search_path matches the tab's schema.
+    if (tab.scope?.schema) {
+      await get().applySessionSchema(sessionId, tab.scope.schema);
     }
 
     const boundParams = params ?? [];
@@ -697,7 +832,7 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
-  runPreview: async (tabId) => {
+  runPreview: async (tabId, offset = 0) => {
     const state = get();
     const tab = state.tabs.find((t) => t.id === tabId);
     if (!tab?.sessionId || !tab.table || !tab.scope) return;
@@ -708,12 +843,62 @@ export const useStore = create<State>((set, get) => ({
         tab.scope,
         tab.table,
         limit,
+        offset,
       );
+      // Paging/refreshing replaces the previous preview grid instead of
+      // stacking a new result set per page (pinned results are kept).
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === tabId
+            ? { ...t, offset, results: t.results.filter((r) => r.pinned) }
+            : t,
+        ),
+      }));
       attachResult(set, get, tabId, query_id, sql);
     } catch (err) {
       pushMessage(set, tabId, "error", errorText(err));
       get().toast("error", errorText(err));
     }
+  },
+
+  previewPage: async (tabId, offset) => {
+    await get().runPreview(tabId, Math.max(0, offset));
+  },
+
+  previewLastPage: async (tabId) => {
+    const state = get();
+    const tab = state.tabs.find((t) => t.id === tabId);
+    if (!tab?.sessionId || !tab.table || !tab.scope) return;
+    let total = tab.totalRows ?? null;
+    if (total === null) {
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === tabId ? { ...t, counting: true } : t,
+        ),
+      }));
+      try {
+        total = await api.countTableRows(tab.sessionId, tab.scope, tab.table);
+        set((s) => ({
+          tabs: s.tabs.map((t) =>
+            t.id === tabId ? { ...t, totalRows: total } : t,
+          ),
+        }));
+      } catch (err) {
+        pushMessage(set, tabId, "error", errorText(err));
+        get().toast("error", errorText(err));
+        return;
+      } finally {
+        set((s) => ({
+          tabs: s.tabs.map((t) =>
+            t.id === tabId ? { ...t, counting: false } : t,
+          ),
+        }));
+      }
+    }
+    const limit = state.limit > 0 ? state.limit : 1000;
+    const lastOffset =
+      total !== null && total > 0 ? Math.floor((total - 1) / limit) * limit : 0;
+    await get().runPreview(tabId, lastOffset);
   },
 
   /// Re-run the result's SQL in the backend and write it straight to a file.
@@ -790,6 +975,37 @@ export const useStore = create<State>((set, get) => ({
         t.id === tabId ? { ...t, activeResult: index } : t,
       ),
     })),
+
+  closeResult: (tabId, index) => {
+    const tab = get().tabs.find((t) => t.id === tabId);
+    const closing = tab?.results[index];
+    if (closing?.status === "running") {
+      void get().cancelQuery(closing.queryId);
+    }
+    set((s) => ({
+      tabs: s.tabs.map((t) => {
+        if (t.id !== tabId) return t;
+        const results = t.results.filter((_, i) => i !== index);
+        const activeResult = Math.min(
+          t.activeResult > index ? t.activeResult - 1 : t.activeResult,
+          Math.max(0, results.length - 1),
+        );
+        return { ...t, results, activeResult };
+      }),
+    }));
+  },
+
+  closeAllResults: (tabId) => {
+    const tab = get().tabs.find((t) => t.id === tabId);
+    for (const r of tab?.results ?? []) {
+      if (r.status === "running") void get().cancelQuery(r.queryId);
+    }
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === tabId ? { ...t, results: [], activeResult: 0 } : t,
+      ),
+    }));
+  },
 
   handleQueryEvent: (queryId, event) => {
     const known = get().tabs.some((t) =>
@@ -1061,7 +1277,22 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
-  selectObject: (selected) => set({ selected, rightTab: "object" }),
+  selectObject: (selected) => {
+    if (selected) get().setActiveSession(selected.sessionId);
+    set((s) => ({
+      selected,
+      rightTab: "object",
+      // Selecting a table also marks its database/schema as the query target,
+      // so "New Query" runs against the table's schema (and the tree shows it).
+      treeScope: selected
+        ? {
+            sessionId: selected.sessionId,
+            database: selected.scope.database,
+            schema: selected.scope.schema,
+          }
+        : s.treeScope,
+    }));
+  },
 
   setRightTab: (tab) => set({ rightTab: tab }),
 

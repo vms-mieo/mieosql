@@ -25,7 +25,7 @@ Nguyên tắc: mỗi phase là một cột mốc **dùng được**, ưu tiên c
 
 ## P1 — "Dùng được hằng ngày" (một phần đã xong trong Feature Pack v1)
 
-- [ ] **SSH tunnel** (password / key / agent, `russh`) + jump host + UI fields
+- [x] **SSH tunnel ✅ v0.6** (password / key / agent, `russh` direct-tcpip) + jump host + UI fields (SQL engines; NoSQL báo chưa hỗ trợ)
 - [ ] SSL nâng cao: CA file, client cert, skip-verify có cảnh báo
 - [x] **SQL Server** ✅ v0.5 (tiberius thuần Rust — Connector Pack v2)
 - [ ] Multi-statement script: SQL splitter an toàn (quote/comment/$do$) + chạy tuần tự, dừng khi lỗi
@@ -66,6 +66,14 @@ Nguyên tắc: mỗi phase là một cột mốc **dùng được**, ưu tiên c
 - [x] **Apache Kafka / Confluent / Aiven** — rskafka: topic browser, consume JSON (`from: earliest/latest/offset`), produce (murmur2 partitioner), SASL PLAIN/SCRAM-SHA-256/512, TLS
 - [x] **Cloud presets** — `variant` trên profile: aurora (MySQL/PG), redshift, azure, documentdb, elasticache, memorystore, confluent, aiven
 - [x] **EngineKind** (sql/document/key_value/message_broker) + `preview_statement` cho NoSQL; `select_limited` engine-aware (TOP cho SQL Server)
+
+## ClickHouse ✅ (v0.6)
+
+- [x] **Driver** — `clickhouse` 0.15 (HTTP, Lz4, rustls): query streaming qua `JSONCompactEachRowWithNamesAndTypes`, giữ nguyên Int64/UInt64/Decimal/DateTime64 (không mất precision), Array/Map/JSON → Value
+- [x] **Introspection** — `system.databases` / `system.tables` (table/view/matview) / `system.columns` (Nullable, PK, default, comment) / `system.data_skipping_indices` + primary key; DDL qua `create_table_query`; FK rỗng như ClickHouse
+- [x] **Bound params** — `?` server-side binding; `max_execution_time` theo timeout; cancel token
+- [x] **Transfer/Sync** — type mapping → ClickHouse (Nullable wrap, `ENGINE = MergeTree ORDER BY …`); engine picker + URL parser (`clickhouse://`, `clickhouses://`) + preset ClickHouse Cloud
+- [x] **Live test** — `connector_clickhouse_test` (ignored, cần `MIEOSQL_TEST_CLICKHOUSE_URL`)
 
 ## P2 — Ngang tầm công cụ chuyên nghiệp
 

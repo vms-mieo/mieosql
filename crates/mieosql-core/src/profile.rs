@@ -41,6 +41,8 @@ pub enum Engine {
     MongoDb,
     Redis,
     Kafka,
+    #[serde(rename = "clickhouse")]
+    ClickHouse,
     Oracle,
     Snowflake,
 }
@@ -71,6 +73,7 @@ impl Engine {
         Engine::MongoDb,
         Engine::Redis,
         Engine::Kafka,
+        Engine::ClickHouse,
     ];
 
     pub fn is_implemented(self) -> bool {
@@ -87,6 +90,7 @@ impl Engine {
             Engine::MongoDb => "MongoDB",
             Engine::Redis => "Redis",
             Engine::Kafka => "Apache Kafka",
+            Engine::ClickHouse => "ClickHouse",
             Engine::Oracle => "Oracle",
             Engine::Snowflake => "Snowflake",
         }
@@ -100,6 +104,7 @@ impl Engine {
             Engine::MongoDb => Some(27017),
             Engine::Redis => Some(6379),
             Engine::Kafka => Some(9092),
+            Engine::ClickHouse => Some(8123),
             Engine::Oracle => Some(1521),
             Engine::Sqlite | Engine::Snowflake => None,
         }
@@ -113,6 +118,7 @@ impl Engine {
             | Engine::Postgres
             | Engine::Sqlite
             | Engine::SqlServer
+            | Engine::ClickHouse
             | Engine::Oracle
             | Engine::Snowflake => EngineKind::Sql,
             Engine::MongoDb => EngineKind::Document,
@@ -362,7 +368,7 @@ impl ConnectionSpec {
             variant: profile.variant.clone(),
             ssh: profile.ssh.clone(),
             ssh_password: None,
-            connect_timeout_secs: 15,
+            connect_timeout_secs: 30,
         }
     }
 

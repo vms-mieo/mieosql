@@ -12,8 +12,10 @@ mod postgres;
 mod redis;
 mod sqlite;
 mod sqlserver;
+mod ssh_tunnel;
 mod stream;
 mod util;
+mod clickhouse;
 
 pub use kafka::KafkaDriver;
 pub use mongo::MongoDriver;
@@ -22,6 +24,7 @@ pub use postgres::PostgresDriver;
 pub use redis::RedisDriver;
 pub use sqlite::SqliteDriver;
 pub use sqlserver::SqlServerDriver;
+pub use clickhouse::ClickHouseDriver;
 
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -65,6 +68,7 @@ macro_rules! dispatch {
             AnyDriver::Mongo($d) => $body,
             AnyDriver::Redis($d) => $body,
             AnyDriver::Kafka($d) => $body,
+            AnyDriver::ClickHouse($d) => $body,
         }
     };
 }
@@ -78,6 +82,7 @@ pub enum AnyDriver {
     Mongo(MongoDriver),
     Redis(RedisDriver),
     Kafka(KafkaDriver),
+    ClickHouse(ClickHouseDriver),
 }
 
 impl AnyDriver {
@@ -95,6 +100,9 @@ impl AnyDriver {
             Engine::MongoDb => Ok(AnyDriver::Mongo(MongoDriver::connect(spec).await?)),
             Engine::Redis => Ok(AnyDriver::Redis(RedisDriver::connect(spec).await?)),
             Engine::Kafka => Ok(AnyDriver::Kafka(KafkaDriver::connect(spec).await?)),
+            Engine::ClickHouse => {
+                Ok(AnyDriver::ClickHouse(ClickHouseDriver::connect(spec).await?))
+            }
             other => Err(MieoError::unsupported(format!(
                 "engine `{}` is not supported by this build",
                 other.label()
@@ -115,6 +123,7 @@ impl AnyDriver {
             AnyDriver::Mongo(_) => mongo::mongo_capabilities(),
             AnyDriver::Redis(_) => redis::redis_capabilities(),
             AnyDriver::Kafka(_) => kafka::kafka_capabilities(),
+            AnyDriver::ClickHouse(_) => clickhouse::clickhouse_capabilities(),
         }
     }
 

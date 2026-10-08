@@ -120,6 +120,15 @@ function objectIcon(kind: ObjectKind, size = 11, selected = false): React.ReactN
 
 type VirtualFolderId = "events" | "queries" | "backups";
 
+/** `#rgb` / `#rrggbb` → `rgba(r, g, b, alpha)`; invalid input → undefined. */
+function rgba(hex: string, alpha: number): string | undefined {
+  const raw = hex.replace("#", "").trim();
+  const full = raw.length === 3 ? raw.split("").map((c) => c + c).join("") : raw;
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) return undefined;
+  const n = Number.parseInt(full, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 function virtualFolderIcon(id: VirtualFolderId, size = 12): React.ReactNode {
   switch (id) {
     case "events":
@@ -142,6 +151,7 @@ function TreeRow({
   selected,
   strong,
   loading,
+  tint,
   onClick,
   onToggle,
   onDoubleClick,
@@ -158,23 +168,35 @@ function TreeRow({
   /** Solid accent highlight (Navicat-style) instead of the subtle tint. */
   strong?: boolean;
   loading?: boolean;
+  /** Profile accent color — fills the whole row with a soft tint. */
+  tint?: string | null;
   onClick?: (e: React.MouseEvent) => void;
   onToggle?: () => void;
   onDoubleClick?: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
 }) {
+  const connBg = tint && !selected ? rgba(tint, 0.1) : undefined;
+  const connBgHover = tint && !selected ? rgba(tint, 0.17) : undefined;
   return (
     <div
       className={`group flex min-h-7 cursor-default items-center gap-1 rounded-md pr-1 ${
         subtitle ? "py-[3px]" : "py-px"
-      } ${
+      } ${connBg ? "conn-tinted" : ""} ${
         selected
           ? strong
             ? "bg-accent text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
             : "bg-accent/[0.12] text-accent"
           : "text-slate-700 hover:bg-slate-900/[0.04]"
       }`}
-      style={{ paddingLeft: 4 + depth * 13 }}
+      style={{
+        paddingLeft: 4 + depth * 13,
+        ...(connBg
+          ? ({
+              "--conn-bg": connBg,
+              "--conn-bg-hover": connBgHover ?? connBg,
+            } as React.CSSProperties)
+          : {}),
+      }}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
@@ -182,7 +204,9 @@ function TreeRow({
       <button
         className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded ${
           caret
-            ? "text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-600"
+            ? selected && strong
+              ? "text-white/80 hover:bg-white/15 hover:text-white"
+              : "text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-600"
             : "invisible"
         }`}
         onClick={(e) => {
@@ -228,7 +252,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ width = 240 }: { width?: number }) {
   const store = useStore();
   const [cache, setCache] = useState<Cache>(EMPTY_CACHE);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -772,7 +796,15 @@ export function Sidebar() {
     const scope: Scope = { database: db.name };
     const sqlEngine = isSqlEngine(session.engine);
     const items: ContextMenuItem[] = [
-      { kind: "item", label: "New Query", onClick: () => store.newQueryTab(session.id) },
+      {
+        kind: "item",
+        label: "New Query",
+        onClick: () => {
+          store.setActiveSession(session.id);
+          store.selectTreeScope({ sessionId: session.id, database: db.name });
+          store.newQueryTab(session.id);
+        },
+      },
       {
         kind: "item",
         label: "Open Tables",
@@ -1015,7 +1047,19 @@ export function Sidebar() {
     const scope: Scope = { database: db, schema };
     const sqlEngine = isSqlEngine(session.engine);
     const items: ContextMenuItem[] = [
-      { kind: "item", label: "New Query", onClick: () => store.newQueryTab(session.id) },
+      {
+        kind: "item",
+        label: "New Query",
+        onClick: () => {
+          store.setActiveSession(session.id);
+          store.selectTreeScope({
+            sessionId: session.id,
+            database: db,
+            schema,
+          });
+          store.newQueryTab(session.id);
+        },
+      },
       {
         kind: "item",
         label: "Open Tables",
@@ -1206,7 +1250,19 @@ export function Sidebar() {
         },
         { kind: "separator" },
         { kind: "label", label: "Query" },
-        { kind: "item", label: "New Query", onClick: () => store.newQueryTab(session.id) },
+        {
+          kind: "item",
+          label: "New Query",
+          onClick: () => {
+            store.setActiveSession(session.id);
+            store.selectTreeScope({
+              sessionId: session.id,
+              database: scope.database,
+              schema: scope.schema,
+            });
+            store.newQueryTab(session.id);
+          },
+        },
         {
           kind: "item",
           label: "Generate SELECT *",
@@ -1962,6 +2018,10 @@ export function Sidebar() {
     const isOpen = expanded.has(dk);
     const schemas = cache.schemas[dbKey(session.id, db.name)];
     const hasSchemas = session.capabilities.list_schemas;
+    // Full-row highlight for the database the user picked in the tree.
+    const picked =
+      store.treeScope?.sessionId === session.id &&
+      store.treeScope.database === db.name;
     return (
       <div key={dk}>
         <TreeRow
@@ -1980,7 +2040,11 @@ export function Sidebar() {
               )}
             </span>
           }
+          selected={picked}
+          strong={picked && !store.treeScope?.schema}
           onClick={(e) => {
+            store.setActiveSession(session.id);
+            store.selectTreeScope({ sessionId: session.id, database: db.name });
             if (e.detail === 2) void loadSchemas(session.id, db.name, session.engine);
             else toggle(dk);
           }}
@@ -1992,6 +2056,8 @@ export function Sidebar() {
             .map((schema) => {
               const sk = `sc:${schemaKey(session.id, db.name, schema.name)}`;
               const schemaOpen = expanded.has(sk);
+              const pickedSchema =
+                picked && store.treeScope?.schema === schema.name;
               return (
                 <div key={sk}>
                   <TreeRow
@@ -2000,7 +2066,17 @@ export function Sidebar() {
                     expanded={schemaOpen}
                     icon={<Folder size={12} />}
                     label={<span className="font-medium">{schema.name}</span>}
-                    onClick={() => toggle(sk)}
+                    selected={pickedSchema}
+                    strong={pickedSchema}
+                    onClick={() => {
+                      store.setActiveSession(session.id);
+                      store.selectTreeScope({
+                        sessionId: session.id,
+                        database: db.name,
+                        schema: schema.name,
+                      });
+                      toggle(sk);
+                    }}
                     onContextMenu={(e) =>
                       openMenu(e, schemaMenu(session, db.name, schema.name))
                     }
@@ -2208,6 +2284,7 @@ export function Sidebar() {
     const sk = `s:${session.id}`;
     const isOpen = expanded.has(sk);
     const databases = cache.databases[session.id];
+    const profile = store.profiles.find((p) => p.id === session.profile_id);
     return (
       <div key={session.id}>
         <TreeRow
@@ -2215,24 +2292,26 @@ export function Sidebar() {
           caret
           expanded={isOpen}
           loading={databases === "loading"}
+          tint={profile?.color}
           icon={<EngineGlyph engine={session.engine} />}
           label={<span className="font-medium">{session.name}</span>}
           subtitle={
-            store.profiles.find((p) => p.id === session.profile_id)?.group ?? undefined
+            store.treeScope?.sessionId === session.id &&
+            store.treeScope.database ? (
+              <span>
+                {profile?.group ? `${profile.group} · ` : ""}
+                <span className="font-medium text-accent">
+                  {store.treeScope.database}
+                  {store.treeScope.schema ? `.${store.treeScope.schema}` : ""}
+                </span>
+              </span>
+            ) : (
+              (profile?.group ?? undefined)
+            )
           }
           selected={store.activeSessionId === session.id}
           trailing={
             <span className="flex items-center gap-0.5">
-              {(() => {
-                const c = store.profiles.find((p) => p.id === session.profile_id)?.color;
-                return c ? (
-                  <span
-                    className="inline-block h-2 w-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: c }}
-                    title={c}
-                  />
-                ) : null;
-              })()}
               {starButton(session.profile_id)}
               <button
                 className="hidden h-5 w-5 place-items-center rounded-md text-slate-400 group-hover:grid hover:bg-slate-900/[0.06] hover:text-slate-600"
@@ -2280,42 +2359,52 @@ export function Sidebar() {
 
   const renderProfile = (profile: ConnectionProfile) => {
     const session = store.sessions.find((s) => s.profile_id === profile.id);
+    const isConnecting = !session && store.connecting.includes(profile.id);
     return (
       <TreeRow
         key={`p-${profile.id}`}
         depth={0}
         caret={false}
-        icon={<EngineGlyph engine={profile.engine} muted={!session} />}
+        tint={profile.color}
+        icon={
+          isConnecting ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <EngineGlyph engine={profile.engine} muted={!session} />
+          )
+        }
         label={<span>{profile.name}</span>}
-        subtitle={profile.group ?? undefined}
+        subtitle={
+          isConnecting ? (
+            <span className="text-accent">Connecting…</span>
+          ) : (
+            (profile.group ?? undefined)
+          )
+        }
         selected={!!session && store.activeSessionId === session.id}
         trailing={
-          <span className="flex items-center gap-0.5">
-            {profile.color ? (
-              <span
-                className="inline-block h-2 w-2 shrink-0 rounded-full"
-                style={{ backgroundColor: profile.color }}
-                title={profile.color}
-              />
-            ) : null}
-            {starButton(profile.id)}
-            {!session && (
-              <button
-                className="hidden h-5 w-5 place-items-center rounded-md text-slate-400 group-hover:grid hover:bg-slate-900/[0.06] hover:text-slate-600"
-                title="Connect"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void store.openSession(profile.id).catch((err) => {
-                    store.toast("error", errorText(err));
-                  });
-                }}
-              >
-                <Plug size={11} />
-              </button>
-            )}
-          </span>
+          isConnecting ? undefined : (
+            <span className="flex items-center gap-0.5">
+              {starButton(profile.id)}
+              {!session && (
+                <button
+                  className="hidden h-5 w-5 place-items-center rounded-md text-slate-400 group-hover:grid hover:bg-slate-900/[0.06] hover:text-slate-600"
+                  title="Connect"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void store.openSession(profile.id).catch((err) => {
+                      store.toast("error", errorText(err));
+                    });
+                  }}
+                >
+                  <Plug size={11} />
+                </button>
+              )}
+            </span>
+          )
         }
         onClick={() => {
+          if (isConnecting) return; // already connecting
           if (session) {
             store.setActiveSession(session.id);
             return;
@@ -2326,7 +2415,9 @@ export function Sidebar() {
             store.toast("error", errorText(err));
           });
         }}
-        onContextMenu={(e) => openMenu(e, profileMenu(profile))}
+        onContextMenu={
+          isConnecting ? undefined : (e) => openMenu(e, profileMenu(profile))
+        }
       />
     );
   };
@@ -2355,7 +2446,10 @@ export function Sidebar() {
   );
 
   return (
-    <aside className="flex w-[240px] shrink-0 flex-col border-r border-hairline bg-sidebar">
+    <aside
+      style={{ width }}
+      className="flex shrink-0 flex-col border-r border-hairline bg-sidebar"
+    >
       {/* search */}
       <div className="flex shrink-0 items-center gap-1 px-2 pt-2 pb-1">
         <div className="flex h-7 flex-1 items-center rounded-md bg-slate-900/[0.05] px-2">

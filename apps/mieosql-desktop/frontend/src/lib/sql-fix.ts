@@ -18,6 +18,16 @@ export type SqlFixResult = {
   notes: string[];
 };
 
+/**
+ * Known schema/table names for the active connection — lets the fixer repair
+ * misspelled identifiers (FROM userz → FROM users) that keyword heuristics
+ * cannot see.
+ */
+export type IdentifierHints = {
+  tables: readonly string[];
+  schemas: readonly string[];
+};
+
 // ---------------------------------------------------------------------------
 // Keyword candidates
 // ---------------------------------------------------------------------------
@@ -63,7 +73,7 @@ const CANDIDATES: readonly string[] = [
 const VALID = new Set<string>(CANDIDATES);
 
 /** Keyword pairs commonly written glued together (no space). */
-const GLUED: Record<string, string> = {
+export const GLUED: Record<string, string> = {
   GROUPBY: "GROUP BY",
   ORDERBY: "ORDER BY",
   UNIONALL: "UNION ALL",
@@ -173,10 +183,130 @@ export function suggestKeyword(word: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Identifier hints (table / schema typos)
+// ---------------------------------------------------------------------------
+
+/** Closest known identifier, or null when unsure / when it already matches. */
+function nearestIdentifier(
+  word: string,
+  candidates: readonly string[],
+): string | null {
+  const lower = word.toLowerCase();
+  if (lower.length < 3 || lower.length > 64) return null;
+  let best: string | null = null;
+  let bestD = 99;
+  for (const candidate of candidates) {
+    const cl = candidate.toLowerCase();
+    if (cl === lower) return null; // already correct
+    if (cl[0] !== lower[0]) continue;
+    if (Math.abs(cl.length - lower.length) > 2) continue;
+    const d = editDistance(lower, cl, 2);
+    if (d < bestD) {
+      bestD = d;
+      best = candidate;
+      if (d === 1) break;
+    }
+  }
+  const threshold = lower.length >= 5 ? 2 : 1;
+  return best && bestD <= threshold ? sameCase(word, best) : null;
+}
+
+/** `FROM/JOIN/UPDATE/INTO/USING/TABLE [IF EXISTS]` followed by a name. */
+const TABLE_POSITION_RE =
+  /\b(FROM|JOIN|UPDATE|INTO|USING|TABLE)(\s+)(IF\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_$]*)(?:(\s*\.\s*)([A-Za-z_][A-Za-z0-9_$]*))?/gi;
+
+/**
+ * Words that introduce an identifier — the keyword fixer must leave the next
+ * word alone there (`FROM dbo` must not become `FROM DO`).
+ */
+const IDENTIFIER_INTRO = new Set([
+  "FROM",
+  "JOIN",
+  "INTO",
+  "UPDATE",
+  "USING",
+  "TABLE",
+  "EXISTS",
+  "ON",
+  "AS",
+  "BY",
+]);
+
+export function isIdentifierPosition(code: string, offset: number): boolean {
+  const before = code.slice(0, offset);
+  // Right-hand side of `schema.table`.
+  if (/\.\s*$/.test(before)) return true;
+  const prev = /([A-Za-z_][A-Za-z0-9_$]*)\s*$/.exec(before)?.[1]?.toUpperCase();
+  return prev !== undefined && IDENTIFIER_INTRO.has(prev);
+}
+
+function fixIdentifiers(
+  code: string,
+  hints: IdentifierHints,
+  messages: string[],
+): string {
+  const tablesKnown = new Set(hints.tables.map((n) => n.toLowerCase()));
+  const schemasKnown = new Set(hints.schemas.map((n) => n.toLowerCase()));
+  return code.replace(
+    TABLE_POSITION_RE,
+    (
+      match: string,
+      keyword: string,
+      spacing: string,
+      ifExists: string | undefined,
+      first: string,
+      dotPart: string | undefined,
+      second: string | undefined,
+    ) => {
+      // A bare keyword can never be a table name (defensive).
+      if (VALID.has(first.toUpperCase())) return match;
+
+      if (second !== undefined) {
+        let schema = first;
+        if (!schemasKnown.has(first.toLowerCase()) && hints.schemas.length > 0) {
+          const fixed = nearestIdentifier(first, hints.schemas);
+          if (fixed) {
+            messages.push(`Schema "${first}" → "${fixed}"`);
+            schema = fixed;
+          }
+        }
+        let table = second;
+        if (
+          !VALID.has(second.toUpperCase()) &&
+          !tablesKnown.has(second.toLowerCase()) &&
+          hints.tables.length > 0
+        ) {
+          const fixed = nearestIdentifier(second, hints.tables);
+          if (fixed) {
+            messages.push(`Table "${second}" → "${fixed}"`);
+            table = fixed;
+          }
+        }
+        if (schema === first && table === second) return match;
+        return `${keyword}${spacing}${ifExists ?? ""}${schema}${dotPart}${table}`;
+      }
+
+      if (!tablesKnown.has(first.toLowerCase()) && hints.tables.length > 0) {
+        const fixed = nearestIdentifier(first, hints.tables);
+        if (fixed) {
+          messages.push(`Table "${first}" → "${fixed}"`);
+          return `${keyword}${spacing}${ifExists ?? ""}${fixed}`;
+        }
+      }
+      return match;
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main entry
 // ---------------------------------------------------------------------------
 
-export function autofixSql(engine: Engine | null, sql: string): SqlFixResult {
+export function autofixSql(
+  engine: Engine | null,
+  sql: string,
+  hints?: IdentifierHints,
+): SqlFixResult {
   const fixes: SqlFix[] = [];
   const notes: string[] = [];
   let text = sql;
@@ -234,9 +364,25 @@ export function autofixSql(engine: Engine | null, sql: string): SqlFixResult {
   // 4. keyword / function typos ------------------------------------------
   step("typo", "Fix mistyped keywords and functions (SELET → SELECT, …)", (t) =>
     mapCode(engine, t, (code) =>
-      code.replace(/[A-Za-z_][A-Za-z0-9_$]*/g, (w) => suggestKeyword(w) ?? w),
+      code.replace(/[A-Za-z_][A-Za-z0-9_$]*/g, (w, offset: number) =>
+        isIdentifierPosition(code, offset) ? w : (suggestKeyword(w) ?? w),
+      ),
     ),
   );
+
+  // 4b. table / schema identifier typos (needs schema hints) --------------
+  if (hints && (hints.tables.length > 0 || hints.schemas.length > 0)) {
+    const messages: string[] = [];
+    const next = mapCode(engine, text, (code) =>
+      fixIdentifiers(code, hints, messages),
+    );
+    if (next !== text) {
+      text = next;
+      for (const message of messages) {
+        fixes.push({ rule: "identifier", message });
+      }
+    }
+  }
 
   // 5. dangling binary keyword at the very end ---------------------------
   step("dangling", "Remove a dangling AND/OR at the end of the statement", (t) => {

@@ -227,14 +227,21 @@ export function EditorScopePickers({ tab }: { tab: Tab }) {
           .getState()
           .sessions.find((s) => s.profile_id === profileId);
         if (sess) useStore.getState().setActiveSession(sess.id);
-        useStore.getState().setTabScope(tab.id, {});
+        useStore.getState().setTabScope(
+          tab.id,
+          sess?.database ? { database: sess.database } : {},
+        );
       } catch (err) {
         st.toast("error", errorText(err));
       }
       return;
     }
     st.setActiveSession(id);
-    useStore.getState().setTabScope(tab.id, {});
+    const sess = useStore.getState().sessions.find((s) => s.id === id);
+    useStore.getState().setTabScope(
+      tab.id,
+      sess?.database ? { database: sess.database } : {},
+    );
   };
 
   const pickDatabase = async (db: string) => {
@@ -256,16 +263,7 @@ export function EditorScopePickers({ tab }: { tab: Tab }) {
       database: session.database ?? undefined,
       schema,
     });
-    if (session.engine === "postgres") {
-      try {
-        const sql = schema
-          ? `SET search_path TO "${schema.replace(/"/g, '""')}"`
-          : "SET search_path TO DEFAULT";
-        await api.executeBatch(session.id, [sql], false);
-      } catch (err) {
-        useStore.getState().toast("error", errorText(err));
-      }
-    }
+    await useStore.getState().applySessionSchema(session.id, schema);
   };
 
   // ------------------------------------------------------------- items
@@ -290,6 +288,9 @@ export function EditorScopePickers({ tab }: { tab: Tab }) {
 
   const dbState = session ? dbs[session.id] : undefined;
   const dbList = Array.isArray(dbState) ? dbState : [];
+  // A tab may target a database picked in the tree before the live session
+  // has switched — prefer the tab scope for the label/current marker.
+  const currentDb = scope?.database ?? session?.database ?? null;
   const showDb =
     session !== null &&
     sqlEngine &&
@@ -321,7 +322,7 @@ export function EditorScopePickers({ tab }: { tab: Tab }) {
 
       {showDb && (
         <PickerDropdown
-          label={session.database ?? "default database"}
+          label={currentDb ?? "default database"}
           icon={
             <Database size={12} className="shrink-0 text-slate-400" />
           }
@@ -330,7 +331,7 @@ export function EditorScopePickers({ tab }: { tab: Tab }) {
             id: db.name,
             label: db.name,
             sub: db.is_system ? "system" : undefined,
-            current: session.database === db.name,
+            current: currentDb === db.name,
           }))}
           emptyText="No databases"
           title="Choose the default database"

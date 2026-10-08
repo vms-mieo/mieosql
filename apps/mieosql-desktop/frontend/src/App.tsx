@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "./lib/api";
 import { useStore } from "./lib/store";
@@ -16,8 +16,47 @@ import { Toasts } from "./components/Toasts";
 import { Workspace } from "./components/Workspace";
 import { FeatureDialogs } from "./features/dialogs";
 
+const SIDEBAR_WIDTH_KEY = "mieosql.sidebarWidth";
+const SIDEBAR_MIN = 180;
+const SIDEBAR_MAX = 520;
+const SIDEBAR_DEFAULT = 240;
+
 export default function App() {
   const ready = useStore((s) => s.ready);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+    return Number.isFinite(stored) &&
+      stored >= SIDEBAR_MIN &&
+      stored <= SIDEBAR_MAX
+      ? stored
+      : SIDEBAR_DEFAULT;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  // Drag the divider between the connection sidebar and the workspace.
+  const startSidebarResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+    const onMove = (ev: MouseEvent) => {
+      setSidebarWidth(
+        Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startWidth + ev.clientX - startX)),
+      );
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   useEffect(() => {
     void useStore.getState().init();
@@ -75,7 +114,18 @@ export default function App() {
       <MenuBar />
       <Ribbon />
       <main className="flex min-h-0 flex-1">
-        <Sidebar />
+        <Sidebar width={sidebarWidth} />
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize connection panel"
+          title="Drag to resize · double-click to reset"
+          className="group relative z-10 -ml-px w-[5px] shrink-0 cursor-col-resize"
+          onMouseDown={startSidebarResize}
+          onDoubleClick={() => setSidebarWidth(SIDEBAR_DEFAULT)}
+        >
+          <div className="absolute inset-y-0 left-[2px] w-px bg-transparent transition-colors group-hover:bg-accent/60" />
+        </div>
         {ready ? (
           <Workspace />
         ) : (
