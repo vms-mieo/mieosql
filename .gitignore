@@ -1,19 +1,61 @@
-# Rust
+# ===========================================================================
+# MieoSQL — những gì KHÔNG đẩy lên git
+# ===========================================================================
+
+# --- Rust / Cargo ----------------------------------------------------------
 /target
+**/target/
 **/*.rs.bk
 
-# Node / FE (coming later)
+# --- Node / frontend -------------------------------------------------------
 node_modules/
 dist/
 .vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Tauri
+# --- Tauri -----------------------------------------------------------------
+# Schema/generated files (sinh bởi tauri-build)
 apps/mieosql-desktop/gen/
+# Signing keys — tuyệt đối không commit
+*.p12
+*.pfx
+*.pem
+*.key
 
-# Local app data
+# --- Local data / demo databases ------------------------------------------
 *.mieosql
 .mieosql/
+*.sqlite
+*.sqlite3
+*.db
+*.db3
+*.duckdb
 
-# OS
+# --- Secrets / env ---------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- Logs / temp -----------------------------------------------------------
+*.log
+tmp/
+.tmp/
+
+# --- IDE / editors ---------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# --- OS --------------------------------------------------------------------
 .DS_Store
+._*
 Thumbs.db
+Desktop.ini
