@@ -21,10 +21,6 @@ file?: string, params: { [key in string]: string }, ssl_mode?: SslMode, ssh?: Ss
  */
 variant?: string, 
 /**
- * Production guard: extra confirmations for destructive actions.
- */
-is_prod: boolean, 
-/**
  * Password policy: `None` keeps the stored secret, `Some("")` clears it.
  */
 password?: string, 

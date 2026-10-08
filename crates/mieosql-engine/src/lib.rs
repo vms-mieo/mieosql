@@ -7,6 +7,7 @@
 
 mod history;
 mod session;
+mod settings;
 mod store;
 mod vault;
 
@@ -47,7 +48,7 @@ use mieosql_drivers::AnyDriver;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-pub use history::{HistoryEntry, HistoryStatus, HistoryStore};
+pub use history::{HistoryEntry, HistoryStatus, HistoryStore, DEFAULT_RETENTION_DAYS};
 pub use session::{QueryStream, Session, SessionInfo, SessionManager};
 pub use store::ProfileStore;
 pub use vault::Vault;
@@ -55,7 +56,7 @@ pub use vault::Vault;
 /// Runtime configuration for the engine.
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
-    /// Directory holding profiles.json, secrets.json, master.key, history.jsonl.
+    /// Directory holding profiles.json, secrets.json, settings.json, history.jsonl.
     pub data_dir: PathBuf,
 }
 
@@ -104,7 +105,8 @@ impl Engine {
         std::fs::create_dir_all(&config.data_dir)?;
         let profiles = ProfileStore::load(config.data_dir.join("profiles.json"))?;
         let vault = Vault::open(&config.data_dir)?;
-        let history = HistoryStore::load(config.data_dir.join("history.jsonl"));
+        let retention = settings::load_history_retention(&config.data_dir);
+        let history = HistoryStore::load(config.data_dir.join("history.jsonl"), retention);
         Ok(Self {
             inner: Arc::new(EngineInner {
                 data_dir: config.data_dir,
@@ -164,6 +166,12 @@ impl Engine {
         Ok(spec)
     }
 
+    /// Whether the vault holds a saved password for this profile.
+    /// The secret itself never leaves the vault — Navicat-style "Save password" check.
+    pub fn has_password(&self, id: &ProfileId) -> bool {
+        self.inner.vault.has(&id.0, "password")
+    }
+
     // ------------------------------------------------------------------
     // Connection testing
     // ------------------------------------------------------------------
@@ -214,6 +222,20 @@ impl Engine {
         id: &ProfileId,
     ) -> MieoResult<session::SessionInfo> {
         let spec = self.resolve_spec(id)?;
+        self.open_session(&spec).await
+    }
+
+    /// Open a session, optionally with a transient password that is never
+    /// persisted (used when "Save password" is unchecked).
+    pub async fn open_session_for_profile_with_password(
+        &self,
+        id: &ProfileId,
+        password_override: Option<String>,
+    ) -> MieoResult<session::SessionInfo> {
+        let mut spec = self.resolve_spec(id)?;
+        if let Some(password) = password_override.filter(|p| !p.is_empty()) {
+            spec.password = Some(password);
+        }
         self.open_session(&spec).await
     }
 
@@ -313,6 +335,71 @@ impl Engine {
         let session = self.inner.sessions.get(session_id)?;
         let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
         conn.driver().table_indexes(scope, table).await
+    }
+
+    // ------------------------------------------------------------------
+    // Kafka topic administration (produce + watermarks included)
+    // ------------------------------------------------------------------
+
+    pub async fn kafka_create_topic(
+        &self,
+        session_id: &str,
+        topic: &str,
+        partitions: i32,
+        replication_factor: i16,
+    ) -> MieoResult<()> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        match conn.driver() {
+            AnyDriver::Kafka(driver) => {
+                driver
+                    .create_topic(topic, partitions, replication_factor)
+                    .await
+            }
+            _ => Err(not_kafka_session()),
+        }
+    }
+
+    pub async fn kafka_delete_topic(&self, session_id: &str, topic: &str) -> MieoResult<()> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        match conn.driver() {
+            AnyDriver::Kafka(driver) => driver.delete_topic(topic).await,
+            _ => Err(not_kafka_session()),
+        }
+    }
+
+    /// `(partition, earliest offset, latest offset)` per partition of `topic`.
+    pub async fn kafka_topic_partitions(
+        &self,
+        session_id: &str,
+        topic: &str,
+    ) -> MieoResult<Vec<(i32, i64, i64)>> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        match conn.driver() {
+            AnyDriver::Kafka(driver) => driver.topic_watermarks(topic).await,
+            _ => Err(not_kafka_session()),
+        }
+    }
+
+    /// Produce one record; returns the (partition, broker offset) it landed on.
+    pub async fn kafka_produce(
+        &self,
+        session_id: &str,
+        topic: &str,
+        partition: Option<i32>,
+        key: Option<String>,
+        value: String,
+    ) -> MieoResult<(i32, i64)> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        match conn.driver() {
+            AnyDriver::Kafka(driver) => {
+                driver.produce_one(topic, partition, key, value).await
+            }
+            _ => Err(not_kafka_session()),
+        }
     }
 
     pub async fn foreign_keys(
@@ -629,6 +716,15 @@ impl Engine {
         self.inner.history.clear();
     }
 
+    pub fn history_retention_days(&self) -> u32 {
+        self.inner.history.retention_days()
+    }
+
+    pub fn set_history_retention_days(&self, days: u32) -> MieoResult<u32> {
+        let days = settings::save_history_retention(&self.inner.data_dir, days)?;
+        Ok(self.inner.history.set_retention_days(days))
+    }
+
     /// Capabilities for a session's engine.
     pub async fn capabilities(&self, session_id: &str) -> MieoResult<Capabilities> {
         let session = self.inner.sessions.get(session_id)?;
@@ -666,6 +762,14 @@ impl IntrospectionConn<'_> {
             }
         }
     }
+}
+
+/// Error for Kafka-only operations issued against another engine's session.
+fn not_kafka_session() -> MieoError {
+    MieoError::new(
+        ErrorCode::Unsupported,
+        "this operation is only available for Kafka sessions".to_string(),
+    )
 }
 
 /// Pick the connection for one introspection call (see `IntrospectionConn`).

@@ -30,7 +30,15 @@ Các hue `violet / fuchsia / indigo / cyan / teal / purple` đã bị **gộp v�
 Không pill (trừ scrollbar/avatar/badge đếm). Không bo > 12px.
 
 ### Typography
-UI: SF Pro Text / Inter (`font-sans`) · Code/SQL/JSON: SF Mono / JetBrains Mono (`font-code`).
+UI / Data grid: Inter 13px (`font-sans`) · SQL editor: JetBrains Mono 13px / 1.25 · Numbers: JetBrains Mono 12px (`font-num`) · Terminal / logs / messages: JetBrains Mono 12px (`font-log`, `font-code`).
+
+| Vai trò | Font / Size |
+|---|---|
+| UI (window, sidebar, body, button, menu) | Inter 13px |
+| SQL editor | JetBrains Mono 13px / 1.25 |
+| Data grid | Inter 13px |
+| Numbers | JetBrains Mono 12px |
+| Terminal / logs / messages | JetBrains Mono 12px |
 
 | Vai trò | Size / weight |
 |---|---|
@@ -39,9 +47,10 @@ UI: SF Pro Text / Inter (`font-sans`) · Code/SQL/JSON: SF Mono / JetBrains Mono
 | Page title | 20px / 600 |
 | Section title | 15px / 600 |
 | Section header (SIDEBAR CAPS) | 11px / 600 / uppercase / tracking rộng |
-| Table cell | 12.5px / 400 |
+| Table cell (grid) | 13px Inter / 400 |
 | Table head | 11.5px / 600 |
-| SQL / JSON / log | 12.5px mono |
+| Numbers | 12px JetBrains Mono |
+| Terminal / logs / messages | 12px JetBrains Mono |
 | Status bar | 11px / 400 |
 
 ### Khoảng cách & kích thước chrome
@@ -58,7 +67,7 @@ Sidebar 240px · inspector 280px. Spacing 4 / 8 / 12 / 16 / 24 / 32.
 6. **Separation**: giữ border 1px `hairline` giữa Sidebar | Content | Inspector; các chỗ còn lại ưu tiên tương phản nền thay vì border.
 7. **Không để mọi action cùng nổi bật** — primary action duy nhất dùng `bg-accent`; còn lại là text/icon button `hover:bg-slate-900/[0.05]`.
 8. **Shadow tối thiểu**: menu/dropdown/modal `shadow-lg`/`shadow-xl`; panel và toolbar không shadow.
-9. **SQL/JSON/Kafka message luôn `font-code`**.
+9. **SQL editor / numbers / logs / messages dùng `font-code` (JetBrains Mono)** — editor 13px/1.25, numbers + logs 12px (`font-num`, `font-log`). Grid body và UI dùng Inter 13px.
 10. **Focus**: `focus:outline-none` + ring accent (`focus:ring-2 focus:ring-accent/40`), input radius `rounded-md`.
 
 ## Component recipes

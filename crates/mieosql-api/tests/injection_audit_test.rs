@@ -55,13 +55,12 @@ async fn setup(tag: &str) -> (Env, String, String) {
             color: None,
             group: None,
             variant: None,
-            is_prod: false,
             password: None,
             ssh_password: None,
         })
         .unwrap();
     let pid = profile.id.0.clone();
-    let sid = api.open_session(pid.clone()).await.unwrap().id;
+    let sid = api.open_session(pid.clone(), None).await.unwrap().id;
     (Env { api, base }, pid, sid)
 }
 
@@ -159,7 +158,7 @@ async fn injection_in_preview_table_name_fails_without_executing() {
 async fn transfer_rejects_hostile_column_without_executing() {
     let (env, pid, src) = setup("transfer-inject").await;
     let api = &env.api;
-    let dst = api.open_session(pid).await.unwrap().id;
+    let dst = api.open_session(pid, None).await.unwrap().id;
     exec(api, &src, "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)").await;
     exec(api, &src, "INSERT INTO items (id, name) VALUES (1, 'a')").await;
     exec(api, &dst, "CREATE TABLE items_copy (id INTEGER PRIMARY KEY, name TEXT)").await;

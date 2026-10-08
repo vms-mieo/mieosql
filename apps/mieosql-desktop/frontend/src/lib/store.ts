@@ -13,6 +13,7 @@ import type { ObjectKind } from "@bindings/ObjectKind";
 import type { ProfileInput } from "@bindings/ProfileInput";
 import type { QueryEvent, QueryStats, Scope, ServerInfo, SessionInfo, Value } from "./bindings";
 import { api, errorText } from "./api";
+import { confirmDialog, promptDialog } from "./dialog";
 import { formatBytes } from "./format";
 import { bindPlaceholders, findPlaceholders } from "./sql-params";
 import { findUnsafeWrites } from "./sql-suggest";
@@ -96,6 +97,8 @@ export type AppSettings = {
   formatOnSave: boolean;
   /** Show the unsafe-write (UPDATE/DELETE without WHERE) warning. */
   confirmUnsafe: boolean;
+  /** Days query history is kept (`0` = forever). Backend prunes automatically. */
+  historyRetentionDays: number;
 };
 
 /**
@@ -108,7 +111,9 @@ export type ObjectDialogKind =
   | "edit-table"
   | "import"
   | "backup"
-  | "restore";
+  | "restore"
+  | "new-topic"
+  | "produce-message";
 
 export type ObjectDialogProps = {
   sessionId?: string | null;
@@ -130,6 +135,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   tabSize: 2,
   formatOnSave: false,
   confirmUnsafe: true,
+  historyRetentionDays: 15,
 };
 
 /** Export formats with their file extension and dialog label. */
@@ -219,6 +225,13 @@ function loadSettings(): AppSettings {
         typeof parsed.confirmUnsafe === "boolean"
           ? parsed.confirmUnsafe
           : DEFAULT_SETTINGS.confirmUnsafe,
+      historyRetentionDays:
+        typeof parsed.historyRetentionDays === "number" &&
+        Number.isFinite(parsed.historyRetentionDays) &&
+        parsed.historyRetentionDays >= 0 &&
+        parsed.historyRetentionDays <= 3650
+          ? Math.floor(parsed.historyRetentionDays)
+          : DEFAULT_SETTINGS.historyRetentionDays,
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -259,7 +272,7 @@ type State = {
   refreshProfiles: () => Promise<void>;
   saveProfile: (input: ProfileInput) => Promise<ConnectionProfile>;
   deleteProfile: (id: string) => Promise<void>;
-  openSession: (profileId: string) => Promise<void>;
+  openSession: (profileId: string, password?: string | null) => Promise<void>;
   closeSession: (sessionId: string) => Promise<void>;
   refreshSessionInfo: (sessionId: string) => Promise<void>;
   setConnectionModal: (open: boolean, profileId?: string | null) => void;
@@ -368,11 +381,18 @@ export const useStore = create<State>((set, get) => ({
   init: async () => {
     try {
       const apiVersion = await api.apiVersion();
-      const [profiles, history] = await Promise.all([
+      const [profiles, history, retention] = await Promise.all([
         api.listProfiles(),
         api.listHistory(100),
+        api.historyRetentionDays().catch(() => 15),
       ]);
-      set({ ready: true, apiVersion, profiles, history });
+      const settings = { ...get().settings, historyRetentionDays: retention };
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      } catch {
+        /* ignore */
+      }
+      set({ ready: true, apiVersion, profiles, history, settings });
     } catch (err) {
       set({ ready: true });
       get().toast("error", `Backend not reachable: ${errorText(err)}`);
@@ -410,7 +430,7 @@ export const useStore = create<State>((set, get) => ({
     get().toast("info", "Connection deleted");
   },
 
-  openSession: async (profileId) => {
+  openSession: async (profileId, password = null) => {
     // Already connected: focus the existing session instead of opening a
     // second one. Also dedupe while a connect for this profile is in flight.
     const existing = get().sessions.find((s) => s.profile_id === profileId);
@@ -421,7 +441,34 @@ export const useStore = create<State>((set, get) => ({
     if (connectingProfiles.has(profileId)) return;
     connectingProfiles.add(profileId);
     try {
-      const info = await api.openSession(profileId);
+      let transient = password ?? null;
+      if (!transient) {
+        // Navicat-style: no saved password → ask once, never persist here.
+        // Exception: a Kafka profile without a username authenticates as
+        // nothing (plaintext broker / anonymous) — there is no password to
+        // ask for, and cancelling the prompt silently aborts the connect,
+        // which looks like "the button does nothing".
+        const profile = get().profiles.find((p) => p.id === profileId);
+        const passwordlessKafka =
+          profile?.engine === "kafka" && !profile.username?.trim();
+        if (!passwordlessKafka) {
+          try {
+            const has = await api.hasPassword(profileId);
+            if (!has) {
+              const typed = await promptDialog(
+                "Password for this connection (not saved):",
+                "",
+                { title: "Connection password", password: true, okLabel: "Connect" },
+              );
+              if (typed === null) return;
+              transient = typed;
+            }
+          } catch {
+            /* has_password is best-effort; fall through to normal connect */
+          }
+        }
+      }
+      const info = await api.openSession(profileId, transient);
       let serverInfo: ServerInfo | null = null;
       try {
         serverInfo = await api.serverInfo(info.id);
@@ -608,7 +655,7 @@ export const useStore = create<State>((set, get) => ({
     const sql = (sqlOverride ?? tab.sql).trim();
     if (!sql) return;
 
-    if (!confirmUnsafeWrites(sql)) {
+    if (!(await confirmUnsafeWrites(sql))) {
       get().toast("info", "Run cancelled");
       return;
     }
@@ -1026,13 +1073,28 @@ export const useStore = create<State>((set, get) => ({
   setCursor: (line, col) => set({ cursor: { line, col } }),
 
   updateSettings: (patch) => {
-    const settings = { ...get().settings, ...patch };
+    const prev = get().settings;
+    const settings = { ...prev, ...patch };
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     } catch {
       /* storage may be unavailable; keep the in-memory value */
     }
     set({ settings });
+    if (
+      patch.historyRetentionDays !== undefined &&
+      patch.historyRetentionDays !== prev.historyRetentionDays
+    ) {
+      void (async () => {
+        try {
+          const days = await api.setHistoryRetentionDays(patch.historyRetentionDays as number);
+          set((s) => ({ settings: { ...s.settings, historyRetentionDays: days } }));
+          await get().refreshHistory();
+        } catch (err) {
+          get().toast("error", errorText(err));
+        }
+      })();
+    }
   },
 
   setSettingsOpen: (open) => set({ settingsOpen: open }),
@@ -1042,7 +1104,7 @@ export const useStore = create<State>((set, get) => ({
  * Warn + block UPDATE/DELETE statements without WHERE (DBeaver/Navicat-style
  * safety net). Returns true when the run may proceed.
  */
-export function confirmUnsafeWrites(sql: string): boolean {
+export async function confirmUnsafeWrites(sql: string): Promise<boolean> {
   try {
     if (useStore.getState().settings.confirmUnsafe === false) return true;
   } catch {
@@ -1056,8 +1118,9 @@ export function confirmUnsafeWrites(sql: string): boolean {
     .join("\n");
   const more =
     unsafe.length > 5 ? `\n… and ${unsafe.length - 5} more` : "";
-  return window.confirm(
+  return confirmDialog(
     `Warning: ${unsafe.length} statement(s) without WHERE will hit every row:\n${lines}${more}\n\nRun anyway?`,
+    { title: "Unsafe write", kind: "warning" },
   );
 }
 

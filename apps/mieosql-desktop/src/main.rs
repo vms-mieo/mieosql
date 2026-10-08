@@ -77,6 +77,9 @@ fn main() {
             commands::cancel_query,
             commands::list_history,
             commands::clear_history,
+            commands::history_retention_days,
+            commands::set_history_retention_days,
+            commands::has_password,
             commands::smoke_report,
             // Feature pack v1: search / explain / docs / datagen / masking /
             // sync / transfer / snapshot / workspace / files
@@ -103,6 +106,11 @@ fn main() {
             commands::apply_grid_edits,
             commands::script_statements,
             commands::split_sql_text,
+            commands::kafka_create_topic,
+            commands::kafka_delete_topic,
+            commands::kafka_topic_partitions,
+            commands::kafka_produce,
+            commands::kafka_consume,
             commands::dump_backup,
             commands::list_db_users,
             commands::list_db_roles,

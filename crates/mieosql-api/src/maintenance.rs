@@ -75,7 +75,6 @@ pub enum ImportFormat {
     Csv,
     Json,
 }
-
 /// What happens to the table before the rows are inserted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
@@ -86,6 +85,46 @@ pub enum ImportMode {
     Append,
     /// Empty the table first.
     Truncate,
+}
+
+/// One Kafka topic partition with its log end offsets.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct KafkaTopicPartition {
+    /// Partition id.
+    #[ts(type = "number")]
+    pub partition: i32,
+    /// Earliest available offset (log start).
+    #[ts(type = "number")]
+    pub earliest: i64,
+    /// Next offset to be written (log end / high watermark).
+    #[ts(type = "number")]
+    pub latest: i64,
+}
+
+/// Where one produced Kafka record landed.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct KafkaProduceResult {
+    /// Partition the record was written to.
+    #[ts(type = "number")]
+    pub partition: i32,
+    /// Broker-assigned offset of the record.
+    #[ts(type = "number")]
+    pub offset: i64,
+}
+
+/// Start position of a Kafka consume request.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum KafkaConsumeFrom {
+    /// Oldest available record (log start).
+    Earliest,
+    /// Newest records (log end; empty until new records arrive).
+    Latest,
+    /// Exact offset to start from.
+    Offset(#[ts(type = "number")] i64),
 }
 
 /// Knobs for [`Api::import_file`].
@@ -2116,12 +2155,11 @@ mod tests {
                 color: None,
                 group: None,
                 variant: None,
-                is_prod: false,
                 password: None,
                 ssh_password: None,
             })
             .unwrap();
-        let session = api.open_session(profile.id.0.clone()).await.unwrap();
+        let session = api.open_session(profile.id.0.clone(), None).await.unwrap();
         (api, base, session.id)
     }
 

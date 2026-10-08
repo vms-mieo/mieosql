@@ -80,10 +80,7 @@ export const ENGINE_META: Record<Engine, EngineMeta> = {
     defaultPort: 1433,
     implemented: true,
     hostPlaceholder: "127.0.0.1",
-    hints: [
-      "SQL authentication only (Windows / Azure AD logins are not supported).",
-      "Named instances: enter the instance's TCP port — SQL Browser discovery is not used.",
-    ],
+    hints: [],
   },
   sqlite: {
     engine: "sqlite",
@@ -122,10 +119,7 @@ export const ENGINE_META: Record<Engine, EngineMeta> = {
     defaultPort: 27017,
     implemented: true,
     hostPlaceholder: "127.0.0.1",
-    hints: [
-      "Query: db.<collection>.find({…}).limit(n) · aggregate · countDocuments.",
-      "Params: auth_source (e.g. admin), replica_set, tls_insecure (DocumentDB global bundle), direct, app_name.",
-    ],
+    hints: [],
   },
   redis: {
     engine: "redis",
@@ -136,10 +130,7 @@ export const ENGINE_META: Record<Engine, EngineMeta> = {
     implemented: true,
     hostPlaceholder: "127.0.0.1",
     databasePlaceholder: "DB index (0–15)",
-    hints: [
-      "Database is the Redis logical DB index (0–15, default 0).",
-      "Commands run as-is; PREVIEW <key> opens a key in the grid.",
-    ],
+    hints: [],
   },
   kafka: {
     engine: "kafka",
@@ -150,11 +141,7 @@ export const ENGINE_META: Record<Engine, EngineMeta> = {
     implemented: true,
     hostPlaceholder: "broker-1.example.com, broker-2.example.com",
     databasePlaceholder: "cluster (optional)",
-    hints: [
-      "Host accepts a comma-separated broker list.",
-      "SASL: username = provider API key, password = secret; params sasl_mechanism = plain | scram-sha-256 | scram-sha-512.",
-      'Query JSON: {"topic": "…", "from": "latest", "limit": 100}.',
-    ],
+    hints: [],
   },
 };
 

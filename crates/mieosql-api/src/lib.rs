@@ -165,6 +165,9 @@ pub mod export_manifest {
             crate::maintenance::EditApplyResult,
             crate::maintenance::ScriptStatements,
             crate::maintenance::BackupSummary,
+            crate::maintenance::KafkaTopicPartition,
+            crate::maintenance::KafkaProduceResult,
+            crate::maintenance::KafkaConsumeFrom,
         );
 
         if failures.is_empty() {

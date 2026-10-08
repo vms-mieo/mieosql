@@ -3,6 +3,7 @@ import { Database, HardDrive, Loader2, Plug, Trash2, X } from "lucide-react";
 
 import type { Engine, ProfileInput, SslMode } from "../lib/bindings";
 import { api, errorText } from "../lib/api";
+import { parseConnectionString } from "../lib/connection-string";
 import {
   ENGINE_GROUPS,
   ENGINE_META,
@@ -23,6 +24,8 @@ type FormState = {
   user: string;
   password: string;
   passwordTouched: boolean;
+  /** Navicat-style "Save password": checked persists encrypted, unchecked uses transient only. */
+  savePassword: boolean;
   database: string;
   file: string;
   sslMode: SslMode;
@@ -30,8 +33,6 @@ type FormState = {
   group: string;
   /** UI accent color (`ProfileInput.color`); empty = default. */
   color: string;
-  /** Production guard (`ProfileInput.is_prod`); extra confirmations. */
-  isProd: boolean;
   /** Preset/engine parameters sent as `ProfileInput.params`. */
   params: Record<string, string>;
 };
@@ -54,12 +55,12 @@ function emptyForm(): FormState {
     user: "",
     password: "",
     passwordTouched: false,
+    savePassword: true,
     database: "",
     file: "",
     sslMode: "prefer",
     group: "",
     color: "",
-    isProd: false,
     params: {},
   };
 }
@@ -74,6 +75,9 @@ export function ConnectionModal() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showConnStr, setShowConnStr] = useState(false);
+  const [connStr, setConnStr] = useState("");
+  const [connStrError, setConnStrError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{
     ok: boolean;
     text: string;
@@ -82,6 +86,9 @@ export function ConnectionModal() {
   useEffect(() => {
     if (!open) return;
     setTestResult(null);
+    setConnStr("");
+    setConnStrError(null);
+    setShowConnStr(false);
     if (editing) {
       setForm({
         name: editing.name,
@@ -92,12 +99,12 @@ export function ConnectionModal() {
         user: editing.username ?? "",
         password: "",
         passwordTouched: false,
+        savePassword: true,
         database: editing.database ?? "",
         file: editing.file ?? "",
         sslMode: editing.ssl_mode,
         group: editing.group ?? "",
         color: editing.color ?? "",
-        isProd: editing.is_prod ?? false,
         params: { ...editing.params },
       });
     } else {
@@ -168,6 +175,32 @@ export function ConnectionModal() {
     });
   };
 
+  const applyConnectionString = () => {
+    try {
+      const parsed = parseConnectionString(connStr);
+      set({
+        engine: parsed.engine,
+        variant: null,
+        host: parsed.host ?? "",
+        port: String(parsed.port ?? ENGINE_META[parsed.engine].defaultPort ?? ""),
+        user: parsed.username ?? "",
+        password: parsed.password ?? "",
+        passwordTouched: parsed.password !== undefined,
+        savePassword: true,
+        database: parsed.database ?? "",
+        file: parsed.file ?? "",
+        sslMode:
+          parsed.sslMode ?? (parsed.engine === "sqlite" ? "disable" : "prefer"),
+        params: parsed.params,
+      });
+      setConnStrError(null);
+      setShowConnStr(false);
+      store.toast("success", "Connection string applied");
+    } catch (err) {
+      setConnStrError(errorText(err));
+    }
+  };
+
   const buildInput = (): ProfileInput => ({
     id: editing ? editing.id : undefined,
     name: form.name.trim() || "Unnamed",
@@ -187,8 +220,15 @@ export function ConnectionModal() {
     ssh: undefined,
     color: form.color.trim() || undefined,
     group: form.group.trim() || undefined,
-    is_prod: form.isProd,
-    password: form.passwordTouched ? form.password : undefined,
+    // Save password unchecked → never persist: new connections send nothing,
+    // edits send "" to clear any previously stored secret.
+    password: !form.savePassword
+      ? editing
+        ? ""
+        : undefined
+      : form.passwordTouched
+        ? form.password
+        : undefined,
     ssh_password: undefined,
   });
 
@@ -196,7 +236,13 @@ export function ConnectionModal() {
     setTesting(true);
     setTestResult(null);
     try {
-      const info = await api.testConnection(buildInput());
+      const input = buildInput();
+      // Test always uses the typed password transiently, even when
+      // "Save password" is unchecked.
+      if (form.passwordTouched && form.password) {
+        input.password = form.password;
+      }
+      const info = await api.testConnection(input);
       setTestResult({
         ok: true,
         text: `${info.engine} ${info.version}${
@@ -213,10 +259,11 @@ export function ConnectionModal() {
   const onSave = async () => {
     setSaving(true);
     try {
+      const transient = form.passwordTouched ? form.password : "";
       const profile = await store.saveProfile(buildInput());
       store.setConnectionModal(false);
       store.toast("success", `Connection “${profile.name}” saved`);
-      void store.openSession(profile.id).catch((err) => {
+      void store.openSession(profile.id, transient || null).catch((err) => {
         store.toast("error", errorText(err));
       });
     } catch (err) {
@@ -266,6 +313,51 @@ export function ConnectionModal() {
         </div>
 
         <div className="space-y-3 p-4">
+          <div>
+            <button
+              type="button"
+              className="text-[12px] font-medium text-accent hover:underline"
+              onClick={() => {
+                setShowConnStr((v) => !v);
+                setConnStrError(null);
+              }}
+            >
+              {showConnStr ? "Hide connection string" : "Fill from connection string…"}
+            </button>
+            {showConnStr && (
+              <div className="mt-2 space-y-1.5 rounded-md border border-slate-200 bg-slate-50 p-2.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    className={inputCls}
+                    value={connStr}
+                    placeholder="postgres://user:pass@host:5432/db?sslmode=require"
+                    onChange={(e) => setConnStr(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") applyConnectionString();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="h-7 shrink-0 rounded-md bg-accent px-2.5 text-[13px] font-medium text-white hover:bg-accent-hover"
+                    onClick={applyConnectionString}
+                  >
+                    Apply
+                  </button>
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-400">
+                  URL (postgres, mysql, sqlserver, mongodb, redis, kafka,
+                  sqlite) or SQL Server key=value;… pairs. Fills host, port,
+                  user, password and database below.
+                </p>
+                {connStrError && (
+                  <p className="text-[11.5px] leading-relaxed text-rose-600">
+                    {connStrError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-[130px_1fr] items-center gap-3">
             <label className={labelCls}>Connection name</label>
             <input
@@ -384,11 +476,32 @@ export function ConnectionModal() {
                   className={inputCls}
                   type="password"
                   value={form.password}
-                  placeholder={editing ? "(leave blank to keep stored secret)" : ""}
+                  placeholder={
+                    editing
+                      ? form.savePassword
+                        ? "(leave blank to keep stored secret)"
+                        : "(not saved — used once for connect)"
+                      : ""
+                  }
                   onChange={(e) =>
                     set({ password: e.target.value, passwordTouched: true })
                   }
                 />
+              </div>
+              <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+                <span />
+                <label className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[#007aff]"
+                    checked={form.savePassword}
+                    onChange={(e) => set({ savePassword: e.target.checked })}
+                  />
+                  <span>
+                    Save password{" "}
+                    <span className="text-slate-400">— encrypted, this user only</span>
+                  </span>
+                </label>
               </div>
               <div className="grid grid-cols-[130px_1fr] items-center gap-3">
                 <label className={labelCls}>SSL mode</label>
@@ -457,39 +570,6 @@ export function ConnectionModal() {
               )}
             </div>
           </div>
-
-          <div className="grid grid-cols-[130px_1fr] items-center gap-3">
-            <label className={labelCls}>Production</label>
-            <label className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-rose-600"
-                checked={form.isProd}
-                onChange={(e) => set({ isProd: e.target.checked })}
-              />
-              <span>
-                Production{" "}
-                <span className="text-slate-400">
-                  — Extra confirmations for destructive actions
-                </span>
-              </span>
-            </label>
-          </div>
-
-          {!isFile && meta.hints.length > 0 && (
-            <div className="space-y-0.5">
-              {meta.hints.map((hint) => (
-                <p key={hint} className="text-[11px] leading-relaxed text-slate-400">
-                  {hint}
-                </p>
-              ))}
-            </div>
-          )}
-
-          <p className="text-[11px] leading-relaxed text-slate-400">
-            Credentials are stored in an encrypted vault (XChaCha20-Poly1305,
-            separate master key). SSH tunnels arrive in phase P1.
-          </p>
 
           {testResult && (
             <div

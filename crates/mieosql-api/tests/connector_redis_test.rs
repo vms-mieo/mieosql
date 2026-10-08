@@ -219,14 +219,13 @@ async fn setup() -> TestEnv {
             color: None,
             group: None,
             variant: None,
-            is_prod: false,
             password: url.password,
             ssh_password: None,
         })
         .unwrap();
 
     let session = api
-        .open_session(profile.id.0.clone())
+        .open_session(profile.id.0.clone(), None)
         .await
         .expect("Redis session opens");
 

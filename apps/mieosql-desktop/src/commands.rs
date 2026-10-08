@@ -50,6 +50,11 @@ pub fn delete_profile(state: State<'_, AppState>, id: String) -> Result<(), ApiE
 }
 
 #[tauri::command]
+pub fn has_password(state: State<'_, AppState>, id: String) -> bool {
+    state.api.has_password(id)
+}
+
+#[tauri::command]
 pub async fn test_profile(
     state: State<'_, AppState>,
     id: String,
@@ -74,8 +79,9 @@ pub async fn test_connection(
 pub async fn open_session(
     state: State<'_, AppState>,
     profile_id: String,
+    password: Option<String>,
 ) -> Result<SessionInfo, ApiError> {
-    state.api.open_session(profile_id).await
+    state.api.open_session(profile_id, password).await
 }
 
 #[tauri::command]
@@ -322,6 +328,19 @@ pub fn clear_history(state: State<'_, AppState>) {
     state.api.clear_history()
 }
 
+#[tauri::command]
+pub fn history_retention_days(state: State<'_, AppState>) -> u32 {
+    state.api.history_retention_days()
+}
+
+#[tauri::command]
+pub fn set_history_retention_days(
+    state: State<'_, AppState>,
+    days: u32,
+) -> Result<u32, ApiError> {
+    state.api.set_history_retention_days(days)
+}
+
 // ---------------------------------------------------------------------------
 // Diagnostics
 // ---------------------------------------------------------------------------
@@ -552,6 +571,78 @@ pub fn split_sql_text(
     text: String,
 ) -> mieosql_api::maintenance::ScriptStatements {
     state.api.split_sql_text(text)
+}
+
+// ---------------------------------------------------------------------------
+// Kafka topic administration.
+// ---------------------------------------------------------------------------
+
+/// Create a Kafka topic through the cluster controller.
+#[tauri::command]
+pub async fn kafka_create_topic(
+    state: State<'_, AppState>,
+    session_id: String,
+    topic: String,
+    partitions: i32,
+    replication_factor: i16,
+) -> Result<(), ApiError> {
+    state
+        .api
+        .kafka_create_topic(session_id, topic, partitions, replication_factor)
+        .await
+}
+
+/// Delete a Kafka topic through the cluster controller.
+#[tauri::command]
+pub async fn kafka_delete_topic(
+    state: State<'_, AppState>,
+    session_id: String,
+    topic: String,
+) -> Result<(), ApiError> {
+    state.api.kafka_delete_topic(session_id, topic).await
+}
+
+/// Per-partition log end offsets of a Kafka topic, sorted by partition.
+#[tauri::command]
+pub async fn kafka_topic_partitions(
+    state: State<'_, AppState>,
+    session_id: String,
+    topic: String,
+) -> Result<Vec<mieosql_api::maintenance::KafkaTopicPartition>, ApiError> {
+    state.api.kafka_topic_partitions(session_id, topic).await
+}
+
+/// Produce one record; returns where it landed.
+#[tauri::command]
+pub async fn kafka_produce(
+    state: State<'_, AppState>,
+    session_id: String,
+    topic: String,
+    partition: Option<i32>,
+    key: Option<String>,
+    value: String,
+) -> Result<mieosql_api::maintenance::KafkaProduceResult, ApiError> {
+    state
+        .api
+        .kafka_produce(session_id, topic, partition, key, value)
+        .await
+}
+
+/// Fetch up to `limit` records from one topic partition (bounded message
+/// browsing). `from` is "earliest" | "latest" | { "offset": n }.
+#[tauri::command]
+pub async fn kafka_consume(
+    state: State<'_, AppState>,
+    session_id: String,
+    topic: String,
+    partition: Option<i32>,
+    from: mieosql_api::maintenance::KafkaConsumeFrom,
+    limit: u32,
+) -> Result<mieosql_api::fetch::CollectedRows, ApiError> {
+    state
+        .api
+        .kafka_consume(session_id, topic, partition, from, limit)
+        .await
 }
 
 // ---------------------------------------------------------------------------

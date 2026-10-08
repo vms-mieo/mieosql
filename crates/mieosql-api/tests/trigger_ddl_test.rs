@@ -59,7 +59,6 @@ async fn sqlite_setup(tag: &str) -> TestEnv {
             color: None,
             group: None,
             variant: None,
-            is_prod: false,
             password: None,
             ssh_password: None,
         })
@@ -96,7 +95,7 @@ async fn run_sql(api: &Api, session_id: &str, sql: &str) {
 async fn sqlite_trigger_list_and_ddl() {
     let env = sqlite_setup("trig").await;
     let api = &env.api;
-    let session = api.open_session(env.profile_id.clone()).await.unwrap();
+    let session = api.open_session(env.profile_id.clone(), None).await.unwrap();
     let sid = session.id.clone();
 
     run_sql(api, &sid, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)").await;
@@ -225,12 +224,11 @@ async fn mysql_trigger_and_event_list_and_ddl() {
             color: None,
             group: None,
             variant: None,
-            is_prod: false,
             password: Some(pass),
             ssh_password: None,
         })
         .unwrap();
-    let session = api.open_session(profile.id.0.clone()).await.unwrap();
+    let session = api.open_session(profile.id.0.clone(), None).await.unwrap();
     let sid = session.id.clone();
     let scope = Scope {
         database: Some(db),
@@ -338,12 +336,11 @@ async fn sqlserver_routine_trigger_list_and_ddl() {
             color: None,
             group: None,
             variant: None,
-            is_prod: false,
             password: Some(pass),
             ssh_password: None,
         })
         .unwrap();
-    let session = api.open_session(profile.id.0.clone()).await.unwrap();
+    let session = api.open_session(profile.id.0.clone(), None).await.unwrap();
     let sid = session.id.clone();
     let scope = Scope {
         database: Some(db),

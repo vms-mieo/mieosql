@@ -5,6 +5,8 @@ import { api } from "./lib/api";
 import { useStore } from "./lib/store";
 import { ConnectionModal } from "./components/ConnectionModal";
 import { MenuBar } from "./components/MenuBar";
+import { ObjectDialogs } from "./components/ObjectDialogs";
+import { PromptHost } from "./components/PromptHost";
 import { Ribbon } from "./components/Ribbon";
 import { RightPanel } from "./components/RightPanel";
 import { Sidebar } from "./components/Sidebar";
@@ -85,7 +87,9 @@ export default function App() {
       </main>
       <StatusBar />
       <ConnectionModal />
+      <ObjectDialogs />
       <FeatureDialogs />
+      <PromptHost />
       <Toasts />
     </div>
   );

@@ -29,7 +29,7 @@ export async function runScript(
   statements: string[],
 ): Promise<ScriptRunResult> {
   const total = statements.length;
-  if (!confirmUnsafeWrites(statements.join("\n"))) {
+  if (!(await confirmUnsafeWrites(statements.join("\n")))) {
     useStore.getState().toast("info", "Script run cancelled");
     return { total, applied: 0, failed: 0, elapsedMs: 0, stoppedAt: null };
   }

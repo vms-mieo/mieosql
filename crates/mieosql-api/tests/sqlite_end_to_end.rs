@@ -53,7 +53,6 @@ async fn setup(tag: &str) -> TestEnv {
             color: None,
             group: None,
             variant: None,
-            is_prod: false,
             password: Some("vault-roundtrip".into()),
             ssh_password: None,
         })
@@ -134,7 +133,7 @@ async fn sqlite_full_flow() {
     assert_eq!(spec.password.as_deref(), Some("vault-roundtrip"));
 
     // --- session ---------------------------------------------------------
-    let session = api.open_session(env.profile_id.clone()).await.unwrap();
+    let session = api.open_session(env.profile_id.clone(), None).await.unwrap();
     assert_eq!(session.engine, mieosql_core::Engine::Sqlite);
     assert!(session.capabilities.transactions);
     let sid = session.id.clone();

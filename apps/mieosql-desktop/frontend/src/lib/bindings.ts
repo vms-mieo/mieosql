@@ -36,6 +36,9 @@ export type { Value } from "@bindings/Value";
 
 // Feature pack v1
 export type { CollectedRows } from "@bindings/CollectedRows";
+export type { KafkaConsumeFrom } from "@bindings/KafkaConsumeFrom";
+export type { KafkaProduceResult } from "@bindings/KafkaProduceResult";
+export type { KafkaTopicPartition } from "@bindings/KafkaTopicPartition";
 export type { DataSyncApplyResult } from "@bindings/DataSyncApplyResult";
 export type { DataSyncPlan } from "@bindings/DataSyncPlan";
 export type { DataSyncRequest } from "@bindings/DataSyncRequest";

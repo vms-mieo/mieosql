@@ -10,9 +10,11 @@ import {
   Eye,
   FileCode2,
   Folder,
+  Inbox,
   Layers,
   ListOrdered,
   Loader2,
+  MessageSquare,
   Plug,
   Plus,
   RefreshCw,
@@ -27,6 +29,8 @@ import {
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { EngineGlyph } from "./EngineGlyph";
 import { api, errorText } from "../lib/api";
+import { confirmDialog, promptDialog } from "../lib/dialog";
+import { openMessages } from "../lib/kafka";
 import type {
   ConnectionProfile,
   DatabaseRef,
@@ -206,9 +210,9 @@ function TreeRow({
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col leading-tight">
-        <span className="truncate text-[13px]">{label}</span>
+        <span className="truncate text-[13px] font-medium">{label}</span>
         {subtitle && (
-          <span className="truncate text-[11.5px] text-slate-500">{subtitle}</span>
+          <span className="truncate text-[11.5px] text-slate-600">{subtitle}</span>
         )}
       </span>
       {trailing}
@@ -339,11 +343,14 @@ export function Sidebar() {
   );
 
   // Declarative loading: whenever a node is expanded and missing from the
-  // cache, load it (also covers "refresh tree").
+  // cache, load it (also covers "refresh tree"). Broker sessions (Kafka)
+  // render topics instead of databases — their `s:` keys load nothing.
   useEffect(() => {
     for (const key of expanded) {
       if (key.startsWith("s:")) {
         const sid = key.slice(2);
+        const session = store.sessions.find((s) => s.id === sid);
+        if (session && isBroker(session.engine)) continue;
         if (!cache.databases[sid]) void loadDatabases(sid);
       } else if (key.startsWith("db:")) {
         const [sid, db] = key.slice(3).split("|");
@@ -437,30 +444,6 @@ export function Sidebar() {
   const refreshSchema = (session: SessionInfo, db: string, schema: string) =>
     clearObjectCaches(`${session.id}|${db}|${schema}|`);
 
-  /** Whether the session belongs to a production profile. */
-  const isProdSession = (session: SessionInfo): boolean =>
-    useStore.getState().profiles.some(
-      (p) => p.id === session.profile_id && p.is_prod,
-    );
-
-  /** Production name of the session's profile (for confirm dialogs). */
-  const prodProfileName = (session: SessionInfo): string =>
-    useStore.getState().profiles.find((p) => p.id === session.profile_id)
-      ?.name ?? session.name;
-
-  /**
-   * Strong confirmation for production: the user must type the exact
-   * database name (compared trimmed). Cancel or mismatch returns false.
-   */
-  const confirmDangerous = (profileName: string, dbName: string): boolean => {
-    const typed = window.prompt(
-      `PRODUCTION "${profileName}" — destructive action.\nType the database name "${dbName}" to confirm:`,
-      "",
-    );
-    if (typed === null) return false;
-    return typed.trim() === dbName;
-  };
-
   /** Execute small maintenance statements, then toast + reload the tree. */
   const runStatements = async (
     sessionId: string,
@@ -515,11 +498,10 @@ export function Sidebar() {
   // Edit / Duplicate / Copy to / Move to for both connected sessions and
   // disconnected profiles.
 
-  const promptForGroup = (current?: string | null): string | null => {
-    const next = window.prompt(
-      "Group (empty = Ungrouped):",
-      current ?? "",
-    );
+  const promptForGroup = async (current?: string | null): Promise<string | null> => {
+    const next = await promptDialog("Group (empty = Ungrouped):", current ?? "", {
+      title: "Move to group",
+    });
     if (next === null) return null; // cancelled
     return next.trim();
   };
@@ -543,7 +525,6 @@ export function Sidebar() {
           color: full.color,
           group: group || undefined,
           variant: full.variant,
-          is_prod: full.is_prod,
           password: undefined,
           ssh_password: undefined,
         } as unknown as Parameters<typeof api.saveProfile>[0]);
@@ -579,7 +560,6 @@ export function Sidebar() {
           color: full.color,
           group,
           variant: full.variant,
-          is_prod: full.is_prod,
           // password intentionally not copied — user re-enters it.
           password: null,
         } as unknown as Parameters<typeof api.saveProfile>[0]);
@@ -592,21 +572,27 @@ export function Sidebar() {
   };
 
   const moveConnectionTo = (profile: ConnectionProfile) => {
-    const next = promptForGroup(profile.group);
-    if (next === null) return;
-    void updateProfileGroup(profile, next);
+    void (async () => {
+      const next = await promptForGroup(profile.group);
+      if (next === null) return;
+      void updateProfileGroup(profile, next);
+    })();
   };
 
   const copyConnectionTo = (profile: ConnectionProfile) => {
-    const next = promptForGroup(profile.group);
-    if (next === null) return;
-    duplicateConnection(profile, next);
+    void (async () => {
+      const next = await promptForGroup(profile.group);
+      if (next === null) return;
+      duplicateConnection(profile, next);
+    })();
   };
 
   const renameGroup = (group: string) => {
-    const next = window.prompt(`Rename group "${group}" to:`, group)?.trim();
-    if (!next || next === group) return;
     void (async () => {
+      const next = (await promptDialog(`Rename group "${group}" to:`, group, {
+        title: "Rename group",
+      }))?.trim();
+      if (!next || next === group) return;
       try {
         const all = store.profiles.filter((p) => (p.group ?? "") === group);
         for (const p of all) {
@@ -626,8 +612,7 @@ export function Sidebar() {
             color: full.color,
             group: next,
             variant: full.variant,
-            is_prod: full.is_prod,
-            password: undefined,
+              password: undefined,
             ssh_password: undefined,
           } as unknown as Parameters<typeof api.saveProfile>[0]);
         }
@@ -649,8 +634,12 @@ export function Sidebar() {
       kind: "item",
       label: "Ungroup All",
       onClick: () => {
-        if (!window.confirm(`Move all connections out of "${group}"?`)) return;
         void (async () => {
+          if (!(await confirmDialog(`Move all connections out of "${group}"?`, {
+            title: "Ungroup all",
+            kind: "warning",
+          })))
+            return;
           try {
             const all = useStore.getState().profiles.filter((p) => (p.group ?? "") === group);
             for (const p of all) {
@@ -670,8 +659,7 @@ export function Sidebar() {
                 color: full.color,
                 group: undefined,
                 variant: full.variant,
-                is_prod: full.is_prod,
-                password: undefined,
+                      password: undefined,
                 ssh_password: undefined,
               } as unknown as Parameters<typeof api.saveProfile>[0]);
             }
@@ -687,6 +675,7 @@ export function Sidebar() {
   ];
 
   const sessionMenu = (session: SessionInfo): ContextMenuItem[] => {
+    if (isBroker(session.engine)) return brokerSessionMenu(session);
     const profile = store.profiles.find((p) => p.id === session.profile_id);
     const sqlEngine = isSqlEngine(session.engine);
     const items: ContextMenuItem[] = [
@@ -877,12 +866,17 @@ export function Sidebar() {
         label: "Drop Database…",
         danger: true,
         onClick: () => {
-          if (isProdSession(session)) {
-            if (!confirmDangerous(prodProfileName(session), db.name)) return;
-          } else if (!window.confirm(`Drop database "${db.name}"? This cannot be undone.`)) {
-            return;
-          }
-          void runStatements(session.id, [dropSql], `Dropped database "${db.name}"`);
+          void (async () => {
+            if (
+              !(await confirmDialog(
+                `Drop database "${db.name}"? This cannot be undone.`,
+                { title: "Drop database", kind: "warning" },
+              ))
+            ) {
+              return;
+            }
+            void runStatements(session.id, [dropSql], `Dropped database "${db.name}"`);
+          })();
         },
       });
     }
@@ -896,16 +890,11 @@ export function Sidebar() {
         useStore.getState().toast("info", `No tables in ${label}`);
         return;
       }
-      // Name the user must re-type on production (database, else schema).
-      const confirmName = scope.database ?? scope.schema ?? label;
-      if (isProdSession(session)) {
-        if (!confirmDangerous(prodProfileName(session), confirmName)) {
-          return;
-        }
-      } else if (
-        !window.confirm(
+      if (
+        !(await confirmDialog(
           `Truncate ${tables.length} table(s) in ${label}? All rows will be deleted. This cannot be undone.`,
-        )
+          { title: "Truncate tables", kind: "warning" },
+        ))
       ) {
         return;
       }
@@ -1002,14 +991,20 @@ export function Sidebar() {
   };
 
   const duplicateTable = (session: SessionInfo, scope: Scope, table: string) => {
-    const next = window.prompt(`Duplicate table "${table}" as:`, `${table}_copy`)?.trim();
-    if (!next) return;
-    const sql = duplicateTableSql(session.engine, scope, table, next);
-    if (!sql) {
-      useStore.getState().toast("info", "Duplicate is only available for SQL engines");
-      return;
-    }
-    void runStatements(session.id, [sql], `Duplicated "${table}" as "${next}"`);
+    void (async () => {
+      const next = (
+        await promptDialog(`Duplicate table "${table}" as:`, `${table}_copy`, {
+          title: "Duplicate table",
+        })
+      )?.trim();
+      if (!next) return;
+      const sql = duplicateTableSql(session.engine, scope, table, next);
+      if (!sql) {
+        useStore.getState().toast("info", "Duplicate is only available for SQL engines");
+        return;
+      }
+      void runStatements(session.id, [sql], `Duplicated "${table}" as "${next}"`);
+    })();
   };
 
   const schemaMenu = (
@@ -1087,8 +1082,16 @@ export function Sidebar() {
           label: "Drop Schema…",
           danger: true,
           onClick: () => {
-            if (!window.confirm(`Drop schema "${schema}"? This cannot be undone.`)) return;
-            void runStatements(session.id, [dropSql], `Dropped schema "${schema}"`);
+            void (async () => {
+              if (
+                !(await confirmDialog(
+                  `Drop schema "${schema}"? This cannot be undone.`,
+                  { title: "Drop schema", kind: "warning" },
+                ))
+              )
+                return;
+              void runStatements(session.id, [dropSql], `Dropped schema "${schema}"`);
+            })();
           },
         });
       }
@@ -1304,15 +1307,21 @@ export function Sidebar() {
           kind: "item",
           label: "Rename Table…",
           onClick: () => {
-            const next = window.prompt(`Rename table "${obj.name}" to:`, obj.name)?.trim();
-            if (!next || next === obj.name) return;
-            const renameSql = renameTableSql(session.engine, scope, obj.name, next);
-            if (!renameSql) return;
-            void runStatements(
-              session.id,
-              [renameSql],
-              `Renamed "${obj.name}" to "${next}"`,
-            );
+            void (async () => {
+              const next = (
+                await promptDialog(`Rename table "${obj.name}" to:`, obj.name, {
+                  title: "Rename table",
+                })
+              )?.trim();
+              if (!next || next === obj.name) return;
+              const renameSql = renameTableSql(session.engine, scope, obj.name, next);
+              if (!renameSql) return;
+              void runStatements(
+                session.id,
+                [renameSql],
+                `Renamed "${obj.name}" to "${next}"`,
+              );
+            })();
           },
         });
       }
@@ -1322,27 +1331,25 @@ export function Sidebar() {
           label: "Truncate Table…",
           danger: true,
           onClick: () => {
-            const confirmName = scope.database ?? scope.schema ?? obj.name;
-            if (isProdSession(session)) {
-              if (!confirmDangerous(prodProfileName(session), confirmName)) {
+            void (async () => {
+              if (
+                !(await confirmDialog(
+                  `Truncate table "${obj.name}"? All rows will be deleted.`,
+                  { title: "Truncate table", kind: "warning" },
+                ))
+              ) {
                 return;
               }
-            } else if (
-              !window.confirm(
-                `Truncate table "${obj.name}"? All rows will be deleted.`,
-              )
-            ) {
-              return;
-            }
-            const truncateSql = truncateTableSql(session.engine, scope, obj.name);
-            if (truncateSql) {
-              void runStatements(
-                session.id,
-                [truncateSql],
-                `Truncated "${obj.name}"`,
-                true,
-              );
-            }
+              const truncateSql = truncateTableSql(session.engine, scope, obj.name);
+              if (truncateSql) {
+                void runStatements(
+                  session.id,
+                  [truncateSql],
+                  `Truncated "${obj.name}"`,
+                  true,
+                );
+              }
+            })();
           },
         },
         {
@@ -1350,18 +1357,20 @@ export function Sidebar() {
           label: "Drop Table…",
           danger: true,
           onClick: () => {
-            const confirmName = scope.database ?? scope.schema ?? obj.name;
-            if (isProdSession(session)) {
-              if (!confirmDangerous(prodProfileName(session), confirmName)) {
+            void (async () => {
+              if (
+                !(await confirmDialog(
+                  `Drop table "${obj.name}"? This cannot be undone.`,
+                  { title: "Drop table", kind: "warning" },
+                ))
+              ) {
                 return;
               }
-            } else if (!window.confirm(`Drop table "${obj.name}"? This cannot be undone.`)) {
-              return;
-            }
-            const dropSql = dropTableSql(session.engine, scope, obj.name);
-            if (dropSql) {
-              void runStatements(session.id, [dropSql], `Dropped "${obj.name}"`);
-            }
+              const dropSql = dropTableSql(session.engine, scope, obj.name);
+              if (dropSql) {
+                void runStatements(session.id, [dropSql], `Dropped "${obj.name}"`);
+              }
+            })();
           },
         },
       );
@@ -1406,18 +1415,20 @@ export function Sidebar() {
           label: `Drop ${obj.kind === "view" ? "View" : "Materialized View"}…`,
           danger: true,
           onClick: () => {
-            const confirmName = scope.database ?? scope.schema ?? obj.name;
-            if (isProdSession(session)) {
-              if (!confirmDangerous(prodProfileName(session), confirmName)) {
+            void (async () => {
+              if (
+                !(await confirmDialog(`Drop "${obj.name}"? This cannot be undone.`, {
+                  title: "Drop view",
+                  kind: "warning",
+                }))
+              ) {
                 return;
               }
-            } else if (!window.confirm(`Drop "${obj.name}"? This cannot be undone.`)) {
-              return;
-            }
-            const dropSql = dropViewSql(session.engine, scope, obj.name, obj.kind === "materialized_view");
-            if (dropSql) {
-              void runStatements(session.id, [dropSql], `Dropped "${obj.name}"`);
-            }
+              const dropSql = dropViewSql(session.engine, scope, obj.name, obj.kind === "materialized_view");
+              if (dropSql) {
+                void runStatements(session.id, [dropSql], `Dropped "${obj.name}"`);
+              }
+            })();
           },
         },
       );
@@ -1471,10 +1482,17 @@ export function Sidebar() {
             label: `Drop ${routineLabel}…`,
             danger: true,
             onClick: () => {
-              if (!window.confirm(`Drop ${routineLabel.toLowerCase()} "${obj.name}"? This cannot be undone.`)) {
-                return;
-              }
-              void runStatements(session.id, [dropSql], `Dropped "${obj.name}"`);
+              void (async () => {
+                if (
+                  !(await confirmDialog(
+                    `Drop ${routineLabel.toLowerCase()} "${obj.name}"? This cannot be undone.`,
+                    { title: `Drop ${routineLabel.toLowerCase()}`, kind: "warning" },
+                  ))
+                ) {
+                  return;
+                }
+                void runStatements(session.id, [dropSql], `Dropped "${obj.name}"`);
+              })();
             },
           },
         );
@@ -1583,10 +1601,18 @@ export function Sidebar() {
         label: "Delete Connection",
         danger: true,
         onClick: () => {
-          if (!window.confirm(`Delete connection "${profile.name}"?`)) return;
-          void store.deleteProfile(profile.id).catch((err) => {
-            store.toast("error", errorText(err));
-          });
+          void (async () => {
+            if (
+              !(await confirmDialog(`Delete connection "${profile.name}"?`, {
+                title: "Delete connection",
+                kind: "warning",
+              }))
+            )
+              return;
+            void store.deleteProfile(profile.id).catch((err) => {
+              store.toast("error", errorText(err));
+            });
+          })();
         },
       },
     ];
@@ -1989,6 +2015,195 @@ export function Sidebar() {
     );
   };
 
+  // ------------------------------------------------------- broker (Kafka) tree
+  // Brokers have no databases: a connected session expands to a Topics
+  // folder whose rows are live topics (`list_objects` kind=table, cached
+  // under the `f:<sid>|||table` key so the declarative loader fills it).
+  // Double-click (or View Messages) opens a query tab running the consume
+  // command, so the result grid, full-value viewer and export work unchanged.
+
+  const brokerTopicsKey = (sessionId: string) => `f:${sessionId}|||table`;
+
+  const deleteTopic = (session: SessionInfo, topic: string) => {
+    void (async () => {
+      if (
+        !(await confirmDialog(
+          `Delete Kafka topic "${topic}"? Its messages will be lost. This cannot be undone.`,
+          { title: "Delete topic", kind: "warning" },
+        ))
+      ) {
+        return;
+      }
+      try {
+        await api.kafkaDeleteTopic(session.id, topic);
+        useStore.getState().toast("success", `Deleted topic "${topic}"`);
+        refreshTreeEvent();
+      } catch (err) {
+        useStore.getState().toast("error", errorText(err));
+      }
+    })();
+  };
+
+  const brokerTopicsMenu = (session: SessionInfo): ContextMenuItem[] => [
+    {
+      kind: "item",
+      label: "New Topic…",
+      onClick: () =>
+        useStore
+          .getState()
+          .openObjectDialog("new-topic", { sessionId: session.id }),
+    },
+    {
+      kind: "item",
+      label: "Refresh",
+      onClick: () => void loadObjects(session.id, null, null, "table"),
+    },
+  ];
+
+  const brokerTopicMenu = (
+    session: SessionInfo,
+    topic: ObjectRef,
+  ): ContextMenuItem[] => [
+    {
+      kind: "item",
+      label: "View Messages",
+      onClick: () => openMessages(session.id, topic.name),
+    },
+    {
+      kind: "item",
+      label: "Produce Message…",
+      onClick: () =>
+        useStore.getState().openObjectDialog("produce-message", {
+          sessionId: session.id,
+          table: topic.name,
+        }),
+    },
+    { kind: "separator" },
+    { kind: "item", label: "Copy Name", onClick: () => copyName(topic.name) },
+    { kind: "separator" },
+    {
+      kind: "item",
+      label: "Delete Topic…",
+      danger: true,
+      onClick: () => deleteTopic(session, topic.name),
+    },
+  ];
+
+  const brokerSessionMenu = (session: SessionInfo): ContextMenuItem[] => {
+    const profile = store.profiles.find((p) => p.id === session.profile_id);
+    const items: ContextMenuItem[] = [
+      { kind: "item", label: "New Query", onClick: () => store.newQueryTab(session.id) },
+      {
+        kind: "item",
+        label: "New Topic…",
+        onClick: () =>
+          useStore
+            .getState()
+            .openObjectDialog("new-topic", { sessionId: session.id }),
+      },
+      {
+        kind: "item",
+        label: "Produce Message…",
+        onClick: () =>
+          useStore
+            .getState()
+            .openObjectDialog("produce-message", { sessionId: session.id }),
+      },
+      { kind: "item", label: "Refresh", onClick: () => refreshSession(session) },
+      { kind: "separator" },
+      { kind: "item", label: "Copy Name", onClick: () => copyName(session.name) },
+    ];
+    if (profile) {
+      items.push(
+        { kind: "separator" },
+        { kind: "label", label: "Connection" },
+        {
+          kind: "item",
+          label: "Edit Connection…",
+          onClick: () => store.setConnectionModal(true, profile.id),
+        },
+        {
+          kind: "item",
+          label: "Duplicate Connection",
+          onClick: () => duplicateConnection(profile),
+        },
+        {
+          kind: "item",
+          label: "Copy Connection To…",
+          onClick: () => copyConnectionTo(profile),
+        },
+        {
+          kind: "item",
+          label: "Move Connection To…",
+          onClick: () => moveConnectionTo(profile),
+        },
+      );
+    }
+    items.push(
+      { kind: "separator" },
+      {
+        kind: "item",
+        label: "Disconnect",
+        danger: true,
+        onClick: () => void store.closeSession(session.id),
+      },
+    );
+    return items;
+  };
+
+  const renderBrokerTopic = (session: SessionInfo, topic: ObjectRef) => (
+    <TreeRow
+      key={`kt:${session.id}|${topic.name}`}
+      depth={2}
+      icon={<MessageSquare size={11} className="text-amber-600" />}
+      label={<span>{topic.name}</span>}
+      subtitle={topic.comment ?? undefined}
+      onClick={() => store.setActiveSession(session.id)}
+      onDoubleClick={() => openMessages(session.id, topic.name)}
+      onContextMenu={(e) => openMenu(e, brokerTopicMenu(session, topic))}
+    />
+  );
+
+  const renderBrokerTopics = (session: SessionInfo) => {
+    const key = brokerTopicsKey(session.id);
+    const isOpen = expanded.has(key);
+    const topics = cache.objects[folderKey(session.id, "", "", "table")];
+    return (
+      <div key={key}>
+        <TreeRow
+          depth={1}
+          caret
+          expanded={isOpen}
+          loading={topics === "loading"}
+          icon={<Inbox size={12} />}
+          label={<span className="font-medium">Topics</span>}
+          subtitle={Array.isArray(topics) ? `${topics.length}` : undefined}
+          onClick={() => toggle(key)}
+          onToggle={() => toggle(key)}
+          onContextMenu={(e) => openMenu(e, brokerTopicsMenu(session))}
+        />
+        {isOpen &&
+          Array.isArray(topics) &&
+          topics
+            .filter((t) => filterMatch(t.name))
+            .map((t) => renderBrokerTopic(session, t))}
+        {isOpen && topics === "loading" && (
+          <div className="px-4 py-0.5 text-[12px] text-slate-500">
+            Loading topics…
+          </div>
+        )}
+        {isOpen && Array.isArray(topics) && topics.length === 0 && (
+          <div
+            className="px-1 py-[2px] text-[13px] text-slate-400"
+            style={{ paddingLeft: 4 + 2 * 13 }}
+          >
+            No topics — right-click for New Topic…
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderSession = (session: SessionInfo) => {
     const sk = `s:${session.id}`;
     const isOpen = expanded.has(sk);
@@ -2008,14 +2223,6 @@ export function Sidebar() {
           selected={store.activeSessionId === session.id}
           trailing={
             <span className="flex items-center gap-0.5">
-              {store.profiles.find((p) => p.id === session.profile_id)?.is_prod ? (
-                <span
-                  className="shrink-0 rounded bg-rose-600 px-1 py-px text-[10px] font-semibold text-white"
-                  title="Production connection — destructive actions need extra confirmation"
-                >
-                  PROD
-                </span>
-              ) : null}
               {(() => {
                 const c = store.profiles.find((p) => p.id === session.profile_id)?.color;
                 return c ? (
@@ -2051,13 +2258,16 @@ export function Sidebar() {
           }
           onClick={(e) => {
             store.setActiveSession(session.id);
-            if (e.detail === 2) void loadDatabases(session.id);
-            else toggle(sk);
+            if (!isBroker(session.engine) && e.detail === 2) {
+              void loadDatabases(session.id);
+            } else toggle(sk);
           }}
           onContextMenu={(e) => openMenu(e, sessionMenu(session))}
         />
         {isOpen &&
-          (Array.isArray(databases) ? (
+          (isBroker(session.engine) ? (
+            renderBrokerTopics(session)
+          ) : Array.isArray(databases) ? (
             databases.filter((d) => filterMatch(d.name)).map((db) => renderDatabase(session, db, 1))
           ) : databases === "loading" ? (
             <div className="px-4 py-0.5 text-[12px] text-slate-500">

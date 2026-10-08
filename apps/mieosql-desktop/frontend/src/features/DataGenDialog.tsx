@@ -27,6 +27,7 @@ import type {
   Scope,
 } from "../lib/bindings";
 import { api, errorText } from "../lib/api";
+import { confirmDialog } from "../lib/dialog";
 import { useStore } from "../lib/store";
 import { DialogShell } from "./DialogShell";
 
@@ -634,9 +635,10 @@ export function DataGenDialog({ onClose }: { onClose: () => void }) {
   const runExecute = async () => {
     const request = buildRequest("execute");
     if (!request || !sessionId) return;
-    const ok = window.confirm(
+    const ok = await confirmDialog(
       `Insert ${request.rows.toLocaleString()} generated rows into "${request.table}"?\n\n` +
         "The INSERT statements run inside a transaction on the current session.",
+      { title: "Insert generated rows", kind: "warning" },
     );
     if (!ok) return;
     setBusy("execute");

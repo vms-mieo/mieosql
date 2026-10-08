@@ -20,6 +20,7 @@ import {
 
 import type { Engine, ObjectRef } from "../lib/bindings";
 import { api, errorText } from "../lib/api";
+import { confirmDialog } from "../lib/dialog";
 import { autofixSql, type SqlFix } from "../lib/sql-fix";
 import type { Tab } from "../lib/store";
 import { useStore } from "../lib/store";
@@ -257,7 +258,7 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
       )}
       <span className="truncate text-[13px]">{tab.title}</span>
       {tab.results.length > 0 && !tab.running && (
-        <span className="text-[11.5px] text-slate-400 tabular-nums">
+        <span className="font-num text-[11.5px] text-slate-400">
           {tab.results
             .reduce((acc, r) => acc + r.rows.length, 0)
             .toLocaleString()}
@@ -288,9 +289,16 @@ function TxBanner({ sessionId }: { sessionId: string | null }) {
   const rollback = useStore((s) => s.rollbackTransaction);
   if (!sessionId || !inTx) return null;
   const onRollback = () => {
-    if (window.confirm("Discard all uncommitted changes (rollback)?")) {
-      void rollback(sessionId);
-    }
+    void (async () => {
+      if (
+        await confirmDialog("Discard all uncommitted changes (rollback)?", {
+          title: "Rollback",
+          kind: "warning",
+        })
+      ) {
+        void rollback(sessionId);
+      }
+    })();
   };
   return (
     <div className="flex h-8 shrink-0 items-center justify-between border-b border-amber-200/70 bg-amber-50 px-3">
@@ -342,12 +350,6 @@ function QueryToolbar({
 }) {
   const store = useStore();
   const session = useStore((s) => s.sessions.find((x) => x.id === tab.sessionId));
-  // Production guard: red top border + PROD label when the tab's session
-  // belongs to a profile marked as production.
-  const isProd = useStore((s) => {
-    const sess = s.sessions.find((x) => x.id === tab.sessionId);
-    return s.profiles.some((p) => p.id === sess?.profile_id && p.is_prod);
-  });
   const runningResult = tab.results.find((r) => r.status === "running");
 
   const toolBtn =
@@ -355,9 +357,7 @@ function QueryToolbar({
 
   return (
     <div
-      className={`flex h-10 shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white px-3 ${
-        isProd ? "border-t-2 border-t-rose-500" : ""
-      }`}
+      className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white px-3"
     >
       <div className="custom-scrollbar flex min-w-[210px] flex-1 items-center gap-1 overflow-x-auto">
         <button
@@ -460,14 +460,6 @@ function QueryToolbar({
       </div>
 
       <div className="flex min-w-0 shrink items-center gap-2">
-        {isProd && (
-          <span
-            className="shrink-0 rounded bg-rose-600 px-1.5 py-px text-[10.5px] font-semibold text-white"
-            title="Production connection — destructive actions need extra confirmation"
-          >
-            PROD
-          </span>
-        )}
         <EditorScopePickers tab={tab} />
         <LimitSelect />
       </div>
@@ -704,7 +696,7 @@ function ObjectsView({ tab }: { tab: Tab }) {
                       </span>
                     </td>
                     <td
-                      className={`px-3 py-1.5 text-right tabular-nums ${
+                      className={`font-num px-3 py-1.5 text-right ${
                         sel ? "text-white/85" : "text-slate-600"
                       }`}
                     >

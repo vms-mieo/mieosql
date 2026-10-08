@@ -53,7 +53,6 @@ async fn setup(tag: &str) -> TestEnv {
             color: None,
             group: None,
             variant: None,
-            is_prod: false,
             password: None,
             ssh_password: None,
         })
@@ -96,7 +95,7 @@ fn request(pattern: &str, mode: SearchMatchMode) -> SearchRequest {
 #[tokio::test]
 async fn sqlite_search_finds_names_columns_definitions_and_limits() {
     let env = setup("main").await;
-    let session = env.api.open_session(env.profile_id.clone()).await.unwrap();
+    let session = env.api.open_session(env.profile_id.clone(), None).await.unwrap();
     let sid = session.id.clone();
 
     exec(

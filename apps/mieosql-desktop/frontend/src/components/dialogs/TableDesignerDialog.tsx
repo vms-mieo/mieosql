@@ -18,6 +18,7 @@ import {
 
 import type { ColumnDef, Engine, Scope } from "../../lib/bindings";
 import { api, errorText } from "../../lib/api";
+import { confirmDialog } from "../../lib/dialog";
 import { ENGINE_META } from "../../lib/engines";
 import {
   buildAlterTable,
@@ -645,8 +646,9 @@ function EditTableDialog({
   const apply = async () => {
     if (!sessionId || !canRun) return;
     if (destructive.length > 0) {
-      const ok = window.confirm(
+      const ok = await confirmDialog(
         `This will permanently delete data:\n${destructive.map((d) => `• ${d}`).join("\n")}\n\nApply ${statements.length} change(s) to “${tableName}” anyway?`,
+        { title: "Destructive changes", kind: "warning" },
       );
       if (!ok) return;
     }

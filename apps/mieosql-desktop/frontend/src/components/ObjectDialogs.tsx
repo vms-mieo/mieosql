@@ -9,6 +9,8 @@ import { useStore } from "../lib/store";
 import { BackupDialog } from "./dialogs/BackupDialog";
 import { ImportDialog } from "./dialogs/ImportDialog";
 import { NewDatabaseDialog } from "./dialogs/NewDatabaseDialog";
+import { NewTopicDialog } from "./dialogs/NewTopicDialog";
+import { ProduceDialog } from "./dialogs/ProduceDialog";
 import { RestoreDialog } from "./dialogs/RestoreDialog";
 import { TableDesignerDialog } from "./dialogs/TableDesignerDialog";
 
@@ -63,5 +65,15 @@ export function ObjectDialogs() {
       );
     case "restore":
       return <RestoreDialog sessionId={sessionId} onClose={close} />;
+    case "new-topic":
+      return <NewTopicDialog sessionId={sessionId} onClose={close} />;
+    case "produce-message":
+      return (
+        <ProduceDialog
+          sessionId={sessionId}
+          topic={props.table}
+          onClose={close}
+        />
+      );
   }
 }

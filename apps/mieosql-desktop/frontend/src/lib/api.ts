@@ -15,6 +15,9 @@ import type { ExportStats } from "@bindings/ExportStats";
 import type { ForeignKeyDef } from "@bindings/ForeignKeyDef";
 import type { HistoryEntry } from "@bindings/HistoryEntry";
 import type { IndexDef } from "@bindings/IndexDef";
+import type { KafkaConsumeFrom } from "@bindings/KafkaConsumeFrom";
+import type { KafkaProduceResult } from "@bindings/KafkaProduceResult";
+import type { KafkaTopicPartition } from "@bindings/KafkaTopicPartition";
 import type { ObjectKind } from "@bindings/ObjectKind";
 import type { ObjectRef } from "@bindings/ObjectRef";
 import type { PreviewStart } from "@bindings/PreviewStart";
@@ -67,7 +70,7 @@ import type {
   ScriptStatements,
 } from "./dto";
 
-export type { ApiError, ExportFormat, ExportStats, PreviewStart, QueryEvent, Value };
+export type { ApiError, ExportFormat, ExportStats, KafkaConsumeFrom, KafkaProduceResult, KafkaTopicPartition, PreviewStart, QueryEvent, Value };
 export type { BackupSummary, BatchResult, ImportOptions, ScriptStatements } from "./dto";
 export type { ImportSummary } from "./dto";
 export type {
@@ -93,8 +96,8 @@ export const api = {
     invoke<ServerInfo>("test_connection", { input }),
 
   // --------------------------------------------------------------- sessions
-  openSession: (profileId: string) =>
-    invoke<SessionInfo>("open_session", { profileId }),
+  openSession: (profileId: string, password?: string | null) =>
+    invoke<SessionInfo>("open_session", { profileId, password: password ?? null }),
   closeSession: (sessionId: string) =>
     invoke<void>("close_session", { sessionId }),
   listSessions: () => invoke<SessionInfo[]>("list_sessions"),
@@ -182,6 +185,10 @@ export const api = {
   listHistory: (limit?: number) =>
     invoke<HistoryEntry[]>("list_history", { limit: limit ?? null }),
   clearHistory: () => invoke<void>("clear_history"),
+  historyRetentionDays: () => invoke<number>("history_retention_days"),
+  setHistoryRetentionDays: (days: number) =>
+    invoke<number>("set_history_retention_days", { days }),
+  hasPassword: (id: string) => invoke<boolean>("has_password", { id }),
 
   // ------------------------------------------------- feature pack v1
   searchDatabase: (sessionId: string, request: SearchRequest) =>
@@ -270,6 +277,52 @@ export const api = {
     invoke<ScriptStatements>("split_sql_text", { text }),
   applyGridEdits: (request: GridEditRequest) =>
     invoke<EditApplyResult>("apply_grid_edits", { request }),
+
+  // ------------------------------------------------- Kafka topics
+  kafkaCreateTopic: (
+    sessionId: string,
+    topic: string,
+    partitions: number,
+    replicationFactor: number,
+  ) =>
+    invoke<void>("kafka_create_topic", {
+      sessionId,
+      topic,
+      partitions,
+      replicationFactor,
+    }),
+  kafkaDeleteTopic: (sessionId: string, topic: string) =>
+    invoke<void>("kafka_delete_topic", { sessionId, topic }),
+  kafkaTopicPartitions: (sessionId: string, topic: string) =>
+    invoke<KafkaTopicPartition[]>("kafka_topic_partitions", { sessionId, topic }),
+  kafkaProduce: (
+    sessionId: string,
+    topic: string,
+    partition: number | null,
+    key: string | null,
+    value: string,
+  ) =>
+    invoke<KafkaProduceResult>("kafka_produce", {
+      sessionId,
+      topic,
+      partition,
+      key,
+      value,
+    }),
+  kafkaConsume: (
+    sessionId: string,
+    topic: string,
+    partition: number | null,
+    from: KafkaConsumeFrom,
+    limit: number,
+  ) =>
+    invoke<CollectedRows>("kafka_consume", {
+      sessionId,
+      topic,
+      partition,
+      from,
+      limit,
+    }),
 
   // ------------------------------------------------- users / roles
   listDbUsers: (sessionId: string) =>

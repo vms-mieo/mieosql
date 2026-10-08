@@ -856,7 +856,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
             </button>
           </div>
           {stripVisible && (
-            <span className="text-[11.5px] text-slate-400">
+            <span className="text-[11.5px] text-slate-500">
               {pendingCount > 0
                 ? "⌘/Ctrl+Enter apply · ⌫ delete row"
                 : editable
@@ -864,7 +864,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
                   : ""}
             </span>
           )}
-          <span className="text-[12px] text-slate-500">
+          <span className="text-[12px] text-slate-600">
             {matchIndices
               ? `${matchIndices.length.toLocaleString()} / ${(result?.rows.length ?? 0).toLocaleString()} rows`
               : `${(result?.rows.length ?? 0).toLocaleString()} rows`}
@@ -1009,12 +1009,12 @@ function ErrorPanel({
       <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-white p-3">
         <AlertTriangle size={16} strokeWidth={1.7} className="mt-0.5 shrink-0 text-rose-500" />
         <div className="min-w-0">
-          <div className="font-code text-[12.5px] text-rose-600">{error.code}</div>
+          <div className="font-log text-rose-600">{error.code}</div>
           <div className="mt-0.5 text-[13px] font-medium text-slate-900">
             {error.message}
           </div>
           {error.detail && (
-            <div className="mt-1 font-code text-[12.5px] whitespace-pre-wrap text-slate-600">
+            <div className="mt-1 font-log whitespace-pre-wrap text-slate-600">
               {error.detail}
             </div>
           )}
@@ -1024,7 +1024,7 @@ function ErrorPanel({
             </div>
           )}
           {error.db_code && (
-            <div className="mt-1 font-code text-[12.5px] text-slate-400">
+            <div className="mt-1 font-log text-slate-400">
               code: {error.db_code}
             </div>
           )}
@@ -1060,9 +1060,9 @@ function MessagesView({
   onClear: () => void;
 }) {
   return (
-    <div className="custom-scrollbar flex-1 overflow-auto bg-surface p-3 font-code text-[12.5px]">
+    <div className="custom-scrollbar font-log flex-1 overflow-auto bg-surface p-3">
       {messages.length === 0 && (
-        <div className="text-slate-500">Nothing here yet.</div>
+        <div className="text-slate-600">Nothing here yet.</div>
       )}
       {messages.map((m) => (
         <div
@@ -1072,10 +1072,10 @@ function MessagesView({
               ? "text-rose-600"
               : m.level === "warn"
                 ? "text-amber-600"
-                : "text-slate-600"
+                : "text-slate-700"
           }`}
         >
-          <span className="w-[52px] shrink-0 text-[11px] text-slate-400">
+          <span className="w-[52px] shrink-0 text-[11px] text-slate-500">
             {new Date(m.at).toLocaleTimeString()}
           </span>
           <span className="whitespace-pre-wrap">

@@ -70,8 +70,9 @@ ts-rs = { version = "12", features = [
     "uuid-impl",
 ] }
 
-# Security (credential vault)
+# Security (credential vault — Navicat-like: encrypted, user-only, OS keychain for key)
 chacha20poly1305 = "0.11"
+keyring = "3"
 
 # CLI
 clap = { version = "4.6", features = ["derive"] }

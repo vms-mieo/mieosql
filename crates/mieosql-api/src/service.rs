@@ -3,9 +3,9 @@
 use chrono::Utc;
 
 use mieosql_core::{
-    Capabilities, ColumnDef, ConnectionProfile, ConnectionSpec, DatabaseRef, Engine, ForeignKeyDef,
-    IndexDef, ObjectKind, ObjectRef, ProfileId, QueryEvent, QueryMode, QueryOptions, SchemaRef,
-    Scope, ServerInfo, Value,
+    Capabilities, ColumnDef, ConnectionProfile, ConnectionSpec, DatabaseRef, Engine, ErrorCode,
+    ForeignKeyDef, IndexDef, MieoError, ObjectKind, ObjectRef, ProfileId, QueryEvent, QueryMode,
+    QueryOptions, SchemaRef, Scope, ServerInfo, Value,
 };
 use mieosql_engine::{
     Engine as CoreEngine, HistoryEntry, ProfileSecrets, QueryStream, SessionInfo,
@@ -13,6 +13,8 @@ use mieosql_engine::{
 
 use crate::dto::{ApiError, ApiResult, ProfileInput};
 use crate::export::{ExportFormat, ExportStats, ResultExporter};
+use crate::fetch::CollectedRows;
+use crate::maintenance::{KafkaConsumeFrom, KafkaProduceResult, KafkaTopicPartition};
 
 /// Frontend-facing facade over the engine.
 ///
@@ -57,6 +59,10 @@ impl Api {
             .map_err(Into::into)
     }
 
+    pub fn has_password(&self, id: String) -> bool {
+        self.engine.has_password(&ProfileId(id))
+    }
+
     // ------------------------------------------------------------------
     // Connection testing
     // ------------------------------------------------------------------
@@ -84,9 +90,13 @@ impl Api {
     // Sessions
     // ------------------------------------------------------------------
 
-    pub async fn open_session(&self, profile_id: String) -> ApiResult<SessionInfo> {
+    pub async fn open_session(
+        &self,
+        profile_id: String,
+        password: Option<String>,
+    ) -> ApiResult<SessionInfo> {
         self.engine
-            .open_session_for_profile(&ProfileId(profile_id))
+            .open_session_for_profile_with_password(&ProfileId(profile_id), password)
             .await
             .map_err(Into::into)
     }
@@ -212,6 +222,170 @@ impl Api {
             .use_database(&session_id, &database)
             .await
             .map_err(Into::into)
+    }
+
+    // ------------------------------------------------------------------
+    // Kafka topic administration
+    // ------------------------------------------------------------------
+
+    /// Kafka topic names allow ASCII letters/digits plus `.`, `_`, `-`
+    /// (mirrors the broker's own validation).
+    fn validate_kafka_topic(topic: &str) -> ApiResult<()> {
+        if topic.is_empty() || topic.len() > 249 {
+            return Err(
+                MieoError::new(ErrorCode::Data, "Kafka topic name must be 1-249 characters")
+                    .into(),
+            );
+        }
+        if !topic
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+        {
+            return Err(MieoError::new(
+                ErrorCode::Data,
+                format!(
+                    "invalid Kafka topic name `{topic}` (allowed: letters, digits, `.`, `_`, `-`)"
+                ),
+            )
+            .into());
+        }
+        Ok(())
+    }
+
+    pub async fn kafka_create_topic(
+        &self,
+        session_id: String,
+        topic: String,
+        partitions: i32,
+        replication_factor: i16,
+    ) -> ApiResult<()> {
+        Self::validate_kafka_topic(&topic)?;
+        if partitions < 1 || partitions > 100_000 {
+            return Err(
+                MieoError::new(ErrorCode::Data, "partitions must be between 1 and 100000").into(),
+            );
+        }
+        if replication_factor < 1 {
+            return Err(
+                MieoError::new(ErrorCode::Data, "replication factor must be >= 1").into(),
+            );
+        }
+        self.engine
+            .kafka_create_topic(&session_id, &topic, partitions, replication_factor)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn kafka_delete_topic(&self, session_id: String, topic: String) -> ApiResult<()> {
+        Self::validate_kafka_topic(&topic)?;
+        self.engine
+            .kafka_delete_topic(&session_id, &topic)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn kafka_topic_partitions(
+        &self,
+        session_id: String,
+        topic: String,
+    ) -> ApiResult<Vec<KafkaTopicPartition>> {
+        Self::validate_kafka_topic(&topic)?;
+        let marks = self
+            .engine
+            .kafka_topic_partitions(&session_id, &topic)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(marks
+            .into_iter()
+            .map(|(partition, earliest, latest)| KafkaTopicPartition {
+                partition,
+                earliest,
+                latest,
+            })
+            .collect())
+    }
+
+    pub async fn kafka_produce(
+        &self,
+        session_id: String,
+        topic: String,
+        partition: Option<i32>,
+        key: Option<String>,
+        value: String,
+    ) -> ApiResult<KafkaProduceResult> {
+        Self::validate_kafka_topic(&topic)?;
+        if let Some(p) = partition
+            && p < 0
+        {
+            return Err(MieoError::new(ErrorCode::Data, "`partition` must be >= 0").into());
+        }
+        let (partition, offset) = self
+            .engine
+            .kafka_produce(
+                &session_id,
+                &topic,
+                partition,
+                key.filter(|k| !k.is_empty()),
+                value,
+            )
+            .await
+            .map_err(ApiError::from)?;
+        Ok(KafkaProduceResult { partition, offset })
+    }
+
+    /// Fetch up to `limit` records from one topic partition (bounded,
+    /// kafka-ui style message browsing). An omitted partition resolves to the
+    /// topic's first partition.
+    pub async fn kafka_consume(
+        &self,
+        session_id: String,
+        topic: String,
+        partition: Option<i32>,
+        from: KafkaConsumeFrom,
+        limit: u32,
+    ) -> ApiResult<CollectedRows> {
+        Self::validate_kafka_topic(&topic)?;
+        let partition = match partition {
+            Some(p) => {
+                if p < 0 {
+                    return Err(
+                        MieoError::new(ErrorCode::Data, "`partition` must be >= 0").into(),
+                    );
+                }
+                p
+            }
+            None => {
+                let marks = self
+                    .engine
+                    .kafka_topic_partitions(&session_id, &topic)
+                    .await
+                    .map_err(ApiError::from)?;
+                marks.first().map(|(p, _, _)| *p).ok_or_else(|| {
+                    ApiError::from(MieoError::new(
+                        ErrorCode::NotFound,
+                        format!("Kafka topic `{topic}` has no partitions"),
+                    ))
+                })?
+            }
+        };
+        let from_part = match from {
+            KafkaConsumeFrom::Earliest => "\"earliest\"".to_string(),
+            KafkaConsumeFrom::Latest => "\"latest\"".to_string(),
+            KafkaConsumeFrom::Offset(o) => o.to_string(),
+        };
+        let limit = u64::from(limit.clamp(1, 2000));
+        // Topic names are validated above, so JSON embedding is safe.
+        let command = format!(
+            "{{ \"topic\": \"{topic}\", \"partition\": {partition}, \"from\": {from_part}, \"limit\": {limit} }}"
+        );
+        let out = self
+            .collect_query(&session_id, command, Vec::new(), QueryMode::Simple, Some(limit))
+            .await?;
+        Ok(CollectedRows {
+            columns: out.columns,
+            rows: out.rows,
+            stats: out.stats,
+        })
     }
 
     // ------------------------------------------------------------------
@@ -358,6 +532,16 @@ impl Api {
         self.engine.clear_history();
     }
 
+    pub fn history_retention_days(&self) -> u32 {
+        self.engine.history_retention_days()
+    }
+
+    pub fn set_history_retention_days(&self, days: u32) -> ApiResult<u32> {
+        self.engine
+            .set_history_retention_days(days)
+            .map_err(Into::into)
+    }
+
     /// Cancel every in-flight query (called on app shutdown).
     pub fn shutdown(&self) {
         self.engine.cancel_all_queries();
@@ -381,7 +565,6 @@ fn build_profile(input: ProfileInput) -> ApiResult<(ConnectionProfile, ProfileSe
     profile.color = input.color.clone();
     profile.group = input.group.clone();
     profile.variant = input.variant.clone();
-    profile.is_prod = input.is_prod;
 
     let secrets = ProfileSecrets {
         password: input.password.clone(),

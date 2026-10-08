@@ -11,6 +11,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { syntaxHighlighting } from "@codemirror/language";
 
 import type { Engine, Scope } from "../lib/bindings";
+import { alertDialog, promptDialog } from "../lib/dialog";
 import { mieosqlDark, mieosqlLight } from "../lib/editor-theme";
 import { resolveTheme } from "../lib/theme";
 import { useStore } from "../lib/store";
@@ -82,28 +83,32 @@ function renameSymbol(view: EditorView, engine: Engine | null): void {
   const { state } = view;
   const selection = state.selection.main;
   const text = state.doc.toString();
-  let word: string | null = null;
-  if (!selection.empty) {
+  let word: string | null = null;  if (!selection.empty) {
     const selected = state.doc.sliceString(selection.from, selection.to).trim();
     if (/^[A-Za-z_][A-Za-z0-9_$]*$/.test(selected)) word = selected;
   } else {
     word = identifierAt(engine, text, selection.head)?.text ?? null;
   }
   if (!word) return;
+  const target = word;
 
-  const next = window.prompt(`Rename "${word}" to:`, word);
-  if (!next || next === word) return;
-  if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(next)) {
-    window.alert(`"${next}" is not a valid SQL identifier.`);
-    return;
-  }
-  const occurrences = identifierOccurrences(engine, text, word);
-  if (occurrences.length === 0) return;
-  view.dispatch({
-    changes: occurrences.map((o) => ({ from: o.from, to: o.to, insert: next })),
-    userEvent: "rename",
-  });
-  view.focus();
+  void (async () => {
+    const next = (await promptDialog(`Rename "${target}" to:`, target, {
+      title: "Rename symbol",
+    }))?.trim();
+    if (!next || next === target) return;
+    if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(next)) {
+      await alertDialog(`"${next}" is not a valid SQL identifier.`);
+      return;
+    }
+    const occurrences = identifierOccurrences(engine, text, target);
+    if (occurrences.length === 0) return;
+    view.dispatch({
+      changes: occurrences.map((o) => ({ from: o.from, to: o.to, insert: next })),
+      userEvent: "rename",
+    });
+    view.focus();
+  })();
 }
 
 type Props = {

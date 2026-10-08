@@ -7,12 +7,12 @@
    =========================================================================== */
 
 @theme {
-  /* ---- Font families --------------------------------------------------- */
+  /* ---- Font families (spec: UI/grid = Inter · SQL/numbers/logs = JetBrains Mono) */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
-    "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono:
-    "SF Mono", ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo,
+    "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
     Consolas, "Liberation Mono", monospace;
 
   /* ---- Apple system grays → slate scale (base neutral) ------------------ */
@@ -241,7 +241,7 @@
   --text-tab--line-height: 1.4;
   --text-tab--font-weight: 500;
   /* Table */
-  --text-table: 12.5px;
+  --text-table: 13px;
   --text-table--line-height: 1.35;
   --text-table-head: 11.5px;
   --text-table-head--line-height: 1.35;
@@ -261,8 +261,14 @@
   --text-tooltip: 12px;
   --text-tooltip--line-height: 1.4;
   /* Code / SQL / JSON / logs */
-  --text-code: 12.5px;
+  --text-code: 12px;
   --text-code--line-height: 1.5;
+  /* SQL editor (spec: JetBrains Mono 13px / 1.25) */
+  --text-editor: 13px;
+  --text-editor--line-height: 1.25;
+  /* Numeric cells (spec: JetBrains Mono 12px) */
+  --text-num: 12px;
+  --text-num--line-height: 1.35;
 }
 
 :root {
@@ -308,6 +314,22 @@ body {
   font-family: var(--font-code);
 }
 
+/* Numbers: JetBrains Mono 12px, tabular figures. */
+.font-num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Terminal / logs / messages: JetBrains Mono 12px. */
+.font-log {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 /* ---- scrollbars (macOS overlay look) ---------------------------------- */
 ::-webkit-scrollbar {
   width: 11px;
@@ -334,15 +356,16 @@ body {
   scrollbar-width: thin;
 }
 
-/* ---- CodeMirror (SQL editor): code typography 12.5px / 1.5 ------------ */
+/* ---- CodeMirror (SQL editor spec: JetBrains Mono 13px / 1.25) ---------- */
 .cm-editor {
   height: 100%;
-  font-size: 12.5px;
+  font-size: 13px;
   background: #ffffff;
 }
 .cm-editor .cm-scroller {
   font-family: var(--font-mono);
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.25;
 }
 .cm-editor.cm-focused {
   outline: none;
@@ -355,6 +378,7 @@ body {
   border-right: 1px solid #e5e5ea !important;
   color: #aeaeb2 !important;
   font-family: var(--font-mono);
+  font-size: 12px;
 }
 .cm-activeLineGutter {
   background: #f2f2f7 !important;
@@ -368,7 +392,7 @@ body {
   background: rgba(0, 122, 255, 0.18) !important;
 }
 
-/* ---- Data grid (Excel-like, high density) ---- */
+/* ---- Data grid (spec: Inter 13px; numbers JetBrains Mono 12px) -------- */
 .grid-row {
   height: var(--row-h);
 }
@@ -384,12 +408,18 @@ body {
 .grid-cell {
   height: var(--row-h);
   line-height: var(--row-h);
+  font-family: var(--font-sans);
+  font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 0 8px;
   border-right: 1px solid var(--grid-line);
   border-bottom: 1px solid var(--grid-line);
+}
+.grid-cell.font-num {
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 .grid-cell.focused {
   outline: 1.5px solid var(--grid-focus);
@@ -474,7 +504,7 @@ body {
    tooltip theme is light-only — style the surfaces explicitly per theme. */
 .cm-tooltip.cm-tooltip-autocomplete > ul {
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 12px;
   max-height: 260px;
 }
 [data-theme="dark"] .cm-tooltip {

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { api, errorText } from "../lib/api";
+import { confirmDialog } from "../lib/dialog";
 import { useStore } from "../lib/store";
 import type {
   StructureSyncPlan,
@@ -212,7 +213,10 @@ export function StructureSyncDialog({ onClose }: { onClose: () => void }) {
       (destructive > 0
         ? `\n\n⚠ ${destructive} destructive statement(s) will drop data or objects.`
         : "");
-    if (!window.confirm(message)) return;
+    if (
+      !(await confirmDialog(message, { title: "Apply structure sync", kind: "warning" }))
+    )
+      return;
     setApplying(true);
     setError(null);
     try {

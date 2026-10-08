@@ -212,6 +212,26 @@ export function SettingsDialog() {
               checked={settings.confirmUnsafe}
               onToggle={(confirmUnsafe) => updateSettings({ confirmUnsafe })}
             />
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-1 py-0.5">
+              <span>
+                <span className="block text-[13px] text-slate-800">Keep query history</span>
+                <span className="block text-[11px] text-slate-400">
+                  Auto-delete entries older than N days (0 = forever)
+                </span>
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={3650}
+                value={settings.historyRetentionDays}
+                onChange={(e) => {
+                  const n = Math.floor(Number(e.target.value));
+                  if (Number.isFinite(n) && n >= 0 && n <= 3650)
+                    updateSettings({ historyRetentionDays: n });
+                }}
+                className="h-7 w-20 rounded-md border border-slate-300 bg-white px-2 text-[13px] focus:ring-2 focus:ring-accent/40 focus:outline-none"
+              />
+            </div>
           </Section>
 
           <Section title="About">

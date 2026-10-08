@@ -256,6 +256,150 @@ impl KafkaDriver {
         Ok(())
     }
 
+    /// Create a topic through the cluster controller.
+    pub async fn create_topic(
+        &mut self,
+        name: &str,
+        partitions: i32,
+        replication_factor: i16,
+    ) -> MieoResult<()> {
+        let controller = self
+            .client
+            .controller_client()
+            .map_err(map_kafka_err)?;
+        tokio::time::timeout(
+            Duration::from_secs(30),
+            controller.create_topic(name.to_string(), partitions, replication_factor, 10_000),
+        )
+        .await
+        .map_err(|_| {
+            MieoError::new(
+                ErrorCode::Timeout,
+                format!("Kafka create_topic `{name}` timed out after 30s"),
+            )
+        })?
+        .map_err(map_kafka_err)
+    }
+
+    /// Delete a topic through the cluster controller.
+    pub async fn delete_topic(&mut self, name: &str) -> MieoResult<()> {
+        let controller = self
+            .client
+            .controller_client()
+            .map_err(map_kafka_err)?;
+        tokio::time::timeout(
+            Duration::from_secs(30),
+            controller.delete_topic(name.to_string(), 10_000),
+        )
+        .await
+        .map_err(|_| {
+            MieoError::new(
+                ErrorCode::Timeout,
+                format!("Kafka delete_topic `{name}` timed out after 30s"),
+            )
+        })?
+        .map_err(map_kafka_err)
+    }
+
+    /// Earliest/latest offsets per partition of `topic`, sorted by partition.
+    pub async fn topic_watermarks(&mut self, topic: &str) -> MieoResult<Vec<(i32, i64, i64)>> {
+        let topics = self.client.list_topics().await.map_err(map_kafka_err)?;
+        let Some(info) = topics.into_iter().find(|t| t.name == topic) else {
+            return Err(MieoError::new(
+                ErrorCode::NotFound,
+                format!("Kafka topic `{topic}` not found"),
+            ));
+        };
+        let mut out = Vec::with_capacity(info.partitions.len());
+        for partition in info.partitions {
+            let partition_client = tokio::time::timeout(
+                Duration::from_secs(15),
+                self.client.partition_client(
+                    topic.to_string(),
+                    partition,
+                    UnknownTopicHandling::Retry,
+                ),
+            )
+            .await
+            .map_err(|_| {
+                MieoError::new(
+                    ErrorCode::Timeout,
+                    format!("Kafka metadata for `{topic}:{partition}` timed out"),
+                )
+            })?
+            .map_err(map_kafka_err)?;
+            let earliest = partition_client
+                .get_offset(OffsetAt::Earliest)
+                .await
+                .map_err(map_kafka_err)?;
+            let latest = partition_client
+                .get_offset(OffsetAt::Latest)
+                .await
+                .map_err(map_kafka_err)?;
+            out.push((partition, earliest, latest));
+        }
+        out.sort();
+        Ok(out)
+    }
+
+    /// Produce a single record; returns the (partition, broker offset) it
+    /// landed on. An omitted partition uses Kafka's default partitioner.
+    pub async fn produce_one(
+        &mut self,
+        topic: &str,
+        partition: Option<i32>,
+        key: Option<String>,
+        value: String,
+    ) -> MieoResult<(i32, i64)> {
+        let partition = match partition {
+            Some(p) => {
+                if p < 0 {
+                    return Err(MieoError::new(
+                        ErrorCode::Data,
+                        "`partition` must be >= 0".to_string(),
+                    ));
+                }
+                p
+            }
+            None => self.resolve_partition(topic, key.as_deref()).await?,
+        };
+        let partition_client = tokio::time::timeout(
+            Duration::from_secs(15),
+            self.client.partition_client(
+                topic.to_string(),
+                partition,
+                UnknownTopicHandling::Retry,
+            ),
+        )
+        .await
+        .map_err(|_| {
+            MieoError::new(
+                ErrorCode::Timeout,
+                format!("Kafka produce to `{topic}:{partition}` timed out"),
+            )
+        })?
+        .map_err(map_kafka_err)?;
+        let record = Record {
+            key: key.map(String::into_bytes),
+            value: Some(value.into_bytes()),
+            headers: BTreeMap::new(),
+            timestamp: Utc::now(),
+        };
+        let offsets = tokio::time::timeout(
+            Duration::from_secs(30),
+            partition_client.produce(vec![record], Compression::NoCompression),
+        )
+        .await
+        .map_err(|_| {
+            MieoError::new(
+                ErrorCode::Timeout,
+                format!("Kafka produce to `{topic}:{partition}` timed out"),
+            )
+        })?
+        .map_err(map_kafka_err)?;
+        Ok((partition, offsets.first().copied().unwrap_or(0)))
+    }
+
     pub async fn server_info(&mut self) -> MieoResult<ServerInfo> {
         Ok(ServerInfo {
             engine: Engine::Kafka,

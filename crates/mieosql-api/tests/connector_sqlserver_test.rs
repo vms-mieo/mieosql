@@ -219,13 +219,12 @@ async fn sqlserver_full_flow() {
             color: None,
             group: None,
             variant: None,
-            is_prod: false,
             password: Some(url.password.clone()),
             ssh_password: None,
         })
         .unwrap();
 
-    let session = api.open_session(profile.id.0.clone()).await.unwrap();
+    let session = api.open_session(profile.id.0.clone(), None).await.unwrap();
     assert_eq!(session.engine, CoreEngine::SqlServer);
     assert!(session.capabilities.transactions);
     let sid = session.id.clone();

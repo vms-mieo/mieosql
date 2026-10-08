@@ -7,6 +7,7 @@ import type { Tab } from "../lib/store";
 import { BiPanel } from "./BiPanel";
 import { ErdPanel } from "./ErdPanel";
 import { ExplainPanel } from "./ExplainPanel";
+import { KafkaMessagesPanel } from "./KafkaMessagesPanel";
 import { UsersPanel } from "./UsersPanel";
 
 export function FeatureHost({ tab }: { tab: Tab }) {
@@ -19,6 +20,8 @@ export function FeatureHost({ tab }: { tab: Tab }) {
       return <BiPanel tab={tab} />;
     case "users":
       return <UsersPanel tab={tab} />;
+    case "kafka-messages":
+      return <KafkaMessagesPanel tab={tab} />;
     default:
       return (
         <div className="grid flex-1 place-items-center bg-surface text-[13px] text-slate-500">

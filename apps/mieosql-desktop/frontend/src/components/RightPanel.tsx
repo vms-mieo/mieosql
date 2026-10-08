@@ -324,7 +324,13 @@ function HistoryList() {
     <div className="custom-scrollbar flex-1 overflow-y-auto px-2 pb-2 text-[11px]">
       <div className="flex items-center justify-between pt-2 pb-1 pl-1">
         <span className="text-[11px] font-semibold tracking-[0.06em] text-slate-500 uppercase">
-          Recent
+          Recent{" "}
+          <span
+            className="font-normal normal-case"
+            title="Auto-delete history older than N days (Settings → Data)"
+          >
+            · keep {store.settings.historyRetentionDays === 0 ? "∞" : `${store.settings.historyRetentionDays}d`}
+          </span>
         </span>
         <div className="flex items-center gap-0.5">
           <button

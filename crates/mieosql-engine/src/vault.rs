@@ -1,12 +1,17 @@
-//! Encrypted credential vault.
+//! Encrypted credential vault (Navicat-like).
 //!
-//! Secrets never live in `profiles.json`. Each secret value is encrypted with
-//! XChaCha20-Poly1305 under a random 32-byte master key stored in
-//! `<data_dir>/master.key` (mode 0600 on Unix).
+//! - Secrets never live in `profiles.json`. Each value is encrypted with
+//!   XChaCha20-Poly1305 under a random 32-byte master key.
+//! - The master key lives in the OS credential store (macOS Keychain /
+//!   Windows Credential Manager / Linux Secret Service via `keyring`),
+//!   exactly like Navicat's "Save password" model where only the logged-in
+//!   user can access stored credentials.
+//! - `master.key` on disk is kept only as a fallback for headless Linux / CI
+//!   where no keychain is available. `secrets.json` is always `0600`.
 //!
-//! This is the pragmatic v1 model: everything stays local, nothing is
-//! plaintext on disk, and an OS keychain-backed store (P2) can replace the
-//! `Vault` implementation without touching callers.
+//! Checkbox semantics (frontend): "Save password" checked (default) persists
+//! the secret; unchecked means the password is used transiently for the
+//! current connect/test and never written to the vault.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -22,6 +27,8 @@ use mieosql_core::{ErrorCode, MieoError, MieoResult};
 const B64: base64::engine::general_purpose::GeneralPurpose =
     base64::engine::general_purpose::STANDARD;
 const NONCE_LEN: usize = 24;
+const KEYRING_SERVICE: &str = "MieoSQL";
+const KEYRING_USER: &str = "vault-master-key";
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 struct VaultFile {
@@ -37,7 +44,8 @@ pub struct Vault {
 
 impl Vault {
     pub fn open(data_dir: &Path) -> MieoResult<Self> {
-        let key = load_or_create_key(&data_dir.join("master.key"))?;
+        let key_path = data_dir.join("master.key");
+        let key = load_or_create_key(&key_path)?;
         let path = data_dir.join("secrets.json");
         let store: VaultFile = if path.exists() {
             let raw = std::fs::read_to_string(&path)?;
@@ -45,6 +53,17 @@ impl Vault {
         } else {
             VaultFile::default()
         };
+        // User-only access, like Navicat's per-user registry/plist storage.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if path.exists() {
+                let _ = std::fs::set_permissions(
+                    &path,
+                    std::fs::Permissions::from_mode(0o600),
+                );
+            }
+        }
         Ok(Self {
             key,
             path,
@@ -74,6 +93,15 @@ impl Vault {
         decrypt(&self.key, raw).ok()
     }
 
+    /// Whether a secret exists for this profile (password never leaves vault).
+    pub fn has(&self, profile_id: &str, name: &str) -> bool {
+        let store = self.store.read().unwrap_or_else(|e| e.into_inner());
+        store
+            .profiles
+            .get(profile_id)
+            .is_some_and(|m| m.contains_key(name))
+    }
+
     pub fn remove_profile(&self, profile_id: &str) -> MieoResult<()> {
         let mut store = self.store.write().unwrap_or_else(|e| e.into_inner());
         store.profiles.remove(profile_id);
@@ -84,12 +112,39 @@ impl Vault {
         let json = serde_json::to_string_pretty(store)?;
         let tmp = self.path.with_extension("json.tmp");
         std::fs::write(&tmp, json)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(
+                &tmp,
+                std::fs::Permissions::from_mode(0o600),
+            );
+        }
         std::fs::rename(&tmp, &self.path)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(
+                &self.path,
+                std::fs::Permissions::from_mode(0o600),
+            );
+        }
         Ok(())
     }
 }
 
 fn load_or_create_key(path: &Path) -> MieoResult<[u8; 32]> {
+    // 1. Prefer the OS credential store (Navicat-like).
+    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+        && let Ok(stored) = entry.get_password()
+        && let Ok(raw) = B64.decode(stored.trim())
+        && raw.len() == 32
+    {
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&raw);
+        return Ok(key);
+    }
+    // 2. Fall back to the local file (headless / first run before migration).
     if path.exists() {
         let bytes = std::fs::read(path)?;
         if bytes.len() != 32 {
@@ -103,17 +158,29 @@ fn load_or_create_key(path: &Path) -> MieoResult<[u8; 32]> {
         }
         let mut key = [0u8; 32];
         key.copy_from_slice(&bytes);
+        // Best-effort migration into the keychain; file stays as fallback.
+        if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
+            let _ = entry.set_password(&B64.encode(key));
+        }
         return Ok(key);
     }
 
     let mut key = [0u8; 32];
     rand::rng().fill_bytes(&mut key);
+    // Always keep a file fallback (headless Linux / CI without a keychain).
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     std::fs::write(path, key)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o600);
         std::fs::set_permissions(path, perms)?;
+    }
+    // Best-effort primary copy in the OS credential store.
+    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
+        let _ = entry.set_password(&B64.encode(key));
     }
     Ok(key)
 }

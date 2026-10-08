@@ -61,7 +61,6 @@ async fn setup(tag: &str) -> Env {
                 color: None,
                 group: None,
                 variant: None,
-                is_prod: false,
                 password: Some("test".into()),
                 ssh_password: None,
             })
@@ -140,8 +139,8 @@ fn data_request(src: &str, tgt: &str, scope: &Scope) -> DataSyncRequest {
 async fn structure_and_data_sync_round_trip() {
     let env = setup("roundtrip").await;
     let api = &env.api;
-    let src = api.open_session(env.src_profile.clone()).await.unwrap();
-    let tgt = api.open_session(env.tgt_profile.clone()).await.unwrap();
+    let src = api.open_session(env.src_profile.clone(), None).await.unwrap();
+    let tgt = api.open_session(env.tgt_profile.clone(), None).await.unwrap();
     let scope = Scope {
         database: Some("main".into()),
         schema: None,
@@ -345,8 +344,8 @@ async fn structure_and_data_sync_round_trip() {
 async fn data_sync_caps_statements_and_reports_truncation() {
     let env = setup("caps").await;
     let api = &env.api;
-    let src = api.open_session(env.src_profile.clone()).await.unwrap();
-    let tgt = api.open_session(env.tgt_profile.clone()).await.unwrap();
+    let src = api.open_session(env.src_profile.clone(), None).await.unwrap();
+    let tgt = api.open_session(env.tgt_profile.clone(), None).await.unwrap();
     let scope = Scope {
         database: Some("main".into()),
         schema: None,

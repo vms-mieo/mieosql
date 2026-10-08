@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { api, errorText } from "../lib/api";
+import { confirmDialog } from "../lib/dialog";
 import { useStore } from "../lib/store";
 import type {
   DataSyncApplyResult,
@@ -166,7 +167,10 @@ export function DataSyncDialog({ onClose }: { onClose: () => void }) {
       `Apply this data sync to "${targetName}"?\n\n` +
       `${to_insert} insert(s), ${to_update} update(s), ${to_delete} delete(s) ` +
       `(from the current preview — the diff is re-computed on the backend).`;
-    if (!window.confirm(message)) return;
+    if (
+      !(await confirmDialog(message, { title: "Apply data sync", kind: "warning" }))
+    )
+      return;
     setApplying(true);
     setError(null);
     try {

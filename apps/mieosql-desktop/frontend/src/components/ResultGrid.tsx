@@ -237,20 +237,18 @@ function defaultWidth(col: ColumnMeta): number {
 function cellClass(tone: ReturnType<typeof formatCell>["tone"]): string {
   switch (tone) {
     case "null":
-      return "italic text-slate-400";
+      return "italic text-slate-500";
     case "number":
-      return "font-code text-slate-800";
-    case "temporal":
-      return "font-code text-slate-500";
-    case "json":
-      return "font-code text-slate-700";
-    case "binary":
-      return "font-code text-slate-600";
-    case "bool":
-      return "font-code text-slate-800";
+      // Spec: numbers = JetBrains Mono 12px.
+      return "font-num text-slate-800";
     case "unsupported":
       return "italic text-amber-600";
+    case "temporal":
+    case "json":
+    case "binary":
+    case "bool":
     default:
+      // Spec: data grid body = Inter 13px (inherits .grid-cell).
       return "text-slate-800";
   }
 }
@@ -262,22 +260,22 @@ function badgeTone(kind: ColumnMeta["kind"]): string {
     case "uint":
     case "float":
     case "decimal":
-      return "text-slate-400";
+      return "text-slate-500";
     case "date":
     case "time":
     case "datetime":
     case "timestamptz":
-      return "text-slate-400";
+      return "text-slate-500";
     case "json":
     case "uuid":
-      return "text-slate-400";
+      return "text-slate-500";
     case "bytes":
     case "geometry":
-      return "text-slate-400";
+      return "text-slate-500";
     case "bool":
-      return "text-slate-400";
+      return "text-slate-500";
     default:
-      return "text-slate-400";
+      return "text-slate-500";
   }
 }
 
@@ -865,14 +863,24 @@ export function ResultGrid({
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.font = "12px ui-monospace, Menlo, monospace";
     const col = columns[i];
     if (!col) return;
+    const isNum =
+      col.kind === "int" ||
+      col.kind === "uint" ||
+      col.kind === "float" ||
+      col.kind === "decimal";
+    const UI_FONT =
+      "13px Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Arial, sans-serif";
+    const NUM_FONT =
+      "12px 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace";
+    ctx.font = UI_FONT;
     let w = ctx.measureText(col.name).width + 64; // header + badge
     const sample = Math.min(total, 200);
     for (let k = 0; k < sample; k++) {
       const v = rowAt(k)[i];
       if (!v) continue;
+      ctx.font = formatCell(v).tone === "number" || isNum ? NUM_FONT : UI_FONT;
       w = Math.max(w, ctx.measureText(formatCell(v).text).width + 26);
     }
     setWidth(i, w);
@@ -1161,7 +1169,7 @@ export function ResultGrid({
           style={{ height: ROW_H }}
         >
           <div
-            className="sticky left-0 z-[6] flex shrink-0 items-center justify-center bg-sidebar text-[11.5px] font-medium text-slate-400"
+            className="sticky left-0 z-[6] flex shrink-0 items-center justify-center bg-sidebar text-[11.5px] font-medium text-slate-500"
 
             style={{ width: GUTTER_W }}
           >

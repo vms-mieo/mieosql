@@ -50,13 +50,12 @@ async fn open_db(api: &Api, name: &str, file: &Path) -> (String, String) {
             color: None,
             group: None,
             variant: None,
-            is_prod: false,
             password: None,
             ssh_password: None,
         })
         .unwrap();
     let pid = profile.id.0.clone();
-    let sid = api.open_session(pid.clone()).await.unwrap().id;
+    let sid = api.open_session(pid.clone(), None).await.unwrap().id;
     (pid, sid)
 }
 
@@ -250,7 +249,7 @@ async fn transfer_between_two_sessions_of_same_file() {
     // Same SQLite file, two sessions: satisfies the different-session rule.
     let (env, pid, src) = setup_one("transfer").await;
     let api = &env.api;
-    let dst = api.open_session(pid).await.unwrap().id;
+    let dst = api.open_session(pid, None).await.unwrap().id;
     exec(api, &src, "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)").await;
     exec(api, &src, "INSERT INTO items (id, name) VALUES (1, 'a'), (2, 'b'), (3, 'c')").await;
 

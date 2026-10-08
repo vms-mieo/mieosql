@@ -152,7 +152,6 @@ async fn kafka_produce_consume_roundtrip() {
             color: None,
             group: None,
             variant: None,
-            is_prod: false,
             password,
             ssh_password: None,
         })
@@ -160,7 +159,7 @@ async fn kafka_produce_consume_roundtrip() {
 
     let session = env
         .api
-        .open_session(profile.id.0.clone())
+        .open_session(profile.id.0.clone(), None)
         .await
         .expect("open Kafka session");
 

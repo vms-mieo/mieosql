@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { api, errorText } from "../lib/api";
+import { confirmDialog } from "../lib/dialog";
 import { useStore } from "../lib/store";
 import type {
   ColumnDef,
@@ -182,13 +183,14 @@ export function TransferDialog({ onClose }: { onClose: () => void }) {
     }
     if (
       activeMode.destructive &&
-      !window.confirm(
+      !(await confirmDialog(
         `“${activeMode.label}” is destructive: ${activeMode.description}\n\n` +
           `Source: ${sourceSession?.name ?? source.session_id}.${tableName}\n` +
           `Target: ${targetSession?.name ?? target.session_id}.${
             targetTable.trim() || tableName
           }\n\nContinue?`,
-      )
+        { title: activeMode.label, kind: "warning" },
+      ))
     ) {
       return;
     }

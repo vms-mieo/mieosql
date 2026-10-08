@@ -33,9 +33,4 @@ group?: string,
  * `elasticache`, `memorystore`, `redshift`, `azure`. Purely descriptive:
  * the underlying driver is chosen by `engine`.
  */
-variant?: string, 
-/**
- * Production guard: when true the UI shows a red border and requires
- * typing the database name to confirm destructive actions.
- */
-is_prod: boolean, created_at: string, updated_at: string, };
+variant?: string, created_at: string, updated_at: string, };

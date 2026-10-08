@@ -202,7 +202,6 @@ async fn run() -> Result<()> {
                     variant: None,
                     password: args.password,
                     ssh_password: None,
-                    is_prod: false,
                 };
                 let profile = api.save_profile(input)?;
                 println!("saved profile {} ({})", profile.id.0, profile.name);
@@ -238,7 +237,7 @@ async fn run() -> Result<()> {
 
         Command::Query(args) => {
             let profile_id = resolve_profile(&api, &args.profile)?;
-            let session = api.open_session(profile_id).await?;
+            let session = api.open_session(profile_id, None).await?;
             if let Some(db) = &args.database {
                 api.use_database(session.id.clone(), db.clone()).await?;
             }
@@ -311,7 +310,7 @@ async fn run() -> Result<()> {
 
         Command::Schema(args) => {
             let profile_id = resolve_profile(&api, &args.profile)?;
-            let session = api.open_session(profile_id).await?;
+            let session = api.open_session(profile_id, None).await?;
             if let Some(db) = &args.database {
                 api.use_database(session.id.clone(), db.clone()).await?;
             }
@@ -345,7 +344,7 @@ async fn run() -> Result<()> {
 
         Command::Columns(args) => {
             let profile_id = resolve_profile(&api, &args.profile)?;
-            let session = api.open_session(profile_id).await?;
+            let session = api.open_session(profile_id, None).await?;
             if let Some(db) = &args.database {
                 api.use_database(session.id.clone(), db.clone()).await?;
             }
@@ -420,7 +419,7 @@ async fn run() -> Result<()> {
 
         Command::Ddl(args) => {
             let profile_id = resolve_profile(&api, &args.profile)?;
-            let session = api.open_session(profile_id).await?;
+            let session = api.open_session(profile_id, None).await?;
             if let Some(db) = &args.database {
                 api.use_database(session.id.clone(), db.clone()).await?;
             }
