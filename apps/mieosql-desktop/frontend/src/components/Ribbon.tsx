@@ -1,54 +1,68 @@
-import {
-  FileCode2,
-  MoreHorizontal,
-  Plus,
-  RefreshCw,
-  Search,
-} from "lucide-react";
-
-import { useStore } from "../lib/store";
 import type { ObjectKind } from "../lib/bindings";
+import { isSqlEngine } from "../lib/quoting";
+import { runScriptFile } from "../lib/run-script";
+import { useStore } from "../lib/store";
+import { ThemeBinder } from "../lib/theme";
 import { PopupMenu, type MenuItem } from "./PopupMenu";
+import { SettingsDialog } from "./SettingsDialog";
+import {
+  IconBackup,
+  IconConnection,
+  IconNewQuery,
+  IconObjects,
+  IconRefresh,
+  IconSearch,
+  IconTable,
+  IconTools,
+  IconUsers,
+  IconView,
+} from "./RibbonIcons";
 
-function ToolbarButton({
+/**
+ * Toolbar ribbon (58px): large, colourful icons with labels — the Navicat
+ * look. Primary actions (Connection, New Query), object browsers (Tables,
+ * Views, Objects) and tools; everything else lives behind "Tools".
+ */
+function RibbonButton({
   icon,
   label,
   title,
+  active,
   disabled,
   onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   title?: string;
+  active?: boolean;
   disabled?: boolean;
   onClick?: () => void;
 }) {
   return (
     <button
-      className="group flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-900/[0.05] hover:text-slate-900 disabled:pointer-events-none disabled:text-slate-300"
+      className={`mx-0.5 flex w-[74px] shrink-0 flex-col items-center justify-center gap-[3px] rounded-lg py-1.5 transition-colors ${
+        active ? "bg-accent/10" : "hover:bg-slate-900/[0.05]"
+      } disabled:pointer-events-none disabled:opacity-40`}
+      title={title ?? label}
       disabled={disabled}
       onClick={onClick}
-      title={title ?? label}
     >
+      <span className="grid h-8 w-8 place-items-center">{icon}</span>
       <span
-        className={
-          disabled
-            ? "text-slate-300"
-            : "text-slate-600 group-hover:text-slate-900"
-        }
+        className={`text-[11px] leading-none ${
+          active ? "font-semibold text-accent" : "font-medium text-slate-700"
+        }`}
       >
-        {icon}
+        {label}
       </span>
-      {label}
     </button>
   );
 }
 
-/**
- * Slim toolbar (48px): primary + contextual actions only. Everything else
- * lives behind the "⋯" overflow (mirrors the Tools menu) — Apple-style
- * primary/contextual hierarchy instead of a grid of equal buttons.
- */
+function RibbonDivider() {
+  return <div className="mx-1.5 my-2.5 w-px shrink-0 self-stretch bg-slate-200" />;
+}
+
 export function Ribbon() {
   const store = useStore();
   const activeTab = store.tabs.find((t) => t.id === store.activeTabId);
@@ -68,6 +82,9 @@ export function Ribbon() {
     // No object selected: open the folder view for the session's default scope.
     store.openObjects(session.id, {}, kind, label);
   };
+
+  const objectsTabActive = (label: string) =>
+    activeTab?.kind === "objects" && activeTab.title === label;
 
   const overflowItems: MenuItem[] = [
     { kind: "label", label: "Browse" },
@@ -104,6 +121,30 @@ export function Ribbon() {
       onClick: () => store.openFeatureDialog("search"),
     },
     { kind: "separator" },
+    { kind: "label", label: "Backup & scripts" },
+    {
+      kind: "item",
+      label: "New Database…",
+      disabled: !session || !isSqlEngine(session.engine) || session.engine === "sqlite",
+      onClick: () => {
+        if (session) store.openObjectDialog("new-database", { sessionId: session.id });
+      },
+    },
+    {
+      kind: "item",
+      label: "Open SQL File…",
+      disabled: !session,
+      onClick: () => void runScriptFile(),
+    },
+    {
+      kind: "item",
+      label: "Restore from SQL File…",
+      disabled: !session,
+      onClick: () => {
+        if (session) store.openObjectDialog("restore", { sessionId: session.id });
+      },
+    },
+    { kind: "separator" },
     { kind: "label", label: "Design & tools" },
     {
       kind: "item",
@@ -128,15 +169,19 @@ export function Ribbon() {
     { kind: "separator" },
     {
       kind: "item",
-      label: "Users — coming soon",
-      disabled: true,
-      onClick: () => {},
+      label: "Users & Roles…",
+      disabled: !session,
+      onClick: () => {
+        if (session) {
+          store.setActiveSession(session.id);
+          store.openFeatureTab("users", "Users & Roles", { sessionId: session.id });
+        }
+      },
     },
     {
       kind: "item",
-      label: "Settings — coming soon",
-      disabled: true,
-      onClick: () => {},
+      label: "Settings…",
+      onClick: () => store.setSettingsOpen(true),
     },
     {
       kind: "item",
@@ -147,22 +192,67 @@ export function Ribbon() {
   ];
 
   return (
-    <section className="flex h-12 shrink-0 items-center gap-1 bg-window px-3">
-      <ToolbarButton
-        icon={<Plus size={16} strokeWidth={1.5} />}
+    <>
+      <ThemeBinder />
+      <SettingsDialog />
+    <section className="flex h-[58px] shrink-0 items-stretch gap-0 border-b border-slate-200/70 bg-window px-2 select-none">
+      <RibbonButton
+        icon={<IconConnection />}
         label="Connection"
         title="New connection"
         onClick={() => store.setConnectionModal(true)}
       />
-      <ToolbarButton
-        icon={<FileCode2 size={16} strokeWidth={1.5} />}
+      <RibbonButton
+        icon={<IconNewQuery />}
         label="New Query"
         title="New query (⌘N)"
         onClick={() => store.newQueryTab()}
       />
-      <div className="mx-1.5 h-5 w-px bg-slate-300/70" />
-      <ToolbarButton
-        icon={<RefreshCw size={15} strokeWidth={1.5} />}
+
+      <RibbonDivider />
+
+      <RibbonButton
+        icon={<IconTable />}
+        label="Tables"
+        title="Browse tables"
+        active={objectsTabActive("Tables")}
+        onClick={() => openFolder("table", "Tables")}
+      />
+      <RibbonButton
+        icon={<IconView />}
+        label="Views"
+        title="Browse views"
+        active={objectsTabActive("Views")}
+        onClick={() => openFolder("view", "Views")}
+      />
+      <RibbonButton
+        icon={<IconObjects />}
+        label="Objects"
+        title="All objects in the session"
+        disabled={!session}
+        onClick={() => {
+          if (session) store.openObjects(session.id, {}, "table", "Objects");
+        }}
+      />
+
+      <RibbonButton
+        icon={<IconUsers />}
+        label="Users"
+        title="Manage database users, roles and privileges"
+        disabled={!session}
+        active={activeTab?.kind === "feature" && activeTab.featureId === "users"}
+        onClick={() => {
+          if (session) {
+            store.setActiveSession(session.id);
+            store.openFeatureTab("users", "Users & Roles", { sessionId: session.id });
+          }
+        }}
+      />
+
+      <RibbonDivider />
+
+      <RibbonButton
+        icon={<IconRefresh />}
         label="Refresh"
         title="Reload connections and object tree"
         onClick={() => {
@@ -170,28 +260,37 @@ export function Ribbon() {
           window.dispatchEvent(new CustomEvent("mieosql:refresh-tree"));
         }}
       />
-      <ToolbarButton
-        icon={<Search size={15} strokeWidth={1.5} />}
+      <RibbonButton
+        icon={<IconSearch />}
         label="Search"
         title="Find objects and columns across the database"
         onClick={() => store.openFeatureDialog("search")}
       />
+      <RibbonButton
+        icon={<IconBackup />}
+        label="Backup"
+        title="Backup database"
+        disabled={!session}
+        onClick={() => {
+          if (session) store.openObjectDialog("backup", { sessionId: session.id, scope: {} });
+        }}
+      />
+
+      <RibbonDivider />
+
       <PopupMenu
         items={overflowItems}
         trigger={({ open, toggle }) => (
-          <button
-            className={`grid h-7 w-7 place-items-center rounded-md transition-colors ${
-              open
-                ? "bg-slate-900/[0.05] text-accent"
-                : "text-slate-600 hover:bg-slate-900/[0.05] hover:text-slate-900"
-            }`}
+          <RibbonButton
+            icon={<IconTools />}
+            label="Tools"
             title="More actions"
+            active={open}
             onClick={toggle}
-          >
-            <MoreHorizontal size={16} strokeWidth={1.5} />
-          </button>
+          />
         )}
       />
     </section>
+    </>
   );
 }

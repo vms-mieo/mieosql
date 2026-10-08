@@ -26,6 +26,12 @@ type FormState = {
   database: string;
   file: string;
   sslMode: SslMode;
+  /** UI grouping folder (`ProfileInput.group`); empty = Ungrouped. */
+  group: string;
+  /** UI accent color (`ProfileInput.color`); empty = default. */
+  color: string;
+  /** Production guard (`ProfileInput.is_prod`); extra confirmations. */
+  isProd: boolean;
   /** Preset/engine parameters sent as `ProfileInput.params`. */
   params: Record<string, string>;
 };
@@ -51,6 +57,9 @@ function emptyForm(): FormState {
     database: "",
     file: "",
     sslMode: "prefer",
+    group: "",
+    color: "",
+    isProd: false,
     params: {},
   };
 }
@@ -86,6 +95,9 @@ export function ConnectionModal() {
         database: editing.database ?? "",
         file: editing.file ?? "",
         sslMode: editing.ssl_mode,
+        group: editing.group ?? "",
+        color: editing.color ?? "",
+        isProd: editing.is_prod ?? false,
         params: { ...editing.params },
       });
     } else {
@@ -173,8 +185,9 @@ export function ConnectionModal() {
     params: isFile ? {} : { ...form.params },
     ssl_mode: isFile ? "disable" : form.sslMode,
     ssh: undefined,
-    color: undefined,
-    group: undefined,
+    color: form.color.trim() || undefined,
+    group: form.group.trim() || undefined,
+    is_prod: form.isProd,
     password: form.passwordTouched ? form.password : undefined,
     ssh_password: undefined,
   });
@@ -229,7 +242,7 @@ export function ConnectionModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[80] grid place-items-center bg-slate-900/30"
+      className="fixed inset-0 z-[80] grid place-items-center bg-black/40"
       onMouseDown={() => store.setConnectionModal(false)}
     >
       <div
@@ -405,6 +418,62 @@ export function ConnectionModal() {
                 onChange={(e) => set({ database: e.target.value })}
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+            <label className={labelCls}>Group</label>
+            <input
+              className={inputCls}
+              value={form.group}
+              placeholder="Ungrouped"
+              onChange={(e) => set({ group: e.target.value })}
+            />
+          </div>
+
+          <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+            <label className={labelCls}>Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                className="h-7 w-9 shrink-0 cursor-pointer rounded-md border border-slate-300 bg-white p-0.5"
+                value={/^#[0-9a-fA-F]{6}$/.test(form.color) ? form.color : "#007aff"}
+                onChange={(e) => set({ color: e.target.value })}
+                title="Connection accent color"
+              />
+              <input
+                className={inputCls}
+                value={form.color}
+                placeholder="default"
+                onChange={(e) => set({ color: e.target.value })}
+              />
+              {form.color && (
+                <button
+                  type="button"
+                  className="shrink-0 text-[12px] text-slate-500 hover:text-slate-700"
+                  onClick={() => set({ color: "" })}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-[130px_1fr] items-center gap-3">
+            <label className={labelCls}>Production</label>
+            <label className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-rose-600"
+                checked={form.isProd}
+                onChange={(e) => set({ isProd: e.target.checked })}
+              />
+              <span>
+                Production{" "}
+                <span className="text-slate-400">
+                  — Extra confirmations for destructive actions
+                </span>
+              </span>
+            </label>
           </div>
 
           {!isFile && meta.hints.length > 0 && (

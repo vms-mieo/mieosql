@@ -12,9 +12,34 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use mieosql_core::{
-    Capabilities, ColumnDef, ConnectionSpec, DataTypeKind, DatabaseRef, Engine, ErrorCode,
-    ForeignKeyDef, IndexDef, MieoError, MieoResult, ObjectKind, ObjectRef, PlaceholderStyle,
-    QueryEvent, QueryOptions, QueryStats, SchemaRef, Scope, ServerInfo, Value,
+    Capabilities,
+    ColumnDef,
+    ConnectionSpec,
+    CreateDbUser,
+    DataTypeKind,
+    DatabaseRef,
+    DbPrincipal,
+    DropDbPrincipal,
+    Engine,
+    ErrorCode,
+    ForeignKeyDef,
+    GrantRequest,
+    IndexDef,
+    MieoError,
+    MieoResult,
+    ObjectKind,
+    ObjectRef,
+    PlaceholderStyle,
+    QueryEvent,
+    QueryOptions,
+    QueryStats,
+    RevokeRequest,
+    RoleGrant,
+    SchemaRef,
+    Scope,
+    ServerInfo,
+    Value,
+    DbPrincipalDetail,
 };
 
 use crate::error_map::map_err;
@@ -38,6 +63,7 @@ pub(crate) fn sqlite_capabilities() -> Capabilities {
         simple_mode: true,
         ddl: true,
         multiple_databases: false,
+        user_management: false,
     }
 }
 
@@ -158,6 +184,39 @@ impl SqliteDriver {
             .filter(|d| !d.is_empty())
             .unwrap_or_else(|| "main".to_string());
         let prefix = format!("{}.", quote_ansi_ident(&db));
+
+        // Triggers live in sqlite_master with type = 'trigger'; tbl_name is
+        // the table they are attached to.
+        if kind == Some(ObjectKind::Trigger) {
+            let mut sql = format!(
+                "SELECT name, tbl_name FROM {prefix}sqlite_master \
+                 WHERE type = 'trigger' AND name NOT LIKE 'sqlite_%'"
+            );
+            if pattern.is_some() {
+                sql.push_str(" AND name LIKE ?");
+            }
+            sql.push_str(" ORDER BY name");
+
+            let mut q = sqlx::query::<Sqlite>(sqlx::AssertSqlSafe(sql));
+            if let Some(p) = pattern {
+                q = q.bind(format!("%{p}%"));
+            }
+            let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
+
+            return Ok(rows
+                .into_iter()
+                .map(|row| ObjectRef {
+                    name: s(&row, 0),
+                    kind: ObjectKind::Trigger,
+                    database: Some(db.clone()),
+                    schema: None,
+                    comment: trigger_comment(os(&row, 1).as_deref()),
+                    rows_estimate: None,
+                    size_bytes: None,
+                    updated_at: None,
+                })
+                .collect());
+        }
 
         let type_filter = match kind {
             Some(ObjectKind::Table) => "('table')",
@@ -403,6 +462,68 @@ impl SqliteDriver {
         Ok(row.and_then(|r| os(&r, 0)))
     }
 
+    // SQLite is a single-user embedded database: no users, roles or grants.
+    pub async fn list_db_users(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        Ok(Vec::new())
+    }
+
+    pub async fn list_db_roles(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        Ok(Vec::new())
+    }
+
+    pub async fn db_role_members(&mut self) -> MieoResult<Vec<RoleGrant>> {
+        Ok(Vec::new())
+    }
+
+    pub async fn db_user_grants(
+        &mut self,
+        _name: &str,
+        _host: Option<&str>,
+    ) -> MieoResult<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    fn users_unsupported<T>(what: &str) -> MieoResult<T> {
+        Err(MieoError::unsupported(format!(
+            "SQLite has no {what}: it is a single-user embedded database"
+        )))
+    }
+
+    pub async fn db_principal_detail(
+        &mut self,
+        _name: &str,
+        _host: Option<&str>,
+    ) -> MieoResult<DbPrincipalDetail> {
+        Err(MieoError::unsupported(
+            "this engine has no user management",
+        ))
+    }
+
+    pub async fn create_db_user(&mut self, _req: &CreateDbUser) -> MieoResult<()> {
+        Self::users_unsupported("user management")
+    }
+
+    pub async fn drop_db_principal(&mut self, _req: &DropDbPrincipal) -> MieoResult<()> {
+        Self::users_unsupported("user management")
+    }
+
+    pub async fn grant(&mut self, _req: &GrantRequest) -> MieoResult<()> {
+        Self::users_unsupported("GRANT")
+    }
+
+    pub async fn revoke(&mut self, _req: &RevokeRequest) -> MieoResult<()> {
+        Self::users_unsupported("REVOKE")
+    }
+
+    pub async fn set_user_password(
+        &mut self,
+        _name: &str,
+        _host: Option<&str>,
+        _password: &str,
+    ) -> MieoResult<()> {
+        Self::users_unsupported("user management")
+    }
+
     pub async fn use_database(&mut self, database: &str) -> MieoResult<()> {
         if database == "main" || database.is_empty() {
             return Ok(());
@@ -493,6 +614,13 @@ impl SqliteDriver {
 // ---------------------------------------------------------------------------
 // Row helpers for introspection queries
 // ---------------------------------------------------------------------------
+
+/// Explorer comment for a trigger row: the table it is attached to.
+fn trigger_comment(table: Option<&str>) -> Option<String> {
+    table
+        .filter(|t| !t.is_empty())
+        .map(|t| format!("ON {t}"))
+}
 
 fn s(row: &SqliteRow, idx: usize) -> String {
     row.try_get::<String, _>(idx).unwrap_or_default()
@@ -694,3 +822,23 @@ pub(crate) fn bind_sqlite<'q>(
 const _: Binder<Sqlite> = bind_sqlite;
 const _: Decoder<Sqlite> = decode_sqlite_row;
 const _: KindFn = kind_sqlite_storage;
+
+// ---------------------------------------------------------------------------
+// Unit tests (no server required)
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trigger_comment_names_table() {
+        assert_eq!(trigger_comment(Some("users")), Some("ON users".to_string()));
+    }
+
+    #[test]
+    fn trigger_comment_empty_is_none() {
+        assert_eq!(trigger_comment(None), None);
+        assert_eq!(trigger_comment(Some("")), None);
+    }
+}

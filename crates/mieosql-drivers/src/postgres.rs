@@ -15,9 +15,11 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use mieosql_core::{
-    Capabilities, ColumnDef, ConnectionSpec, DataTypeKind, DatabaseRef, Engine, ErrorCode,
-    ForeignKeyDef, IndexDef, MieoError, MieoResult, ObjectKind, ObjectRef, PlaceholderStyle,
-    QueryEvent, QueryOptions, QueryStats, SchemaRef, Scope, ServerInfo, Value,
+    Capabilities, ColumnDef, ConnectionSpec, CreateDbUser, DataTypeKind, DatabaseRef,
+    DbPrincipal, DbPrincipalDetail, DetailAttribute, DropDbPrincipal, Engine, ErrorCode,
+    ForeignKeyDef, GrantRequest, GrantTarget, IndexDef, MieoError, MieoResult, ObjectKind,
+    ObjectRef, PlaceholderStyle, PrincipalKind, PrivilegeEntry, QueryEvent, QueryOptions,
+    QueryStats, RevokeRequest, RoleGrant, SchemaRef, Scope, ServerInfo, Value,
 };
 
 use crate::error_map::map_err;
@@ -39,9 +41,9 @@ pub(crate) fn postgres_capabilities() -> Capabilities {
         schema_is_database: false,
         transactions: true,
         simple_mode: true,
-        // Full Postgres DDL generation (pg_dump style) is a P1 item.
-        ddl: false,
+        ddl: true,
         multiple_databases: true,
+        user_management: true,
     }
 }
 
@@ -169,13 +171,83 @@ impl PostgresDriver {
         kind: Option<ObjectKind>,
         pattern: Option<&str>,
     ) -> MieoResult<Vec<ObjectRef>> {
+        // Stored routines + triggers live in pg_proc / pg_trigger, not pg_class.
+        if matches!(kind, Some(ObjectKind::Function | ObjectKind::Procedure)) {
+            let prokind = if kind == Some(ObjectKind::Function) { "f" } else { "p" };
+            let mut rsql = String::from(
+                "SELECT n.nspname, p.proname FROM pg_proc p                  JOIN pg_namespace n ON n.oid = p.pronamespace                  WHERE p.prokind = $1                    AND n.nspname NOT IN ('pg_catalog', 'information_schema')                    AND n.nspname NOT LIKE 'pg\\_%'",
+            );
+            let mut params: Vec<String> = vec![prokind.to_string()];
+            if let Some(sc) = scope.schema.as_deref().filter(|s| !s.is_empty()) {
+                params.push(sc.to_string());
+                rsql.push_str(&format!(" AND n.nspname = ${}", params.len()));
+            }
+            if let Some(p) = pattern {
+                params.push(format!("%{p}%"));
+                rsql.push_str(&format!(" AND p.proname LIKE ${}", params.len()));
+            }
+            // Overloads share a name — the tree is keyed by name, so dedupe.
+            rsql.push_str(" GROUP BY n.nspname, p.proname ORDER BY n.nspname, p.proname");
+            let mut q = sqlx::query::<Postgres>(sqlx::AssertSqlSafe(rsql));
+            for p in &params {
+                q = q.bind(p.clone());
+            }
+            let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
+            let rkind = if prokind == "f" { ObjectKind::Function } else { ObjectKind::Procedure };
+            return Ok(rows
+                .into_iter()
+                .map(|row| ObjectRef {
+                    name: s(&row, 1),
+                    kind: rkind,
+                    database: self.spec.database.clone(),
+                    schema: Some(s(&row, 0)),
+                    comment: None,
+                    rows_estimate: None,
+                    size_bytes: None,
+                    updated_at: None,
+                })
+                .collect());
+        }
+        if kind == Some(ObjectKind::Trigger) {
+            let mut tsql = String::from(
+                "SELECT n.nspname, t.tgname, c.relname FROM pg_trigger t                  JOIN pg_class c ON c.oid = t.tgrelid                  JOIN pg_namespace n ON n.oid = c.relnamespace                  WHERE NOT t.tgisinternal                    AND n.nspname NOT IN ('pg_catalog', 'information_schema')                    AND n.nspname NOT LIKE 'pg\\_%'",
+            );
+            let mut params: Vec<String> = Vec::new();
+            if let Some(sc) = scope.schema.as_deref().filter(|s| !s.is_empty()) {
+                params.push(sc.to_string());
+                tsql.push_str(&format!(" AND n.nspname = ${}", params.len()));
+            }
+            if let Some(p) = pattern {
+                params.push(format!("%{p}%"));
+                tsql.push_str(&format!(" AND t.tgname LIKE ${}", params.len()));
+            }
+            tsql.push_str(" ORDER BY n.nspname, t.tgname");
+            let mut q = sqlx::query::<Postgres>(sqlx::AssertSqlSafe(tsql));
+            for p in &params {
+                q = q.bind(p.clone());
+            }
+            let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
+            return Ok(rows
+                .into_iter()
+                .map(|row| ObjectRef {
+                    name: s(&row, 1),
+                    kind: ObjectKind::Trigger,
+                    database: self.spec.database.clone(),
+                    schema: Some(s(&row, 0)),
+                    comment: Some(format!("ON {}", s(&row, 2))),
+                    rows_estimate: None,
+                    size_bytes: None,
+                    updated_at: None,
+                })
+                .collect());
+        }
         let kind_filter: Option<Vec<&str>> = match kind {
             Some(ObjectKind::Table) => Some(vec!["r", "p"]),
             Some(ObjectKind::View) => Some(vec!["v"]),
             Some(ObjectKind::MaterializedView) => Some(vec!["m"]),
             Some(ObjectKind::Sequence) => Some(vec!["S"]),
             Some(ObjectKind::Function | ObjectKind::Procedure | ObjectKind::Trigger) => {
-                return Ok(Vec::new());
+                unreachable!("handled above")
             }
             None => None,
         };
@@ -413,12 +485,251 @@ impl PostgresDriver {
 
     pub async fn object_ddl(
         &self,
-        _scope: &Scope,
-        _kind: ObjectKind,
-        _name: &str,
+        scope: &Scope,
+        kind: ObjectKind,
+        name: &str,
     ) -> MieoResult<Option<String>> {
-        // Full Postgres DDL reconstruction (pg_dump style) is planned for P1.
-        Ok(None)
+        let schema = self.resolve_schema(scope);
+        let qualified = format!("{}.{}", quote_ansi_ident(&schema), quote_ansi_ident(name));
+        match kind {
+            ObjectKind::Table => self.table_ddl(&schema, name, &qualified).await,
+            ObjectKind::View => {
+                let def: Option<String> = sqlx::query::<Postgres>(
+                    "SELECT pg_get_viewdef(to_regclass($1), true)",
+                )
+                .bind(format!("{schema}.{name}"))
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(map_err)?
+                .and_then(|row| row.try_get::<Option<String>, _>(0).ok().flatten());
+                match def {
+                    Some(d) if !d.trim().is_empty() => Ok(Some(format!(
+                        "CREATE OR REPLACE VIEW {qualified} AS\n{d};"
+                    ))),
+                    _ => Ok(None),
+                }
+            }
+            ObjectKind::MaterializedView => {
+                let def: Option<String> = sqlx::query::<Postgres>(
+                    "SELECT definition FROM pg_matviews WHERE schemaname = $1 AND matviewname = $2",
+                )
+                .bind(&schema)
+                .bind(name)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(map_err)?
+                .and_then(|row| row.try_get::<Option<String>, _>(0).ok().flatten());
+                match def {
+                    Some(d) if !d.trim().is_empty() => Ok(Some(format!(
+                        "CREATE MATERIALIZED VIEW {qualified} AS\n{d};"
+                    ))),
+                    _ => {
+                        // Fallback to pg_get_viewdef which also works for matviews.
+                        let fallback: Option<String> = sqlx::query::<Postgres>(
+                            "SELECT pg_get_viewdef(to_regclass($1), true)",
+                        )
+                        .bind(format!("{schema}.{name}"))
+                        .fetch_optional(&self.pool)
+                        .await
+                        .map_err(map_err)?
+                        .and_then(|row| row.try_get::<Option<String>, _>(0).ok().flatten());
+                        Ok(fallback
+                            .filter(|d| !d.trim().is_empty())
+                            .map(|d| format!("CREATE MATERIALIZED VIEW {qualified} AS\n{d};")))
+                    }
+                }
+            }
+            ObjectKind::Sequence => self.sequence_ddl(&schema, name, &qualified).await,
+            ObjectKind::Function | ObjectKind::Procedure => {
+                let rows = sqlx::query::<Postgres>(
+                    "SELECT pg_get_functiondef(p.oid) FROM pg_proc p \
+                     JOIN pg_namespace n ON n.oid = p.pronamespace \
+                     WHERE n.nspname = $1 AND p.proname = $2 ORDER BY p.oid",
+                )
+                .bind(&schema)
+                .bind(name)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(map_err)?;
+                let defs: Vec<String> = rows
+                    .into_iter()
+                    .filter_map(|row| row.try_get::<Option<String>, _>(0).ok().flatten())
+                    .filter(|d| !d.trim().is_empty())
+                    .collect();
+                if defs.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(defs.join("\n")))
+                }
+            }
+            ObjectKind::Trigger => {
+                let rows = sqlx::query::<Postgres>(
+                    "SELECT pg_get_triggerdef(t.oid) FROM pg_trigger t \
+                     JOIN pg_class c ON c.oid = t.tgrelid \
+                     JOIN pg_namespace n ON n.oid = c.relnamespace \
+                     WHERE NOT t.tgisinternal AND n.nspname = $1 AND c.relname = $2 \
+                     ORDER BY t.tgname",
+                )
+                .bind(&schema)
+                .bind(name)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(map_err)?;
+                let defs: Vec<String> = rows
+                    .into_iter()
+                    .filter_map(|row| row.try_get::<Option<String>, _>(0).ok().flatten())
+                    .filter(|d| !d.trim().is_empty())
+                    .collect();
+                if defs.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(
+                        defs.into_iter().map(|d| format!("{d};")).collect::<Vec<_>>().join("\n"),
+                    ))
+                }
+            }
+        }
+    }
+
+    async fn table_ddl(
+        &self,
+        schema: &str,
+        table: &str,
+        qualified: &str,
+    ) -> MieoResult<Option<String>> {
+        let scope = Scope {
+            database: None,
+            schema: Some(schema.to_string()),
+        };
+        let columns = self.table_columns(&scope, table).await?;
+        if columns.is_empty() {
+            return Ok(None);
+        }
+        let mut lines: Vec<String> = Vec::new();
+        for col in &columns {
+            let mut def = format!("  {} {}", quote_ansi_ident(&col.name), col.native_type);
+            if !col.nullable {
+                def.push_str(" NOT NULL");
+            }
+            if let Some(d) = col.default_value.as_deref().filter(|d| !d.is_empty()) {
+                def.push_str(&format!(" DEFAULT {d}"));
+            }
+            lines.push(def);
+        }
+        let pk: Vec<&str> = columns
+            .iter()
+            .filter(|c| c.is_primary_key)
+            .map(|c| c.name.as_str())
+            .collect();
+        if !pk.is_empty() {
+            let list = pk.iter().map(|n| quote_ansi_ident(n)).collect::<Vec<_>>().join(", ");
+            lines.push(format!("  PRIMARY KEY ({list})"));
+        }
+        let mut ddl = format!("CREATE TABLE {qualified} (\n{}\n);", lines.join(",\n"));
+
+        // Non-PK indexes as separate statements.
+        if let Ok(indexes) = self.table_indexes(&scope, table).await {
+            for idx in indexes.iter().filter(|i| !i.is_primary) {
+                let cols = if idx.columns.is_empty() {
+                    continue;
+                } else {
+                    idx.columns.join(", ")
+                };
+                let uniq = if idx.is_unique { "UNIQUE " } else { "" };
+                ddl.push_str(&format!(
+                    "\nCREATE {uniq}INDEX {} ON {qualified} ({cols});",
+                    quote_ansi_ident(&idx.name)
+                ));
+            }
+        }
+
+        // Foreign keys as ALTER TABLE ... ADD CONSTRAINT.
+        if let Ok(fks) = self.foreign_keys(&scope, table).await {
+            for fk in &fks {
+                if fk.columns.is_empty() || fk.ref_columns.is_empty() {
+                    continue;
+                }
+                let cols = fk.columns.iter().map(|c| quote_ansi_ident(c)).collect::<Vec<_>>().join(", ");
+                let ref_cols = fk.ref_columns.iter().map(|c| quote_ansi_ident(c)).collect::<Vec<_>>().join(", ");
+                let ref_table = match fk.ref_schema.as_deref().filter(|s| !s.is_empty()) {
+                    Some(rs) => format!("{}.{}", quote_ansi_ident(rs), quote_ansi_ident(&fk.ref_table)),
+                    None => format!("{}.{}", quote_ansi_ident(schema), quote_ansi_ident(&fk.ref_table)),
+                };
+                let mut stmt = format!(
+                    "\nALTER TABLE {qualified} ADD CONSTRAINT {} FOREIGN KEY ({cols}) REFERENCES {ref_table} ({ref_cols})",
+                    quote_ansi_ident(&fk.name)
+                );
+                if let Some(rule) = fk.on_delete.as_deref() {
+                    stmt.push_str(&format!(" ON DELETE {rule}"));
+                }
+                if let Some(rule) = fk.on_update.as_deref() {
+                    stmt.push_str(&format!(" ON UPDATE {rule}"));
+                }
+                stmt.push(';');
+                ddl.push_str(&stmt);
+            }
+        }
+
+        // Table + column comments.
+        let comment: Option<String> = sqlx::query::<Postgres>(
+            "SELECT obj_description(to_regclass($1), 'pg_class')",
+        )
+        .bind(format!("{schema}.{table}"))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?
+        .and_then(|row| row.try_get::<Option<String>, _>(0).ok().flatten());
+        if let Some(c) = comment.filter(|c| !c.is_empty()) {
+            ddl.push_str(&format!(
+                "\nCOMMENT ON TABLE {qualified} IS {};",
+                quote_literal(&c)
+            ));
+        }
+        for col in &columns {
+            if let Some(c) = col.comment.as_deref().filter(|c| !c.is_empty()) {
+                ddl.push_str(&format!(
+                    "\nCOMMENT ON COLUMN {qualified}.{} IS {};",
+                    quote_ansi_ident(&col.name),
+                    quote_literal(c)
+                ));
+            }
+        }
+        Ok(Some(ddl))
+    }
+
+    async fn sequence_ddl(
+        &self,
+        schema: &str,
+        name: &str,
+        qualified: &str,
+    ) -> MieoResult<Option<String>> {
+        let row = sqlx::query::<Postgres>(
+            "SELECT start_value, minimum_value, maximum_value, increment_by, cycle_option, cache_size, data_type \
+             FROM pg_sequences WHERE schemaname = $1 AND sequencename = $2",
+        )
+        .bind(schema)
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        let start: i64 = row.try_get::<i64, _>(0).unwrap_or(1);
+        let min: i64 = row.try_get::<i64, _>(1).unwrap_or(1);
+        let max: i64 = row.try_get::<i64, _>(2).unwrap_or(i64::MAX);
+        let inc: i64 = row.try_get::<i64, _>(3).unwrap_or(1);
+        let cycle: bool = row
+            .try_get::<String, _>(4)
+            .map(|v| v.eq_ignore_ascii_case("yes"))
+            .unwrap_or(false);
+        let cache: i64 = row.try_get::<i64, _>(5).unwrap_or(1);
+        let data_type: String = row.try_get::<String, _>(6).unwrap_or_else(|_| "bigint".into());
+        let mut ddl = format!("CREATE SEQUENCE {qualified} AS {data_type}");
+        ddl.push_str(&format!("\n  INCREMENT BY {inc}\n  MINVALUE {min}\n  MAXVALUE {max}\n  START WITH {start}"));
+        ddl.push_str(&format!("\n  CACHE {cache}"));
+        ddl.push_str(if cycle { "\n  CYCLE;" } else { "\n  NO CYCLE;" });
+        Ok(Some(ddl))
     }
 
     pub async fn use_database(&mut self, database: &str) -> MieoResult<()> {
@@ -503,6 +814,316 @@ impl PostgresDriver {
             )
             .await
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Users / roles / grants (also drives the authorization UI).
+    // In Postgres users and roles share `pg_roles`; `rolcanlogin` tells
+    // logins apart from pure roles.
+    // ------------------------------------------------------------------
+
+    async fn exec(&self, sql: &str) -> MieoResult<()> {
+        sqlx::query::<Postgres>(sqlx::AssertSqlSafe(sql.to_string()))
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
+    async fn role_rows(&self, logins: bool) -> MieoResult<Vec<DbPrincipal>> {
+        let rows = sqlx::query::<Postgres>(
+            "SELECT rolname, rolsuper, rolcreatedb, rolcreaterole, rolcanlogin              FROM pg_roles WHERE rolcanlogin = $1 ORDER BY rolname",
+        )
+        .bind(logins)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let superuser = row.try_get::<bool, _>(1).unwrap_or(false);
+                let createdb = row.try_get::<bool, _>(2).unwrap_or(false);
+                let createrole = row.try_get::<bool, _>(3).unwrap_or(false);
+                let mut flags: Vec<&str> = Vec::new();
+                if superuser {
+                    flags.push("SUPERUSER");
+                }
+                if createdb {
+                    flags.push("CREATEDB");
+                }
+                if createrole {
+                    flags.push("CREATEROLE");
+                }
+                DbPrincipal {
+                    name: s(&row, 0),
+                    host: None,
+                    kind: if logins {
+                        PrincipalKind::User
+                    } else {
+                        PrincipalKind::Role
+                    },
+                    is_super: superuser,
+                    can_login: row.try_get::<bool, _>(4).unwrap_or(logins),
+                    comment: if flags.is_empty() {
+                        None
+                    } else {
+                        Some(flags.join(" "))
+                    },
+                }
+            })
+            .collect())
+    }
+
+    pub async fn list_db_users(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        self.role_rows(true).await
+    }
+
+    pub async fn list_db_roles(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        self.role_rows(false).await
+    }
+
+    pub async fn db_role_members(&mut self) -> MieoResult<Vec<RoleGrant>> {
+        let rows = sqlx::query::<Postgres>(
+            "SELECT r.rolname, m.rolname, a.admin_option              FROM pg_auth_members a              JOIN pg_roles r ON r.oid = a.roleid              JOIN pg_roles m ON m.oid = a.member              ORDER BY 1, 2",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows
+            .into_iter()
+            .map(|row| RoleGrant {
+                role: s(&row, 0),
+                role_host: None,
+                member: s(&row, 1),
+                member_host: None,
+                admin_option: row.try_get::<bool, _>(2).unwrap_or(false),
+            })
+            .collect())
+    }
+
+    pub async fn db_user_grants(
+        &mut self,
+        name: &str,
+        _host: Option<&str>,
+    ) -> MieoResult<Vec<String>> {
+        // Direct object privileges are spread over many ACL columns; the
+        // stable, useful surface is role membership plus owned objects.
+        let rows = sqlx::query::<Postgres>(
+            "SELECT r.rolname FROM pg_auth_members a              JOIN pg_roles r ON r.oid = a.roleid              JOIN pg_roles m ON m.oid = a.member              WHERE m.rolname = $1 ORDER BY 1",
+        )
+        .bind(name)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows
+            .into_iter()
+            .map(|row| format!("MEMBER OF {}", s(&row, 0)))
+            .collect())
+    }
+
+    pub async fn db_principal_detail(
+        &mut self,
+        name: &str,
+        _host: Option<&str>,
+    ) -> MieoResult<DbPrincipalDetail> {
+        let row = sqlx::query::<Postgres>(
+            "SELECT rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolinherit, \
+                    rolreplication, rolconnlimit, rolvaliduntil, (rolpassword IS NOT NULL) \
+             FROM pg_roles WHERE rolname = $1",
+        )
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let Some(row) = row else {
+            return Err(MieoError::new(ErrorCode::NotFound, format!("role `{name}` not found")));
+        };
+        let bit = |i: usize| row.try_get::<bool, _>(i).unwrap_or(false);
+        let can_login = bit(0);
+        let is_super = bit(1);
+        let principal = DbPrincipal {
+            name: name.to_string(),
+            host: None,
+            kind: if can_login { PrincipalKind::User } else { PrincipalKind::Role },
+            is_super,
+            can_login,
+            comment: None,
+        };
+        let mut attributes: Vec<DetailAttribute> = Vec::new();
+        let kv = |k: &str, v: String| DetailAttribute { key: k.to_string(), value: v };
+        let yn = |b: bool| if b { "yes".into() } else { "no".into() };
+        attributes.push(kv("Can login", yn(can_login)));
+        attributes.push(kv("Superuser", yn(is_super)));
+        attributes.push(kv("Create DB", yn(bit(2))));
+        attributes.push(kv("Create role", yn(bit(3))));
+        attributes.push(kv("Inherit", yn(bit(4))));
+        attributes.push(kv("Replication", yn(bit(5))));
+        attributes.push(kv(
+            "Connection limit",
+            row.try_get::<i32, _>(6).map(|n| if n < 0 { "unlimited".into() } else { n.to_string() }).unwrap_or_else(|_| "unlimited".into()),
+        ));
+        if let Ok(Some(ts)) = row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>(7) {
+            attributes.push(kv("Valid until", ts.to_rfc3339()));
+        }
+        attributes.push(kv("Password set", yn(bit(8))));
+
+        // Object privileges from the standard view, grouped per table.
+        let mut object_privileges: Vec<PrivilegeEntry> = Vec::new();
+        if let Ok(rows) = sqlx::query::<Postgres>(
+            "SELECT table_schema, table_name, privilege_type, is_grantable \
+             FROM information_schema.table_privileges WHERE grantee = $1 \
+             ORDER BY 1, 2",
+        )
+        .bind(name)
+        .fetch_all(&self.pool)
+        .await
+        {
+            let mut grouped: std::collections::BTreeMap<(String, String), (Vec<String>, bool)> =
+                std::collections::BTreeMap::new();
+            for row in rows {
+                let key = (s(&row, 0), s(&row, 1));
+                let e = grouped.entry(key).or_default();
+                e.0.push(s(&row, 2));
+                if s(&row, 3).eq_ignore_ascii_case("YES") {
+                    e.1 = true;
+                }
+            }
+            for ((schema, table), (mut privs, grantable)) in grouped {
+                privs.sort();
+                privs.dedup();
+                object_privileges.push(PrivilegeEntry {
+                    privileges: privs,
+                    database: None,
+                    schema: Some(schema),
+                    table: Some(table),
+                    grantable,
+                });
+            }
+        }
+
+        let all_members = self.db_role_members().await.unwrap_or_default();
+        let member_of = all_members.iter().filter(|g| g.member == name).cloned().collect();
+        let members = all_members.iter().filter(|g| g.role == name).cloned().collect();
+
+        Ok(DbPrincipalDetail {
+            principal,
+            attributes,
+            global_privileges: Vec::new(),
+            object_privileges,
+            member_of,
+            members,
+        })
+    }
+
+    pub async fn create_db_user(&mut self, req: &CreateDbUser) -> MieoResult<()> {
+        let mut stmt = format!("CREATE ROLE {}", quote_ansi_ident(&req.name));
+        if req.login {
+            stmt.push_str(" WITH LOGIN");
+        } else {
+            stmt.push_str(" WITH NOLOGIN");
+        }
+        if req.superuser {
+            stmt.push_str(" SUPERUSER");
+        }
+        if let Some(pw) = req.password.as_deref().filter(|p| !p.is_empty()) {
+            stmt.push_str(&format!(" PASSWORD {}", quote_literal(pw)));
+        }
+        self.exec(&stmt).await
+    }
+
+    pub async fn drop_db_principal(&mut self, req: &DropDbPrincipal) -> MieoResult<()> {
+        self.exec(&format!("DROP ROLE {}", quote_ansi_ident(&req.name)))
+            .await
+    }
+
+    fn grant_object_pg(database: Option<&str>, schema: Option<&str>, table: Option<&str>) -> String {
+        match (schema.filter(|s| !s.is_empty()), table.filter(|t| !t.is_empty())) {
+            (Some(sc), Some(tbl)) => format!(
+                "TABLE {}.{}",
+                quote_ansi_ident(sc),
+                quote_ansi_ident(tbl)
+            ),
+            _ => match database.filter(|d| !d.is_empty()) {
+                Some(db) => format!("DATABASE {}", quote_ansi_ident(db)),
+                None => "TABLE *".to_string(),
+            },
+        }
+    }
+
+    pub async fn grant(&mut self, req: &GrantRequest) -> MieoResult<()> {
+        let grantee = quote_ansi_ident(&req.grantee);
+        let stmt = match &req.target {
+            GrantTarget::Privileges {
+                privileges,
+                database,
+                schema,
+                table,
+            } => {
+                let object = Self::grant_object_pg(
+                    database.as_deref(),
+                    schema.as_deref().or(Some("public")),
+                    table.as_deref(),
+                );
+                if object == "TABLE *" {
+                    return Err(MieoError::new(
+                        ErrorCode::Data,
+                        "choose a table or a database for this grant",
+                    ));
+                }
+                let mut s = format!("GRANT {privileges} ON {object} TO {grantee}");
+                if req.with_grant_option {
+                    s.push_str(" WITH GRANT OPTION");
+                }
+                s
+            }
+            GrantTarget::Role { role, .. } => {
+                format!("GRANT {} TO {grantee}", quote_ansi_ident(role))
+            }
+        };
+        self.exec(&stmt).await
+    }
+
+    pub async fn revoke(&mut self, req: &RevokeRequest) -> MieoResult<()> {
+        let grantee = quote_ansi_ident(&req.grantee);
+        let stmt = match &req.target {
+            GrantTarget::Privileges {
+                privileges,
+                database,
+                schema,
+                table,
+            } => {
+                let object = Self::grant_object_pg(
+                    database.as_deref(),
+                    schema.as_deref().or(Some("public")),
+                    table.as_deref(),
+                );
+                if object == "TABLE *" {
+                    return Err(MieoError::new(
+                        ErrorCode::Data,
+                        "choose a table or a database for this grant",
+                    ));
+                }
+                format!("REVOKE {privileges} ON {object} FROM {grantee}")
+            }
+            GrantTarget::Role { role, .. } => {
+                format!("REVOKE {} FROM {grantee}", quote_ansi_ident(role))
+            }
+        };
+        self.exec(&stmt).await
+    }
+
+    pub async fn set_user_password(
+        &mut self,
+        name: &str,
+        _host: Option<&str>,
+        password: &str,
+    ) -> MieoResult<()> {
+        self.exec(&format!(
+            "ALTER ROLE {} WITH PASSWORD {}",
+            quote_ansi_ident(name),
+            quote_literal(password)
+        ))
+        .await
     }
 
     fn resolve_schema(&self, scope: &Scope) -> String {

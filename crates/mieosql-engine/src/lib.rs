@@ -15,9 +15,33 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use mieosql_core::{
-    Capabilities, ColumnDef, ConnectionProfile, ConnectionSpec, DatabaseRef, ErrorCode,
-    ForeignKeyDef, IndexDef, MieoError, MieoResult, ObjectKind, ObjectRef, ProfileId, QueryEvent,
-    QueryOptions, SchemaRef, Scope, ServerInfo, Value,
+    Capabilities,
+    ColumnDef,
+    ConnectionProfile,
+    ConnectionSpec,
+    CreateDbUser,
+    DatabaseRef,
+    DbPrincipal,
+    DropDbPrincipal,
+    ErrorCode,
+    ForeignKeyDef,
+    GrantRequest,
+    IndexDef,
+    MieoError,
+    MieoResult,
+    ObjectKind,
+    ObjectRef,
+    ProfileId,
+    QueryEvent,
+    QueryMode,
+    QueryOptions,
+    RevokeRequest,
+    RoleGrant,
+    SchemaRef,
+    Scope,
+    ServerInfo,
+    Value,
+    DbPrincipalDetail,
 };
 use mieosql_drivers::AnyDriver;
 use tokio::sync::mpsc;
@@ -176,6 +200,9 @@ impl Engine {
             opened_at: Utc::now(),
             database: std::sync::RwLock::new(spec.database.clone()),
             driver: tokio::sync::Mutex::new(driver),
+            spec: spec.clone(),
+            meta: tokio::sync::Mutex::new(None),
+            backend_pid: tokio::sync::Mutex::new(None),
         });
         let info = session.info().await;
         self.inner.sessions.insert(session);
@@ -220,14 +247,14 @@ impl Engine {
 
     pub async fn server_info(&self, session_id: &str) -> MieoResult<ServerInfo> {
         let session = self.inner.sessions.get(session_id)?;
-        let mut guard = session.driver.lock().await;
-        guard.server_info().await
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        conn.driver().server_info().await
     }
 
     pub async fn list_databases(&self, session_id: &str) -> MieoResult<Vec<DatabaseRef>> {
         let session = self.inner.sessions.get(session_id)?;
-        let mut guard = session.driver.lock().await;
-        guard.list_databases().await
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        conn.driver().list_databases().await
     }
 
     /// List schemas; engines where schema == database fall back to databases.
@@ -237,9 +264,10 @@ impl Engine {
         database: Option<&str>,
     ) -> MieoResult<Vec<SchemaRef>> {
         let session = self.inner.sessions.get(session_id)?;
-        let mut guard = session.driver.lock().await;
-        if guard.capabilities().schema_is_database {
-            let dbs = guard.list_databases().await?;
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        let driver = conn.driver();
+        if driver.capabilities().schema_is_database {
+            let dbs = driver.list_databases().await?;
             let only = database.map(|d| d.to_string());
             return Ok(dbs
                 .into_iter()
@@ -250,7 +278,7 @@ impl Engine {
                 })
                 .collect());
         }
-        guard.list_schemas(database).await
+        driver.list_schemas(database).await
     }
 
     pub async fn list_objects(
@@ -261,8 +289,8 @@ impl Engine {
         pattern: Option<&str>,
     ) -> MieoResult<Vec<ObjectRef>> {
         let session = self.inner.sessions.get(session_id)?;
-        let mut guard = session.driver.lock().await;
-        guard.list_objects(scope, kind, pattern).await
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        conn.driver().list_objects(scope, kind, pattern).await
     }
 
     pub async fn table_columns(
@@ -272,8 +300,8 @@ impl Engine {
         table: &str,
     ) -> MieoResult<Vec<ColumnDef>> {
         let session = self.inner.sessions.get(session_id)?;
-        let mut guard = session.driver.lock().await;
-        guard.table_columns(scope, table).await
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        conn.driver().table_columns(scope, table).await
     }
 
     pub async fn table_indexes(
@@ -283,8 +311,8 @@ impl Engine {
         table: &str,
     ) -> MieoResult<Vec<IndexDef>> {
         let session = self.inner.sessions.get(session_id)?;
-        let mut guard = session.driver.lock().await;
-        guard.table_indexes(scope, table).await
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        conn.driver().table_indexes(scope, table).await
     }
 
     pub async fn foreign_keys(
@@ -294,8 +322,8 @@ impl Engine {
         table: &str,
     ) -> MieoResult<Vec<ForeignKeyDef>> {
         let session = self.inner.sessions.get(session_id)?;
-        let mut guard = session.driver.lock().await;
-        guard.foreign_keys(scope, table).await
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        conn.driver().foreign_keys(scope, table).await
     }
 
     pub async fn object_ddl(
@@ -306,8 +334,96 @@ impl Engine {
         name: &str,
     ) -> MieoResult<Option<String>> {
         let session = self.inner.sessions.get(session_id)?;
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        conn.driver().object_ddl(scope, kind, name).await
+    }
+
+    // ------------------------------------------------------------------
+    // Users / roles / grants (also drives the authorization UI).
+    // ------------------------------------------------------------------
+
+    pub async fn list_db_users(&self, session_id: &str) -> MieoResult<Vec<DbPrincipal>> {
+        let session = self.inner.sessions.get(session_id)?;
         let mut guard = session.driver.lock().await;
-        guard.object_ddl(scope, kind, name).await
+        guard.list_db_users().await
+    }
+
+    pub async fn list_db_roles(&self, session_id: &str) -> MieoResult<Vec<DbPrincipal>> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut guard = session.driver.lock().await;
+        guard.list_db_roles().await
+    }
+
+    pub async fn db_role_members(&self, session_id: &str) -> MieoResult<Vec<RoleGrant>> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut guard = session.driver.lock().await;
+        guard.db_role_members().await
+    }
+
+    pub async fn db_user_grants(
+        &self,
+        session_id: &str,
+        name: &str,
+        host: Option<&str>,
+    ) -> MieoResult<Vec<String>> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut guard = session.driver.lock().await;
+        guard.db_user_grants(name, host).await
+    }
+
+    pub async fn create_db_user(
+        &self,
+        session_id: &str,
+        req: &CreateDbUser,
+    ) -> MieoResult<()> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut guard = session.driver.lock().await;
+        guard.create_db_user(req).await
+    }
+
+    pub async fn drop_db_principal(
+        &self,
+        session_id: &str,
+        req: &DropDbPrincipal,
+    ) -> MieoResult<()> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut guard = session.driver.lock().await;
+        guard.drop_db_principal(req).await
+    }
+
+    pub async fn grant(&self, session_id: &str, req: &GrantRequest) -> MieoResult<()> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut guard = session.driver.lock().await;
+        guard.grant(req).await
+    }
+
+    pub async fn revoke(&self, session_id: &str, req: &RevokeRequest) -> MieoResult<()> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut guard = session.driver.lock().await;
+        guard.revoke(req).await
+    }
+
+    pub async fn set_user_password(
+        &self,
+        session_id: &str,
+        name: &str,
+        host: Option<&str>,
+        password: &str,
+    ) -> MieoResult<()> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut guard = session.driver.lock().await;
+        guard.set_user_password(name, host, password).await
+    }
+
+    pub async fn db_principal_detail(
+        &self,
+        session_id: &str,
+        name: &str,
+        host: Option<&str>,
+    ) -> MieoResult<DbPrincipalDetail> {
+        let session = self.inner.sessions.get(session_id)?;
+        let mut guard = session.driver.lock().await;
+        guard.db_principal_detail(name, host).await
     }
 
     pub async fn use_database(&self, session_id: &str, database: &str) -> MieoResult<()> {
@@ -317,6 +433,15 @@ impl Engine {
             guard.use_database(database).await?;
         }
         session.set_database(Some(database.to_string()));
+        // Keep a lazily opened meta connection on the same catalog. If it
+        // cannot follow the switch, drop it so the next introspection call
+        // re-opens it lazily with the current database.
+        let mut meta = session.meta.lock().await;
+        if let Some(driver) = meta.as_mut() {
+            if driver.use_database(database).await.is_err() {
+                *meta = None;
+            }
+        }
         Ok(())
     }
 
@@ -330,8 +455,8 @@ impl Engine {
         limit: u64,
     ) -> MieoResult<String> {
         let session = self.inner.sessions.get(session_id)?;
-        let guard = session.driver.lock().await;
-        guard.preview_statement(scope, table, limit)
+        let mut conn = introspection_conn(&session, &self.inner.sessions).await?;
+        conn.driver().preview_statement(scope, table, limit)
     }
 
     // ------------------------------------------------------------------
@@ -375,7 +500,7 @@ impl Engine {
         let cancel = CancellationToken::new();
         self.inner
             .sessions
-            .register_query(&query_id, cancel.clone());
+            .register_query(&query_id, session_id, cancel.clone());
 
         let inner = self.inner.clone();
         let qid = query_id.clone();
@@ -394,6 +519,10 @@ impl Engine {
 
             let result = {
                 let mut guard = session_for_task.driver.lock().await;
+                // The primary is idle here (we hold its lock): record which
+                // server backend it is, so `cancel_query` can kill it for
+                // real. Best-effort; never fails the user's query.
+                refresh_backend_pid(&session_for_task, &mut guard).await;
                 guard
                     .run_query(&qid, sql, params, &options, &tx, &cancel)
                     .await
@@ -462,8 +591,26 @@ impl Engine {
     }
 
     /// Cancel a running query by id. Returns `true` if it was found.
+    ///
+    /// Always delivers the soft (client-side) cancel first, then best-effort
+    /// kills the server backend through the session's meta connection in the
+    /// background — without the kill the server would keep working even
+    /// though we stopped listening. Stays synchronous for the API layer; all
+    /// kill failures are swallowed.
     pub fn cancel_query(&self, query_id: &str) -> bool {
-        self.inner.sessions.cancel_query(query_id)
+        if !self.inner.sessions.cancel_query(query_id) {
+            return false;
+        }
+        if let Some(session_id) = self.inner.sessions.session_for_query(query_id) {
+            if let Ok(session) = self.inner.sessions.get(&session_id) {
+                if tokio::runtime::Handle::try_current().is_ok() {
+                    tokio::spawn(async move {
+                        kill_session_backend(&session).await;
+                    });
+                }
+            }
+        }
+        true
     }
 
     pub fn cancel_all_queries(&self) {
@@ -487,4 +634,256 @@ impl Engine {
         let session = self.inner.sessions.get(session_id)?;
         Ok(session.capabilities.clone())
     }
+}
+
+// ------------------------------------------------------------------
+// Query cancellation + introspection helpers (QE-03/QE-04)
+//
+// A session owns two physical connections: the primary (`Session::driver`,
+// serializes one statement at a time like one query tab) and a lazily opened
+// side connection (`Session::meta`). Introspection (schema tree,
+// autocomplete, server info) prefers the primary when it is idle — keeping
+// exact tab semantics, including manual transactions — and routes around it
+// through the side connection otherwise, so a long-running query never
+// blocks the schema tree. Cancellation delivers the soft token first and
+// then kills the server backend through the side connection.
+// ------------------------------------------------------------------
+
+/// Which physical connection serves one introspection call.
+enum IntrospectionConn<'a> {
+    /// Primary connection: idle and outside a manual transaction.
+    Query(tokio::sync::MutexGuard<'a, AnyDriver>),
+    /// Side connection: the primary is busy (or in a manual transaction).
+    Meta(tokio::sync::MutexGuard<'a, Option<AnyDriver>>),
+}
+
+impl IntrospectionConn<'_> {
+    fn driver(&mut self) -> &mut AnyDriver {
+        match self {
+            IntrospectionConn::Query(guard) => guard,
+            IntrospectionConn::Meta(guard) => {
+                guard.as_mut().expect("meta connection ensured before use")
+            }
+        }
+    }
+}
+
+/// Pick the connection for one introspection call (see `IntrospectionConn`).
+///
+/// Never waits on a running query: when the primary connection is busy, or a
+/// manual transaction is open on it, the lazily opened meta connection serves
+/// the call instead. (Introspection inside a manual transaction deliberately
+/// bypasses the transaction so catalog reads neither see uncommitted DDL nor
+/// get folded into the user's transaction.)
+async fn introspection_conn<'a>(
+    session: &'a Arc<Session>,
+    sessions: &SessionManager,
+) -> MieoResult<IntrospectionConn<'a>> {
+    // Fast, non-blocking path: the primary is idle and outside a manual
+    // transaction. `try_lock` (not `lock`) is what keeps a long query from
+    // blocking the schema tree: on contention we fall through to the meta
+    // connection below. A tiny race remains (a query may start between the
+    // `has_running_query` check and `try_lock`), but then `try_lock` simply
+    // fails and we take the meta path anyway.
+    if !sessions.has_running_query(&session.id) {
+        if let Ok(guard) = session.driver.try_lock() {
+            if !guard.in_transaction() {
+                return Ok(IntrospectionConn::Query(guard));
+            }
+        }
+        // `try_lock` failed (a query just started) or a manual transaction is
+        // open: fall through to the meta connection. Any acquired guard is
+        // dropped here — the primary is never held across the awaits below.
+    }
+    // In-memory SQLite cannot use a side connection: every connection owns a
+    // private database, so a second one would report an empty catalog. Wait
+    // on the primary instead (correctness over latency).
+    if is_memory_sqlite(session) {
+        let guard = session.driver.lock().await;
+        return Ok(IntrospectionConn::Query(guard));
+    }
+    ensure_meta_conn(session).await?;
+    Ok(IntrospectionConn::Meta(session.meta.lock().await))
+}
+
+/// Lazily open (or reuse) the session's second physical connection.
+///
+/// The meta connection is created with the *currently selected* database, so
+/// schema calls observe the same catalog as the primary connection.
+async fn ensure_meta_conn(session: &Arc<Session>) -> MieoResult<()> {
+    if session.meta.lock().await.is_some() {
+        return Ok(());
+    }
+    let mut spec = session.spec.clone();
+    spec.database = session
+        .database
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let driver = AnyDriver::connect(&spec).await?;
+    let mut guard = session.meta.lock().await;
+    if guard.is_none() {
+        *guard = Some(driver);
+    }
+    // Else a concurrent call already opened one; drop the spare.
+    Ok(())
+}
+
+/// Whether this session's catalog lives on a private in-memory database
+/// (where a second connection would see an empty, different database).
+fn is_memory_sqlite(session: &Session) -> bool {
+    if session.engine != mieosql_core::Engine::Sqlite {
+        return false;
+    }
+    let current = session
+        .database
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let path = current
+        .as_deref()
+        .or(session.spec.file.as_deref())
+        .or(session.spec.database.as_deref())
+        .unwrap_or("");
+    path == ":memory:" || path.is_empty()
+}
+
+/// Scalar "who am I on the server" statement per engine, for backend-pid
+/// capture before each query runs.
+fn backend_id_sql(engine: mieosql_core::Engine) -> Option<&'static str> {
+    match engine {
+        mieosql_core::Engine::Postgres => Some("SELECT pg_backend_pid()"),
+        mieosql_core::Engine::MySql | mieosql_core::Engine::MariaDb => {
+            Some("SELECT CONNECTION_ID()")
+        }
+        mieosql_core::Engine::SqlServer => Some("SELECT @@SPID"),
+        // SQLite exposes no backend id, and NoSQL engines need no
+        // server-side kill: the client-side token is sufficient there.
+        _ => None,
+    }
+}
+
+/// Server-side kill statement for a previously captured backend id.
+/// The id is validated numeric first — never interpolate unchecked text into
+/// a kill statement.
+fn kill_sql(engine: mieosql_core::Engine, backend_pid: &str) -> Option<String> {
+    if backend_pid.trim().parse::<i64>().is_err() {
+        return None;
+    }
+    let pid = backend_pid.trim();
+    match engine {
+        mieosql_core::Engine::Postgres => Some(format!("SELECT pg_cancel_backend({pid})")),
+        mieosql_core::Engine::MySql | mieosql_core::Engine::MariaDb => {
+            Some(format!("KILL QUERY {pid}"))
+        }
+        mieosql_core::Engine::SqlServer => Some(format!("KILL {pid}")),
+        // SQLite: no kill primitive is available through sqlx (the native
+        // `sqlite3_interrupt` handle is not exposed), so cancellation stays
+        // client-side only. NoSQL engines likewise rely on the token.
+        _ => None,
+    }
+}
+
+/// Run `sql` (a single-row, single-column statement) on `driver` and return
+/// the first cell as text. Used for backend-pid capture and for kill
+/// statements, on either the primary or the meta connection.
+///
+/// Implemented on top of `AnyDriver::run_query` in `Simple` mode so no
+/// driver changes are needed: events are drained from a throwaway channel.
+/// The small channel never blocks the driver: at most a handful of rows
+/// (`max_rows`) plus metadata events are produced.
+async fn exec_scalar(driver: &mut AnyDriver, sql: &str) -> MieoResult<Option<String>> {
+    let (tx, mut rx) = mpsc::channel::<QueryEvent>(64);
+    let cancel = CancellationToken::new();
+    let options = QueryOptions {
+        mode: QueryMode::Simple,
+        fetch_size: 8,
+        max_rows: Some(8),
+        timeout_ms: Some(10_000),
+    };
+    driver
+        .run_query(
+            "meta_scalar",
+            sql.to_string(),
+            Vec::new(),
+            &options,
+            &tx,
+            &cancel,
+        )
+        .await?;
+    drop(tx);
+    let mut first: Option<String> = None;
+    while let Some(event) = rx.recv().await {
+        match event {
+            QueryEvent::Batch { rows, .. } => {
+                if first.is_none() {
+                    first = rows
+                        .first()
+                        .and_then(|row| row.first())
+                        .map(|value| match value {
+                            Value::Int(i) => i.to_string(),
+                            Value::UInt(u) => u.to_string(),
+                            Value::Text(s)
+                            | Value::Decimal(s)
+                            | Value::Date(s)
+                            | Value::Time(s)
+                            | Value::DateTime(s)
+                            | Value::Uuid(s) => s.clone(),
+                            other => other.to_display_string(),
+                        });
+                }
+            }
+            QueryEvent::Error { error, .. } => {
+                return Err(MieoError::new(error.code, error.message));
+            }
+            _ => {}
+        }
+    }
+    Ok(first)
+}
+
+/// Capture the primary connection's backend id while it is idle. Called with
+/// the primary lock held, right before the user's statement runs, so the id
+/// is as fresh as possible. Best-effort: failures leave the previous value
+/// and never fail the user's query.
+///
+/// Pooling caveat: sqlx-backed drivers acquire a pooled connection per
+/// statement outside transactions, so this id may name a different physical
+/// connection than the one that ends up running the query. In practice the
+/// pool is idle (one statement at a time per session) and hands back the
+/// same connection; inside a manual transaction the id is exact. A wrong id
+/// only makes the server-side kill a harmless no-op on an idle backend in
+/// the common case.
+async fn refresh_backend_pid(session: &Session, driver: &mut AnyDriver) {
+    let Some(sql) = backend_id_sql(session.engine) else {
+        return;
+    };
+    if let Ok(Some(pid)) = exec_scalar(driver, sql).await {
+        *session.backend_pid.lock().await = Some(pid.trim().to_string());
+    }
+}
+
+/// Best-effort server-side kill for a cancelled query's backend, executed on
+/// the session's meta connection (never the busy primary). Fire-and-forget
+/// from `cancel_query`; all failures are swallowed — the soft token cancel
+/// has already been delivered, and a kill that cannot run must not surface
+/// as a second error.
+async fn kill_session_backend(session: &Arc<Session>) {
+    let pid = session.backend_pid.lock().await.clone();
+    let Some(pid) = pid else { return };
+    let Some(sql) = kill_sql(session.engine, &pid) else {
+        return;
+    };
+    if is_memory_sqlite(session) {
+        return;
+    }
+    if ensure_meta_conn(session).await.is_err() {
+        return;
+    }
+    let mut guard = session.meta.lock().await;
+    if let Some(driver) = guard.as_mut() {
+        let _ = exec_scalar(driver, &sql).await;
+    }
+    // TODO: idle-close the meta connection (drop it after N seconds without
+    // use) instead of holding a second physical connection per session.
 }

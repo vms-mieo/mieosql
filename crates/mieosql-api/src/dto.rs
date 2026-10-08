@@ -114,6 +114,9 @@ pub struct ProfileInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub variant: Option<String>,
+    /// Production guard: extra confirmations for destructive actions.
+    #[serde(default)]
+    pub is_prod: bool,
     /// Password policy: `None` keeps the stored secret, `Some("")` clears it.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]

@@ -1,0 +1,165 @@
+name: Release
+
+# Installers per OS / arch:
+#   macOS arm64  -> .dmg
+#   Linux amd64  -> .deb (Tauri) + .pkg.tar.zst (Arch, crafted by scripts/pack-arch.py)
+#   Windows amd64 -> .exe (NSIS setup)
+#
+# Run manually (Actions > Release > Run workflow) or push a tag like `v0.1.0`
+# to also publish a GitHub Release with every artifact attached.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ---------------------------------------------------------------- macOS ---
+  macos-arm64:
+    name: macOS arm64 (.dmg)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mieosql-desktop/frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: apps/mieosql-desktop/frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install tauri-cli
+        run: cargo install tauri-cli --version "^2" --locked
+
+      # tauri runs the build hook with cwd already inside frontend/, so the
+      # bare `npm ...` beforeBuildCommand in tauri.conf.json just works.
+      - name: Build .dmg (arm64)
+        working-directory: apps/mieosql-desktop
+        run: cargo tauri build --bundles dmg
+
+      - name: Upload .dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: MieoSQL-macos-arm64
+          path: |
+            target/release/bundle/dmg/*.dmg
+            apps/mieosql-desktop/target/release/bundle/dmg/*.dmg
+
+  # ---------------------------------------------------------------- Linux ---
+  linux-amd64:
+    name: Linux amd64 (.deb + .pkg.tar.zst)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mieosql-desktop/frontend/package-lock.json
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev \
+            librsvg2-dev zstd
+
+      - name: Build frontend
+        working-directory: apps/mieosql-desktop/frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install tauri-cli
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build .deb (amd64)
+        working-directory: apps/mieosql-desktop
+        run: cargo tauri build --bundles deb
+
+      - name: Build Arch package (.pkg.tar.zst)
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('apps/mieosql-desktop/tauri.conf.json'))['version'])")
+          BIN=target/release/MieoSQL
+          test -x "$BIN" || BIN=apps/mieosql-desktop/target/release/MieoSQL
+          python3 scripts/pack-arch.py \
+            --version "$VERSION" \
+            --binary "$BIN" \
+            --icon apps/mieosql-desktop/icons/icon.png \
+            --out-dir dist-arch
+
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: MieoSQL-linux-amd64
+          path: |
+            target/release/bundle/deb/*.deb
+            apps/mieosql-desktop/target/release/bundle/deb/*.deb
+            dist-arch/*.pkg.tar.zst
+
+  # --------------------------------------------------------------- Windows ---
+  windows-amd64:
+    name: Windows amd64 (.exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mieosql-desktop/frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: apps/mieosql-desktop/frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install tauri-cli
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build NSIS setup (amd64)
+        working-directory: apps/mieosql-desktop
+        run: cargo tauri build --bundles nsis
+
+      - name: Upload .exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: MieoSQL-windows-amd64
+          path: |
+            target/release/bundle/nsis/*-setup.exe
+            apps/mieosql-desktop/target/release/bundle/nsis/*-setup.exe
+
+  # ------------------------------------------------- publish on tags only ---
+  publish:
+    name: Publish GitHub Release
+    needs: [macos-arm64, linux-amd64, windows-amd64]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-all
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-all/*.dmg
+            dist-all/*.deb
+            dist-all/*.pkg.tar.zst
+            dist-all/*-setup.exe

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Braces,
   CirclePlay,
-  Database,
   Eraser,
   FileCode2,
   GitBranch,
@@ -10,22 +9,27 @@ import {
   ListTree,
   Plus,
   Plug,
-  Radio,
   RefreshCw,
   Save,
   Square,
   Table2,
   Wand2,
+  Wrench,
   X,
 } from "lucide-react";
 
-import type { ObjectRef } from "../lib/bindings";
+import type { Engine, ObjectRef } from "../lib/bindings";
 import { api, errorText } from "../lib/api";
+import { autofixSql, type SqlFix } from "../lib/sql-fix";
 import type { Tab } from "../lib/store";
 import { useStore } from "../lib/store";
 import { FeatureHost } from "../features/registry";
 import { EditorPane, type EditorHandle } from "./EditorPane";
+import { AppLogo } from "./AppLogo";
+import { EditorScopePickers } from "./EditorScopePickers";
+import { EngineGlyph } from "./EngineGlyph";
 import { ResultPanel } from "./ResultPanel";
+import { SqlFixDialog } from "./SqlFixDialog";
 
 // ---------------------------------------------------------------------------
 // Workspace: tab bar + per-tab content (editor, table grid, object browser)
@@ -37,6 +41,12 @@ export function Workspace() {
   const editorRef = useRef<EditorHandle | null>(null);
   const prevTabIdRef = useRef<string | null>(null);
   const changeTimer = useRef<number | null>(null);
+  const [fixDialog, setFixDialog] = useState<{
+    original: string;
+    fixed: string;
+    fixes: SqlFix[];
+    notes: string[];
+  } | null>(null);
 
   // Persist the outgoing editor text, load the incoming one.
   useEffect(() => {
@@ -56,11 +66,32 @@ export function Workspace() {
   useEffect(() => {
     const clear = () => editorRef.current?.setText("");
     const focus = () => editorRef.current?.focus();
+    const fix = () => {
+      const view = editorRef.current;
+      if (!view) return;
+      const text = view.getText();
+      if (!text.trim()) return;
+      const state = useStore.getState();
+      const active = state.tabs.find((t) => t.id === state.activeTabId);
+      const engine =
+        state.sessions.find((s) => s.id === active?.sessionId)?.engine ?? null;
+      const result = autofixSql(engine, text);
+      if (result.fixes.length === 0) {
+        state.toast(
+          "info",
+          result.notes[0] ?? "No common syntax issue found — nothing to fix.",
+        );
+        return;
+      }
+      setFixDialog({ original: text, ...result });
+    };
     window.addEventListener("mieosql:clear-editor", clear);
     window.addEventListener("mieosql:focus-editor", focus);
+    window.addEventListener("mieosql:fix-sql", fix);
     return () => {
       window.removeEventListener("mieosql:clear-editor", clear);
       window.removeEventListener("mieosql:focus-editor", focus);
+      window.removeEventListener("mieosql:fix-sql", fix);
     };
   }, []);
 
@@ -87,7 +118,7 @@ export function Workspace() {
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-window">
       {/* Tab bar */}
-      <div className="flex h-[34px] shrink-0 items-center gap-1 overflow-x-auto bg-sidebar px-2">
+      <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto bg-sidebar px-2">
         {store.tabs.map((tab) => (
           <TabButton key={tab.id} tab={tab} active={tab.id === store.activeTabId} />
         ))}
@@ -104,6 +135,7 @@ export function Workspace() {
 
       {activeTab?.kind === "query" && (
         <div className="flex min-h-0 flex-1 flex-col">
+          <TxBanner sessionId={activeTab.sessionId} />
           <QueryToolbar
             tab={activeTab}
             onRun={runActive}
@@ -116,6 +148,7 @@ export function Workspace() {
             onBeautify={() =>
               window.dispatchEvent(new CustomEvent("mieosql:format-sql"))
             }
+            onFix={() => window.dispatchEvent(new CustomEvent("mieosql:fix-sql"))}
             onClear={() => {
               editorRef.current?.setText("");
               store.setSql(activeTab.id, "");
@@ -141,6 +174,7 @@ export function Workspace() {
 
       {activeTab?.kind === "table" && (
         <div className="flex min-h-0 flex-1 flex-col">
+          <TxBanner sessionId={activeTab.sessionId} />
           <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3">
             <div className="flex items-center gap-2 text-[13px]">
               <Table2 size={14} className="text-slate-500" />
@@ -165,6 +199,31 @@ export function Workspace() {
       {activeTab?.kind === "objects" && <ObjectsView tab={activeTab} />}
 
       {activeTab?.kind === "feature" && <FeatureHost tab={activeTab} />}
+
+      {fixDialog && (
+        <SqlFixDialog
+          original={fixDialog.original}
+          fixed={fixDialog.fixed}
+          fixes={fixDialog.fixes}
+          notes={fixDialog.notes}
+          onClose={() => setFixDialog(null)}
+          onApply={() => {
+            const view = editorRef.current;
+            if (view) view.setText(fixDialog.fixed);
+            const id = useStore.getState().activeTabId;
+            if (id) useStore.getState().setSql(id, fixDialog.fixed);
+            useStore
+              .getState()
+              .toast(
+                "success",
+                `Applied ${fixDialog.fixes.length} fix${
+                  fixDialog.fixes.length > 1 ? "es" : ""
+                }`,
+              );
+            setFixDialog(null);
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -196,9 +255,9 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
       ) : (
         icon
       )}
-      <span className="truncate text-[12.5px]">{tab.title}</span>
+      <span className="truncate text-[13px]">{tab.title}</span>
       {tab.results.length > 0 && !tab.running && (
-        <span className="text-[11px] text-slate-400 tabular-nums">
+        <span className="text-[11.5px] text-slate-400 tabular-nums">
           {tab.results
             .reduce((acc, r) => acc + r.rows.length, 0)
             .toLocaleString()}
@@ -218,6 +277,51 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
+// Transaction banner (DBeaver-style): visible only when in_transaction
+// ---------------------------------------------------------------------------
+
+function TxBanner({ sessionId }: { sessionId: string | null }) {
+  const inTx = useStore((s) =>
+    s.sessions.some((x) => x.id === sessionId && x.in_transaction),
+  );
+  const commit = useStore((s) => s.commitTransaction);
+  const rollback = useStore((s) => s.rollbackTransaction);
+  if (!sessionId || !inTx) return null;
+  const onRollback = () => {
+    if (window.confirm("Discard all uncommitted changes (rollback)?")) {
+      void rollback(sessionId);
+    }
+  };
+  return (
+    <div className="flex h-8 shrink-0 items-center justify-between border-b border-amber-200/70 bg-amber-50 px-3">
+      <span className="flex items-center gap-1.5 text-[12px] text-amber-700">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
+        <span className="font-medium">Uncommitted changes</span>
+        <span className="text-amber-600/80">
+          — transaction open, auto-commit off
+        </span>
+      </span>
+      <span className="flex items-center gap-1.5">
+        <button
+          className="flex h-6 items-center rounded-md bg-accent px-2 text-[12px] font-medium text-white hover:bg-accent-hover"
+          title="Commit transaction"
+          onClick={() => void commit(sessionId)}
+        >
+          Commit
+        </button>
+        <button
+          className="flex h-6 items-center rounded-md border border-amber-300 bg-white px-2 text-[12px] text-slate-700 hover:bg-amber-100/60"
+          title="Rollback transaction"
+          onClick={onRollback}
+        >
+          Rollback
+        </button>
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Query toolbar
 // ---------------------------------------------------------------------------
 
@@ -226,24 +330,36 @@ function QueryToolbar({
   onRun,
   onExplain,
   onBeautify,
+  onFix,
   onClear,
 }: {
   tab: Tab;
   onRun: () => void;
   onExplain: () => void;
   onBeautify: () => void;
+  onFix: () => void;
   onClear: () => void;
 }) {
   const store = useStore();
   const session = useStore((s) => s.sessions.find((x) => x.id === tab.sessionId));
+  // Production guard: red top border + PROD label when the tab's session
+  // belongs to a profile marked as production.
+  const isProd = useStore((s) => {
+    const sess = s.sessions.find((x) => x.id === tab.sessionId);
+    return s.profiles.some((p) => p.id === sess?.profile_id && p.is_prod);
+  });
   const runningResult = tab.results.find((r) => r.status === "running");
 
   const toolBtn =
     "flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-slate-700 hover:bg-slate-900/[0.05] disabled:pointer-events-none disabled:text-slate-300";
 
   return (
-    <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3">
-      <div className="flex items-center gap-1">
+    <div
+      className={`flex h-10 shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white px-3 ${
+        isProd ? "border-t-2 border-t-rose-500" : ""
+      }`}
+    >
+      <div className="custom-scrollbar flex min-w-[210px] flex-1 items-center gap-1 overflow-x-auto">
         <button
           id="run-btn"
           className="flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12.5px] font-medium text-white transition-colors hover:bg-accent-hover active:scale-[0.98] disabled:opacity-40"
@@ -316,6 +432,14 @@ function QueryToolbar({
         </button>
         <button
           className={toolBtn}
+          title="Fix common SQL syntax mistakes (SELET → SELECT, missing commas, …)"
+          onClick={onFix}
+        >
+          <Wrench size={13} className="text-slate-500" />
+          Fix
+        </button>
+        <button
+          className={toolBtn}
           title="Visual query builder"
           onClick={() => store.openFeatureDialog("builder")}
         >
@@ -335,18 +459,16 @@ function QueryToolbar({
         </button>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="flex h-7 items-center gap-1.5 rounded-md bg-slate-900/[0.04] px-2 text-[11.5px]">
+      <div className="flex min-w-0 shrink items-center gap-2">
+        {isProd && (
           <span
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              session ? "bg-emerald-500" : "bg-slate-300"
-            }`}
-          />
-          <span className="max-w-[160px] truncate text-slate-600">
-            {session ? session.name : "no connection"}
-            {session?.database ? ` · ${session.database}` : ""}
+            className="shrink-0 rounded bg-rose-600 px-1.5 py-px text-[10.5px] font-semibold text-white"
+            title="Production connection — destructive actions need extra confirmation"
+          >
+            PROD
           </span>
-        </div>
+        )}
+        <EditorScopePickers tab={tab} />
         <LimitSelect />
       </div>
     </div>
@@ -358,7 +480,7 @@ function LimitSelect() {
   const options = useStore((s) => s.limitOptions);
   const setLimit = useStore((s) => s.setLimit);
   return (
-    <label className="flex h-7 items-center gap-1 rounded-md bg-slate-900/[0.04] px-2 text-[11.5px]">
+    <label className="flex h-7 shrink-0 items-center gap-1 rounded-md bg-slate-900/[0.04] px-2 text-[11.5px]">
       <span className="text-slate-500">Limit</span>
       <select
         className="border-none bg-transparent p-0 text-[12.5px] font-medium text-slate-800 focus:outline-none"
@@ -482,6 +604,15 @@ function ObjectsView({ tab }: { tab: Tab }) {
     (o) => !filter.trim() || o.name.toLowerCase().includes(filter.toLowerCase()),
   );
 
+  const selected = store.selected;
+  const selectedName =
+    selected &&
+    selected.sessionId === tab.sessionId &&
+    (selected.scope.database ?? null) === (tab.scope?.database ?? null) &&
+    (selected.scope.schema ?? null) === (tab.scope?.schema ?? null)
+      ? selected.table
+      : null;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-3">
@@ -528,33 +659,74 @@ function ObjectsView({ tab }: { tab: Tab }) {
               </tr>
             </thead>
             <tbody>
-              {shown.map((o) => (
-                <tr
-                  key={`${o.schema ?? ""}.${o.name}`}
-                  className="cursor-default border-b border-slate-200/70 hover:bg-slate-900/[0.03]"
-                  onClick={() =>
-                    store.openTable(
-                      tab.sessionId!,
-                      tab.scope ?? {},
-                      o.name,
-                    )
-                  }
-                >
-                  <td className="flex items-center gap-2 px-3 py-1.5">
-                    <Table2 size={12} className="text-slate-500" />
-                    <span className="text-slate-800">{o.name}</span>
-                  </td>
-                  <td className="px-3 py-1.5 text-right text-slate-600 tabular-nums">
-                    {o.rows_estimate?.toLocaleString() ?? ""}
-                  </td>
-                  <td className="px-3 py-1.5 font-code text-[12px] text-slate-500">
-                    {o.updated_at ?? ""}
-                  </td>
-                  <td className="truncate px-3 py-1.5 text-slate-500">
-                    {o.comment ?? ""}
-                  </td>
-                </tr>
-              ))}
+              {shown.map((o) => {
+                const sel = o.name === selectedName;
+                return (
+                  <tr
+                    key={`${o.schema ?? ""}.${o.name}`}
+                    className={`cursor-default border-b border-slate-200/70 ${
+                      sel ? "bg-accent text-white" : "hover:bg-slate-900/[0.03]"
+                    }`}
+                    onClick={() => {
+                      if (
+                        o.kind === "function" ||
+                        o.kind === "procedure" ||
+                        o.kind === "trigger" ||
+                        o.kind === "sequence"
+                      ) {
+                        void api
+                          .objectDdl(tab.sessionId!, tab.scope ?? {}, o.kind, o.name)
+                          .then((ddl) => {
+                            if (ddl) store.newQueryTab(tab.sessionId!, ddl);
+                            else
+                              store.toast(
+                                "info",
+                                "DDL is not available for this object yet",
+                              );
+                          })
+                          .catch((err) => store.toast("error", errorText(err)));
+                        return;
+                      }
+                      store.openTable(
+                        tab.sessionId!,
+                        tab.scope ?? {},
+                        o.name,
+                      );
+                    }}
+                  >
+                    <td className="flex items-center gap-2 px-3 py-1.5">
+                      <Table2
+                        size={12}
+                        className={sel ? "text-white" : "text-sky-600"}
+                      />
+                      <span className={sel ? "text-white" : "text-slate-800"}>
+                        {o.name}
+                      </span>
+                    </td>
+                    <td
+                      className={`px-3 py-1.5 text-right tabular-nums ${
+                        sel ? "text-white/85" : "text-slate-600"
+                      }`}
+                    >
+                      {o.rows_estimate?.toLocaleString() ?? ""}
+                    </td>
+                    <td
+                      className={`px-3 py-1.5 font-code text-[12px] ${
+                        sel ? "text-white/85" : "text-slate-500"
+                      }`}
+                    >
+                      {o.updated_at ?? ""}
+                    </td>
+                    <td
+                      className={`truncate px-3 py-1.5 ${
+                        sel ? "text-white/85" : "text-slate-500"
+                      }`}
+                    >
+                      {o.comment ?? ""}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -570,18 +742,18 @@ function ObjectsView({ tab }: { tab: Tab }) {
 function EmptyState() {
   const store = useStore();
   const hasSessions = store.sessions.length > 0;
-  const engines = [
-    { label: "PostgreSQL", icon: <Database size={12} strokeWidth={1.6} /> },
-    { label: "MySQL", icon: <Database size={12} strokeWidth={1.6} /> },
-    { label: "MariaDB", icon: <Database size={12} strokeWidth={1.6} /> },
-    { label: "SQLite", icon: <Database size={12} strokeWidth={1.6} /> },
-    { label: "Kafka", icon: <Radio size={12} strokeWidth={1.6} /> },
+  const engines: { label: string; engine: Engine }[] = [
+    { label: "PostgreSQL", engine: "postgres" },
+    { label: "MySQL", engine: "mysql" },
+    { label: "MariaDB", engine: "mariadb" },
+    { label: "SQLite", engine: "sqlite" },
+    { label: "Kafka", engine: "kafka" },
   ];
   return (
     <div className="grid flex-1 place-items-center">
       <div className="max-w-[420px] text-center">
-        <div className="mx-auto grid h-10 w-10 place-items-center rounded-[10px] bg-accent text-[17px] font-semibold text-white">
-          M
+        <div className="mx-auto w-fit">
+          <AppLogo size={44} radius={12} />
         </div>
         <h2 className="mt-4 text-[20px] font-semibold tracking-tight text-slate-900">
           Welcome to MieoSQL
@@ -594,8 +766,8 @@ function EmptyState() {
         {!hasSessions && (
           <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11.5px] text-slate-500">
             {engines.map((e) => (
-              <span key={e.label} className="flex items-center gap-1">
-                <span className="text-slate-400">{e.icon}</span>
+              <span key={e.label} className="flex items-center gap-1.5">
+                <EngineGlyph engine={e.engine} size={11} />
                 {e.label}
               </span>
             ))}

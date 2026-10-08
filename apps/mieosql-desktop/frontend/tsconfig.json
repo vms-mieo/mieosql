@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "skipLibCheck": true,
@@ -15,8 +19,13 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@bindings/*": ["./src/bindings/*"]
-    }
+      "@bindings/*": [
+        "./src/bindings/*"
+      ]
+    },
+    "allowImportingTsExtensions": true
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

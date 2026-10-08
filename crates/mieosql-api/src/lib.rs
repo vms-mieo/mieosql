@@ -11,8 +11,10 @@ pub mod explain;
 pub mod export;
 pub mod fetch;
 pub mod files;
+pub mod maintenance;
 pub mod masking;
 pub mod search;
+pub mod security;
 pub mod service;
 pub mod snapshot;
 pub mod sync;
@@ -22,6 +24,7 @@ pub mod workspace;
 
 pub use dto::{ApiError, ApiResult, PreviewStart, ProfileInput};
 pub use export::{ExportFormat, ExportStats};
+pub use maintenance::*;
 pub use service::Api;
 
 pub use mieosql_core::API_VERSION;
@@ -43,6 +46,17 @@ pub mod export_manifest {
 
         // core domain
         exp!(
+            mieosql_core::DbPrincipal,
+            mieosql_core::DbPrincipalDetail,
+            mieosql_core::DetailAttribute,
+            mieosql_core::PrivilegeEntry,
+            mieosql_core::PrincipalKind,
+            mieosql_core::RoleGrant,
+            mieosql_core::CreateDbUser,
+            mieosql_core::DropDbPrincipal,
+            mieosql_core::GrantTarget,
+            mieosql_core::GrantRequest,
+            mieosql_core::RevokeRequest,
             mieosql_core::Value,
             mieosql_core::DataTypeKind,
             mieosql_core::ErrorCode,
@@ -135,6 +149,22 @@ pub mod export_manifest {
             crate::workspace::WorkspaceBundle,
             crate::workspace::ImportSummary,
             crate::fetch::CollectedRows,
+        );
+
+        // maintenance pack: batch execute / file import / grid edits /
+        // script split / backup
+        exp!(
+            crate::maintenance::BatchResult,
+            crate::maintenance::ImportFormat,
+            crate::maintenance::ImportMode,
+            crate::maintenance::ImportOptions,
+            crate::maintenance::ImportSummary,
+            crate::maintenance::GridCell,
+            crate::maintenance::RowChanges,
+            crate::maintenance::GridEditRequest,
+            crate::maintenance::EditApplyResult,
+            crate::maintenance::ScriptStatements,
+            crate::maintenance::BackupSummary,
         );
 
         if failures.is_empty() {

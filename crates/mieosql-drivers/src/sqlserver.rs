@@ -32,13 +32,17 @@ use tiberius::{
 };
 
 use mieosql_core::{
-    Capabilities, ColumnDef, ColumnMeta, ConnectionSpec, DataTypeKind, DatabaseRef, Engine,
-    ErrorCode, ForeignKeyDef, IndexDef, MieoError, MieoResult, ObjectKind, ObjectRef,
-    PlaceholderStyle, QueryEvent, QueryMode, QueryOptions, QueryStats, SchemaRef, Scope, ServerInfo,
-    SslMode, Value,
+    Capabilities, ColumnDef, ColumnMeta, ConnectionSpec, CreateDbUser, DataTypeKind, DatabaseRef,
+    DbPrincipal, DbPrincipalDetail, DetailAttribute, DropDbPrincipal, Engine, ErrorCode,
+    ForeignKeyDef, GrantRequest, GrantTarget, IndexDef, MieoError, MieoResult, ObjectKind,
+    ObjectRef, PlaceholderStyle, PrincipalKind, PrivilegeEntry, QueryEvent, QueryMode,
+    QueryOptions, QueryStats, RevokeRequest, RoleGrant, SchemaRef, Scope, ServerInfo, SslMode,
+    Value,
 };
 
-use crate::util::{b64_decode, b64_encode, fmt_naive_date, fmt_naive_dt, fmt_naive_time};
+use crate::util::{
+    b64_decode, b64_encode, fmt_naive_date, fmt_naive_dt, fmt_naive_time, quote_literal,
+};
 
 /// Concrete TDS client type: a Tokio TCP stream adapted to `futures::io`.
 type TdsClient = Client<Compat<TcpStream>>;
@@ -62,6 +66,7 @@ pub(crate) fn sqlserver_capabilities() -> Capabilities {
         simple_mode: true,
         ddl: true,
         multiple_databases: true,
+        user_management: true,
     }
 }
 
@@ -220,18 +225,59 @@ impl SqlServerDriver {
         kind: Option<ObjectKind>,
         pattern: Option<&str>,
     ) -> MieoResult<Vec<ObjectRef>> {
-        // Only tables and views live in INFORMATION_SCHEMA.TABLES; other kinds
-        // are not surfaced by the explorer yet.
-        match kind {
-            Some(ObjectKind::Table) | Some(ObjectKind::View) | None => {}
-            Some(_) => return Ok(Vec::new()),
-        }
-
         let db = self
             .resolve_db(scope)
             .map(str::to_string)
             .or_else(|| self.spec.database.clone());
         let prefix = db_prefix(db.as_deref());
+
+        // Stored routines + triggers live in sys.objects / sys.schemas, not in
+        // INFORMATION_SCHEMA.TABLES.
+        if matches!(
+            kind,
+            Some(ObjectKind::Function | ObjectKind::Procedure | ObjectKind::Trigger)
+        ) {
+            let want = kind.expect("matched routine/trigger kind");
+            // sys.objects type codes: FN scalar function, IF inline table
+            // function, TF table function, P procedure, TR trigger.
+            let Some(in_list) = Self::sys_types_for_kind(want) else {
+                return Ok(Vec::new());
+            };
+            let mut sql = format!(
+                "SELECT s.name, o.name FROM {prefix}sys.objects o \
+                 JOIN {prefix}sys.schemas s ON s.schema_id = o.schema_id \
+                 WHERE o.type IN ({in_list})"
+            );
+            let mut params: Vec<Value> = Vec::new();
+            if let Some(schema) = scope.schema.as_deref().filter(|s| !s.is_empty()) {
+                sql.push_str(&format!(" AND s.name = @P{}", params.len() + 1));
+                params.push(Value::Text(schema.to_string()));
+            }
+            if let Some(pattern) = pattern {
+                sql.push_str(&format!(" AND o.name LIKE @P{}", params.len() + 1));
+                params.push(Value::Text(format!("%{pattern}%")));
+            }
+            sql.push_str(" ORDER BY s.name, o.name");
+
+            let rows = self.fetch_rows(&sql, params).await?;
+            return Ok(rows
+                .iter()
+                .map(|row| ObjectRef {
+                    name: cell_str(row, 1),
+                    kind: want,
+                    database: db.clone(),
+                    schema: Some(cell_str(row, 0)),
+                    comment: None,
+                    rows_estimate: None,
+                    size_bytes: None,
+                    updated_at: None,
+                })
+                .collect());
+        }
+        match kind {
+            Some(ObjectKind::Table) | Some(ObjectKind::View) | None => {}
+            Some(_) => return Ok(Vec::new()),
+        }
 
         let mut sql = format!(
             "SELECT t.TABLE_SCHEMA, t.TABLE_NAME, t.TABLE_TYPE, \
@@ -472,7 +518,29 @@ impl SqlServerDriver {
             return Ok(None);
         }
 
-        let qualified = self.qualified_name(scope, name);
+        // When the caller did not pin a schema, resolve it from the catalog so
+        // OBJECT_ID hits routines outside `dbo` (the explorer lists every
+        // schema, but the scope often carries none).
+        let schema = match scope.schema.as_deref().filter(|s| !s.is_empty()) {
+            Some(s) => s.to_string(),
+            None => self
+                .resolve_object_schema(scope, kind, name)
+                .await?
+                .unwrap_or_else(|| self.resolve_schema(scope).to_string()),
+        };
+        let qualified = match self.resolve_db(scope) {
+            Some(db) => format!(
+                "{}.{}.{}",
+                quote_sqlserver_ident(db),
+                quote_sqlserver_ident(&schema),
+                quote_sqlserver_ident(name)
+            ),
+            None => format!(
+                "{}.{}",
+                quote_sqlserver_ident(&schema),
+                quote_sqlserver_ident(name)
+            ),
+        };
         let rows = self
             .fetch_rows(
                 "SELECT OBJECT_DEFINITION(OBJECT_ID(@P1))",
@@ -483,6 +551,391 @@ impl SqlServerDriver {
             return Ok(None);
         };
         Ok(cell_opt_str(row, 0).filter(|ddl| !ddl.trim().is_empty()))
+    }
+
+    // ------------------------------------------------------------------
+    // Users / roles / grants (also drives the authorization UI).
+    // Users come from `sys.database_principals`; roles merge database roles
+    // with server roles (marked in `comment`).
+    // ------------------------------------------------------------------
+
+    pub async fn list_db_users(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        let rows = self
+            .fetch_rows(
+                "SELECT name, type_desc FROM sys.database_principals                  WHERE type IN ('S', 'U', 'G') AND name NOT IN ('dbo', 'guest', 'INFORMATION_SCHEMA', 'sys')                  ORDER BY name",
+                Vec::new(),
+            )
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| DbPrincipal {
+                name: cell_str(&row, 0),
+                host: None,
+                kind: PrincipalKind::User,
+                is_super: false,
+                can_login: true,
+                comment: Some(cell_str(&row, 1)),
+            })
+            .collect())
+    }
+
+    pub async fn list_db_roles(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        let mut out: Vec<DbPrincipal> = Vec::new();
+        if let Ok(rows) = self
+            .fetch_rows(
+                "SELECT name FROM sys.database_principals                  WHERE type = 'R' AND name NOT IN ('public') ORDER BY name",
+                Vec::new(),
+            )
+            .await
+        {
+            out.extend(rows.into_iter().map(|row| DbPrincipal {
+                name: cell_str(&row, 0),
+                host: None,
+                kind: PrincipalKind::Role,
+                is_super: false,
+                can_login: false,
+                comment: Some("database role".into()),
+            }));
+        }
+        if let Ok(rows) = self
+            .fetch_rows(
+                "SELECT name FROM sys.server_principals WHERE type = 'R' ORDER BY name",
+                Vec::new(),
+            )
+            .await
+        {
+            out.extend(rows.into_iter().map(|row| DbPrincipal {
+                name: cell_str(&row, 0),
+                host: None,
+                kind: PrincipalKind::Role,
+                is_super: row_is_sysadmin(&row),
+                can_login: false,
+                comment: Some("server role".into()),
+            }));
+        }
+        Ok(out)
+    }
+
+    pub async fn db_role_members(&mut self) -> MieoResult<Vec<RoleGrant>> {
+        let mut out: Vec<RoleGrant> = Vec::new();
+        if let Ok(rows) = self
+            .fetch_rows(
+                "SELECT r.name, m.name FROM sys.database_role_members a                  JOIN sys.database_principals r ON r.principal_id = a.role_principal_id                  JOIN sys.database_principals m ON m.principal_id = a.member_principal_id                  ORDER BY 1, 2",
+                Vec::new(),
+            )
+            .await
+        {
+            out.extend(rows.into_iter().map(|row| RoleGrant {
+                role: cell_str(&row, 0),
+                role_host: None,
+                member: cell_str(&row, 1),
+                member_host: None,
+                admin_option: false,
+            }));
+        }
+        if let Ok(rows) = self
+            .fetch_rows(
+                "SELECT r.name, m.name FROM sys.server_role_members a                  JOIN sys.server_principals r ON r.principal_id = a.role_principal_id                  JOIN sys.server_principals m ON m.principal_id = a.member_principal_id                  ORDER BY 1, 2",
+                Vec::new(),
+            )
+            .await
+        {
+            out.extend(rows.into_iter().map(|row| RoleGrant {
+                role: cell_str(&row, 0),
+                role_host: Some("server".into()),
+                member: cell_str(&row, 1),
+                member_host: None,
+                admin_option: false,
+            }));
+        }
+        Ok(out)
+    }
+
+    pub async fn db_user_grants(
+        &mut self,
+        name: &str,
+        _host: Option<&str>,
+    ) -> MieoResult<Vec<String>> {
+        // fn_my_permissions needs an object context; the stable surface is
+        // database-role membership for this principal.
+        let rows = self
+            .fetch_rows(
+                "SELECT r.name FROM sys.database_role_members a                  JOIN sys.database_principals r ON r.principal_id = a.role_principal_id                  JOIN sys.database_principals m ON m.principal_id = a.member_principal_id                  WHERE m.name = @P1 ORDER BY 1",
+                vec![Value::Text(name.to_string())],
+            )
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| format!("MEMBER OF {}", cell_str(&row, 0)))
+            .collect())
+    }
+
+    pub async fn db_principal_detail(
+        &mut self,
+        name: &str,
+        _host: Option<&str>,
+    ) -> MieoResult<DbPrincipalDetail> {
+        let rows = self
+            .fetch_rows(
+                "SELECT name, type_desc, default_schema_name, create_date FROM sys.database_principals WHERE name = @P1",
+                vec![Value::Text(name.to_string())],
+            )
+            .await?;
+        let Some(row) = rows.first() else {
+            return Err(MieoError::new(ErrorCode::NotFound, format!("principal `{name}` not found")));
+        };
+        let kind = if cell_str(row, 1) == "DATABASE_ROLE" || cell_str(row, 1) == "SERVER_ROLE" {
+            PrincipalKind::Role
+        } else {
+            PrincipalKind::User
+        };
+        // Sysadmin membership (server role) counts as superuser.
+        let mut is_super = false;
+        if let Ok(sysrows) = self
+            .fetch_rows(
+                "SELECT r.name FROM sys.server_role_members a                  JOIN sys.server_principals r ON r.principal_id = a.role_principal_id                  JOIN sys.server_principals m ON m.principal_id = a.member_principal_id                  WHERE m.name = @P1 AND r.name = 'sysadmin'",
+                vec![Value::Text(name.to_string())],
+            )
+            .await
+        {
+            is_super = !sysrows.is_empty();
+        }
+        let principal = DbPrincipal {
+            name: cell_str(row, 0),
+            host: None,
+            kind,
+            is_super,
+            can_login: kind == PrincipalKind::User,
+            comment: Some(cell_str(row, 1)),
+        };
+        let mut attributes: Vec<DetailAttribute> = Vec::new();
+        let kv = |k: &str, v: String| DetailAttribute { key: k.to_string(), value: v };
+        attributes.push(kv("Type", cell_str(row, 1)));
+        if let Some(v) = cell_opt_str(row, 2).filter(|v| !v.is_empty()) {
+            attributes.push(kv("Default schema", v));
+        }
+        if let Some(v) = cell_opt_str(row, 3).filter(|v| !v.is_empty()) {
+            attributes.push(kv("Created", v));
+        }
+
+        // Database-level, schema-level and object permissions with grant state.
+        let mut object_privileges: Vec<PrivilegeEntry> = Vec::new();
+        // Object level (class = 1): schema + object name resolved via sys.objects.
+        if let Ok(prows) = self
+            .fetch_rows(
+                "SELECT sch.name, OBJECT_NAME(p.major_id), p.permission_name, p.state_desc \
+                 FROM sys.database_permissions p \
+                 JOIN sys.database_principals u ON u.principal_id = p.grantee_principal_id \
+                 JOIN sys.objects o ON o.object_id = p.major_id \
+                 JOIN sys.schemas sch ON sch.schema_id = o.schema_id \
+                 WHERE u.name = @P1 AND p.class = 1 ORDER BY 1, 2",
+                vec![Value::Text(name.to_string())],
+            )
+            .await
+        {
+            let mut grouped: std::collections::BTreeMap<(String, String), (Vec<String>, bool)> =
+                std::collections::BTreeMap::new();
+            for r in prows {
+                let key = (cell_str(&r, 0), cell_str(&r, 1));
+                let e = grouped.entry(key).or_default();
+                e.0.push(cell_str(&r, 2));
+                if cell_str(&r, 3) == "GRANT_WITH_GRANT_OPTION" {
+                    e.1 = true;
+                }
+            }
+            for ((schema, table), (mut privs, grantable)) in grouped {
+                privs.sort();
+                privs.dedup();
+                object_privileges.push(PrivilegeEntry {
+                    privileges: privs,
+                    database: None,
+                    schema: Some(schema),
+                    table: Some(table),
+                    grantable,
+                });
+            }
+        }
+        // Database level (class = 0) and schema level (class = 3).
+        if let Ok(prows) = self
+            .fetch_rows(
+                "SELECT p.class, s.name, p.permission_name, p.state_desc \
+                 FROM sys.database_permissions p \
+                 JOIN sys.database_principals u ON u.principal_id = p.grantee_principal_id \
+                 LEFT JOIN sys.schemas s ON s.schema_id = p.major_id AND p.class = 3 \
+                 WHERE u.name = @P1 AND p.class IN (0, 3) ORDER BY 1",
+                vec![Value::Text(name.to_string())],
+            )
+            .await
+        {
+            let mut grouped: std::collections::BTreeMap<(String, String), (Vec<String>, bool)> =
+                std::collections::BTreeMap::new();
+            for r in prows {
+                // class 0 has no name; use the current database as the label.
+                let key = (cell_str(&r, 0), cell_opt_str(&r, 1).unwrap_or_default());
+                let e = grouped.entry(key).or_default();
+                e.0.push(cell_str(&r, 2));
+                if cell_str(&r, 3) == "GRANT_WITH_GRANT_OPTION" {
+                    e.1 = true;
+                }
+            }
+            for ((class, name_), (mut privs, grantable)) in grouped {
+                privs.sort();
+                privs.dedup();
+                let (database, schema) = if class == "0" {
+                    (self.resolve_db(&Scope { database: None, schema: None }).map(str::to_string), None)
+                } else {
+                    (None, Some(name_))
+                };
+                object_privileges.push(PrivilegeEntry {
+                    privileges: privs,
+                    database,
+                    schema,
+                    table: None,
+                    grantable,
+                });
+            }
+        }
+
+        let all_members = self.db_role_members().await.unwrap_or_default();
+        let member_of = all_members.iter().filter(|g| g.member == name).cloned().collect();
+        let members = all_members.iter().filter(|g| g.role == name).cloned().collect();
+
+        Ok(DbPrincipalDetail {
+            principal,
+            attributes,
+            global_privileges: Vec::new(),
+            object_privileges,
+            member_of,
+            members,
+        })
+    }
+
+    pub async fn create_db_user(&mut self, req: &CreateDbUser) -> MieoResult<()> {
+        let login = quote_sqlserver_ident(&req.name);
+        if let Some(pw) = req.password.as_deref().filter(|p| !p.is_empty()) {
+            self.simple_exec(&format!(
+                "CREATE LOGIN {login} WITH PASSWORD = {}",
+                quote_literal(pw)
+            ))
+            .await?;
+            self.simple_exec(&format!("CREATE USER {login} FOR LOGIN {login}"))
+                .await?;
+        } else {
+            self.simple_exec(&format!("CREATE USER {login} WITHOUT LOGIN"))
+                .await?;
+        }
+        if req.superuser {
+            self.simple_exec(&format!("ALTER SERVER ROLE [sysadmin] ADD MEMBER {login}"))
+                .await?;
+        }
+        Ok(())
+    }
+
+    pub async fn drop_db_principal(&mut self, req: &DropDbPrincipal) -> MieoResult<()> {
+        let name = quote_sqlserver_ident(&req.name);
+        match req.kind {
+            PrincipalKind::User => {
+                // Drop the database user; a same-named login is dropped too
+                // when it exists (best effort).
+                self.simple_exec(&format!("DROP USER {name}")).await?;
+                let _ = self.simple_exec(&format!("DROP LOGIN {name}")).await;
+                Ok(())
+            }
+            PrincipalKind::Role => {
+                self.simple_exec(&format!("DROP ROLE {name}")).await
+            }
+        }
+    }
+
+    fn grant_object_ms(
+        database: Option<&str>,
+        schema: Option<&str>,
+        table: Option<&str>,
+    ) -> MieoResult<String> {
+        match (schema.filter(|s| !s.is_empty()), table.filter(|t| !t.is_empty())) {
+            (Some(sc), Some(tbl)) => Ok(format!(
+                "OBJECT::{}.{}",
+                quote_sqlserver_ident(sc),
+                quote_sqlserver_ident(tbl)
+            )),
+            _ => match database.filter(|d| !d.is_empty()) {
+                Some(_) => Ok("DATABASE".to_string()),
+                None => Err(MieoError::new(
+                    ErrorCode::Data,
+                    "choose a table or the current database for this grant",
+                )),
+            },
+        }
+    }
+
+    pub async fn grant(&mut self, req: &GrantRequest) -> MieoResult<()> {
+        let grantee = quote_sqlserver_ident(&req.grantee);
+        let stmt = match &req.target {
+            GrantTarget::Privileges {
+                privileges,
+                database,
+                schema,
+                table,
+            } => {
+                let object = Self::grant_object_ms(
+                    database.as_deref(),
+                    schema.as_deref().or(Some("dbo")),
+                    table.as_deref(),
+                )?;
+                let mut s = format!("GRANT {privileges} ON {object} TO {grantee}");
+                if req.with_grant_option {
+                    s.push_str(" WITH GRANT OPTION");
+                }
+                s
+            }
+            GrantTarget::Role { role, .. } => {
+                format!(
+                    "ALTER ROLE {} ADD MEMBER {grantee}",
+                    quote_sqlserver_ident(role)
+                )
+            }
+        };
+        self.simple_exec(&stmt).await
+    }
+
+    pub async fn revoke(&mut self, req: &RevokeRequest) -> MieoResult<()> {
+        let grantee = quote_sqlserver_ident(&req.grantee);
+        let stmt = match &req.target {
+            GrantTarget::Privileges {
+                privileges,
+                database,
+                schema,
+                table,
+            } => {
+                let object = Self::grant_object_ms(
+                    database.as_deref(),
+                    schema.as_deref().or(Some("dbo")),
+                    table.as_deref(),
+                )?;
+                format!("REVOKE {privileges} ON {object} FROM {grantee}")
+            }
+            GrantTarget::Role { role, .. } => {
+                format!(
+                    "ALTER ROLE {} DROP MEMBER {grantee}",
+                    quote_sqlserver_ident(role)
+                )
+            }
+        };
+        self.simple_exec(&stmt).await
+    }
+
+    pub async fn set_user_password(
+        &mut self,
+        name: &str,
+        _host: Option<&str>,
+        password: &str,
+    ) -> MieoResult<()> {
+        self.simple_exec(&format!(
+            "ALTER LOGIN {} WITH PASSWORD = {}",
+            quote_sqlserver_ident(name),
+            quote_literal(password)
+        ))
+        .await
     }
 
     pub async fn use_database(&mut self, database: &str) -> MieoResult<()> {
@@ -873,6 +1326,43 @@ impl SqlServerDriver {
             .as_deref()
             .filter(|s| !s.is_empty())
             .unwrap_or("dbo")
+    }
+
+    /// `sys.objects.type` codes surfaced under each explorer kind
+    /// (FN scalar function, IF inline table function, TF table function,
+    /// P procedure, TR trigger, V view). `None` for table-like kinds that
+    /// are listed from `INFORMATION_SCHEMA` instead.
+    fn sys_types_for_kind(kind: ObjectKind) -> Option<&'static str> {
+        match kind {
+            ObjectKind::Function => Some("'FN', 'IF', 'TF'"),
+            ObjectKind::Procedure => Some("'P'"),
+            ObjectKind::Trigger => Some("'TR'"),
+            ObjectKind::View => Some("'V'"),
+            _ => None,
+        }
+    }
+
+    /// Schema owning `name` for a view / routine / trigger kind, used by
+    /// `object_ddl` when the scope carries no schema.
+    async fn resolve_object_schema(
+        &mut self,
+        scope: &Scope,
+        kind: ObjectKind,
+        name: &str,
+    ) -> MieoResult<Option<String>> {
+        let Some(in_list) = Self::sys_types_for_kind(kind) else {
+            return Ok(None);
+        };
+        let prefix = db_prefix(self.resolve_db(scope));
+        let sql = format!(
+            "SELECT TOP (1) s.name FROM {prefix}sys.objects o \
+             JOIN {prefix}sys.schemas s ON s.schema_id = o.schema_id \
+             WHERE o.name = @P1 AND o.type IN ({in_list}) ORDER BY s.name"
+        );
+        let rows = self
+            .fetch_rows(&sql, vec![Value::Text(name.to_string())])
+            .await?;
+        Ok(rows.first().map(|row| cell_str(row, 0)))
     }
 
     /// `[db].[schema].[name]` (or `[schema].[name]` when no database is set).
@@ -1568,6 +2058,10 @@ fn generate_create_table(qualified: &str, columns: &[ColumnDef]) -> String {
 // Row helpers for introspection queries
 // ---------------------------------------------------------------------------
 
+fn row_is_sysadmin(row: &Row) -> bool {
+    cell_str(row, 0).eq_ignore_ascii_case("sysadmin")
+}
+
 fn cell_str(row: &Row, index: usize) -> String {
     row.try_get::<&str, _>(index)
         .ok()
@@ -1894,5 +2388,28 @@ mod tests {
         assert_eq!(quote_sqlserver_ident("we]ird"), "[we]]ird]");
         assert_eq!(db_prefix(Some("my]db")), "[my]]db].");
         assert_eq!(db_prefix(None), "");
+    }
+
+    // --- introspection kinds ----------------------------------------------
+
+    #[test]
+    fn sys_types_cover_routines_and_triggers() {
+        assert_eq!(
+            SqlServerDriver::sys_types_for_kind(ObjectKind::Function),
+            Some("'FN', 'IF', 'TF'")
+        );
+        assert_eq!(
+            SqlServerDriver::sys_types_for_kind(ObjectKind::Procedure),
+            Some("'P'")
+        );
+        assert_eq!(
+            SqlServerDriver::sys_types_for_kind(ObjectKind::Trigger),
+            Some("'TR'")
+        );
+        assert_eq!(
+            SqlServerDriver::sys_types_for_kind(ObjectKind::View),
+            Some("'V'")
+        );
+        assert_eq!(SqlServerDriver::sys_types_for_kind(ObjectKind::Table), None);
     }
 }

@@ -46,8 +46,36 @@ import type { SyncApplyResult } from "@bindings/SyncApplyResult";
 import type { TransferRequest } from "@bindings/TransferRequest";
 import type { TransferResult } from "@bindings/TransferResult";
 import type { WorkspaceBundle } from "@bindings/WorkspaceBundle";
+import type { CreateDbUser } from "@bindings/CreateDbUser";
+import type { DbPrincipal } from "@bindings/DbPrincipal";
+import type { DbPrincipalDetail } from "@bindings/DbPrincipalDetail";
+import type { DropDbPrincipal } from "@bindings/DropDbPrincipal";
+import type { GrantRequest } from "@bindings/GrantRequest";
+import type { RevokeRequest } from "@bindings/RevokeRequest";
+import type { RoleGrant } from "@bindings/RoleGrant";
+
+// Locally-declared DTOs for database/table management + backup/restore (see
+// ./dto). `ImportSummary` intentionally shadows the workspace-bundle type of
+// the same name: file import re-exports the one from ./dto.
+import type {
+  BackupSummary,
+  BatchResult,
+  EditApplyResult,
+  GridEditRequest,
+  ImportOptions,
+  ImportSummary as FileImportSummary,
+  ScriptStatements,
+} from "./dto";
 
 export type { ApiError, ExportFormat, ExportStats, PreviewStart, QueryEvent, Value };
+export type { BackupSummary, BatchResult, ImportOptions, ScriptStatements } from "./dto";
+export type { ImportSummary } from "./dto";
+export type {
+  EditApplyResult,
+  GridCell,
+  GridEditRequest,
+  RowChanges,
+} from "./dto";
 
 export const api = {
   // ---------------------------------------------------------------- general
@@ -202,6 +230,76 @@ export const api = {
     invoke<void>("write_text_file", { path, contents }),
   writeBinaryFile: (path: string, base64Data: string) =>
     invoke<void>("write_binary_file", { path, base64Data }),
+
+  // ------------------------------------------- objects: DDL, import, backup
+  executeBatch: (sessionId: string, statements: string[], atomic: boolean) =>
+    invoke<BatchResult>("execute_batch", { sessionId, statements, atomic }),
+  importFile: (
+    sessionId: string,
+    scope: Scope,
+    table: string,
+    path: string,
+    format: "csv" | "json",
+    options: ImportOptions,
+  ) =>
+    invoke<FileImportSummary>("import_file", {
+      sessionId,
+      scope,
+      table,
+      path,
+      format,
+      options,
+    }),
+  dumpBackup: (
+    sessionId: string,
+    scope: Scope,
+    path: string,
+    includeData: boolean,
+    tables: string[] | null,
+  ) =>
+    invoke<BackupSummary>("dump_backup", {
+      sessionId,
+      scope,
+      path,
+      includeData,
+      tables,
+    }),
+  scriptStatements: (path: string) =>
+    invoke<ScriptStatements>("script_statements", { path }),
+  splitSqlText: (text: string) =>
+    invoke<ScriptStatements>("split_sql_text", { text }),
+  applyGridEdits: (request: GridEditRequest) =>
+    invoke<EditApplyResult>("apply_grid_edits", { request }),
+
+  // ------------------------------------------------- users / roles
+  listDbUsers: (sessionId: string) =>
+    invoke<DbPrincipal[]>("list_db_users", { sessionId }),
+  listDbRoles: (sessionId: string) =>
+    invoke<DbPrincipal[]>("list_db_roles", { sessionId }),
+  dbRoleMembers: (sessionId: string) =>
+    invoke<RoleGrant[]>("db_role_members", { sessionId }),
+  dbUserGrants: (sessionId: string, name: string, host?: string | null) =>
+    invoke<string[]>("db_user_grants", { sessionId, name, host: host ?? null }),
+  createDbUser: (sessionId: string, request: CreateDbUser) =>
+    invoke<void>("create_db_user", { sessionId, request }),
+  dropDbPrincipal: (sessionId: string, request: DropDbPrincipal) =>
+    invoke<void>("drop_db_principal", { sessionId, request }),
+  grant: (sessionId: string, request: GrantRequest) =>
+    invoke<void>("grant", { sessionId, request }),
+  revoke: (sessionId: string, request: RevokeRequest) =>
+    invoke<void>("revoke", { sessionId, request }),
+  setUserPassword: (
+    sessionId: string,
+    name: string,
+    host: string | null,
+    password: string,
+  ) => invoke<void>("set_user_password", { sessionId, name, host, password }),
+  dbPrincipalDetail: (sessionId: string, name: string, host?: string | null) =>
+    invoke<DbPrincipalDetail>("db_principal_detail", {
+      sessionId,
+      name,
+      host: host ?? null,
+    }),
 
   // ----------------------------------------------------------------- events
   onQueryEvent: (

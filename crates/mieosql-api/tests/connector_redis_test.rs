@@ -219,6 +219,7 @@ async fn setup() -> TestEnv {
             color: None,
             group: None,
             variant: None,
+            is_prod: false,
             password: url.password,
             ssh_password: None,
         })

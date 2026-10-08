@@ -7,9 +7,13 @@ import {
 } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { syntaxHighlighting } from "@codemirror/language";
 
 import type { Engine, Scope } from "../lib/bindings";
+import { mieosqlDark, mieosqlLight } from "../lib/editor-theme";
+import { resolveTheme } from "../lib/theme";
+import { useStore } from "../lib/store";
 import {
   formatSql,
   identifierAt,
@@ -122,6 +126,13 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
   const viewRef = useRef<EditorView | null>(null);
   const dialectCompartment = useRef(new Compartment());
   const insightCompartment = useRef(new Compartment());
+  const themeCompartment = useRef(new Compartment());
+  const themeSetting = useStore((s) => s.settings.theme);
+  const [isDark, setIsDark] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      resolveTheme(themeSetting) === "dark",
+  );
   const callbacks = useRef({ onRun, onChange, onCursor });
   callbacks.current = { onRun, onChange, onCursor };
   const engineRef = useRef(engine);
@@ -146,6 +157,9 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
         doc: initialDocRef.current,
         extensions: [
           basicSetup,
+          themeCompartment.current.of(
+            syntaxHighlighting(isDark ? mieosqlDark : mieosqlLight),
+          ),
           dialectCompartment.current.of(dialectExtension(engineRef.current)),
           insightCompartment.current.of(
             insightExtensions(engineRef.current, sessionRef.current, () => scopeRef.current),
@@ -241,6 +255,24 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
       ),
     });
   }, [engine, sessionId, scope?.database, scope?.schema]);
+
+  // Follow the app theme (Settings → system/light/dark) for SQL colors.
+  useEffect(() => {
+    setIsDark(resolveTheme(themeSetting) === "dark");
+    if (themeSetting !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => setIsDark(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [themeSetting]);
+
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: themeCompartment.current.reconfigure(
+        syntaxHighlighting(isDark ? mieosqlDark : mieosqlLight),
+      ),
+    });
+  }, [isDark]);
 
   // Menu/toolbar events (Edit → Format/Minify/Rename).
   useEffect(() => {

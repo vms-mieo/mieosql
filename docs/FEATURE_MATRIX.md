@@ -38,7 +38,9 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 | Tính năng Navicat | MieoSQL |
 |---|---|
 | Cây database → schema → bảng/view/function/procedure/trigger/sequence | ✅ v0.1: database, schema, table, view, index, FK, column metadata + DDL (MySQL/SQLite); 🔜 routine/trigger/sequence (P1) |
-| Table designer (tạo/sửa cột, index, FK, comment) | P1 (sinh DDL + apply transaction) |
+| **Context menu chuột phải trên cây** (Open/New Query/Import/Export/Rename/Truncate/Drop/Copy/DDL) | ✅ v0.6 — menu ngữ cảnh theo row type, xác nhận trước thao tác phá huỷ |
+| **Tạo/xoá Database, Schema** | ✅ v0.6 — New Database… (charset MySQL), Drop Database…; API `execute_batch` (PG không bọc transaction) |
+| Table designer (tạo bảng: cột/PK/NN/default/auto-increment, preview DDL engine-aware) | ✅ v0.6 v1 — tạo bảng (sửa bảng — P1.5) |
 | View/Routine/Trigger designer | P1–P2 |
 | Generate SQL script của object | 🔜 P1 (MySQL `SHOW CREATE`, SQLite `sqlite_master.sql`; Postgres dùng catalog — P1.5) |
 | Data Dictionary (xuất tài liệu schema) | ✅ v0.4 — Markdown/HTML (columns/indexes/FK/DDL, comment = glossary) |
@@ -52,11 +54,12 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 | Execute, **kết quả stream theo batch** | ✅ v0.1 (BE) + v0.2 (grid) |
 | Huỷ query đang chạy | ✅ v0.2 (token; hard-cancel `KILL`/`pg_cancel_backend` — P1) |
 | Parameter binding (`?` / `$1`) | ✅ v0.1 (prepared mode) + v0.4 **dialog nhập tham số** khi SQL có placeholder |
-| Multi-statement script | 🔜 P1 (SQL splitter an toàn + chạy tuần tự) |
+| Multi-statement script | ✅ v0.6 — **Open SQL File…**: splitter an toàn (quote/comment/dollar-quote/`#temp`), chạy tuần tự, tiến độ, dừng khi lỗi |
 | Explain / Execution plan | ✅ v0.4 — **Visual Explain** (cây chi phí, MySQL JSON / PG JSON+ANALYZE / SQLite QUERY PLAN, raw view) |
 | Query history | ✅ v0.2 (panel History, click mở lại query) |
 | Snippet / Saved queries | ✅ v0.2 snippets tĩnh; 🔜 P2 snippets tự lưu |
 | Code Insight / Autocomplete / Refactor | ✅ v0.4 — completion schema-aware, hover, **rename symbol**, **beautify/minify** |
+| Fix syntax tự động (khi query lỗi cú pháp) | ✅ v0.6 — **Fix SQL Syntax** cục bộ: typo keyword/hàm (SELET→SELECT, WEHER→WHERE), `==`→`=`, dấu phẩy thừa/lặp, ngoặc/nháy chưa đóng, keyword dính (GROUPBY), AND/OR treo; **dialog Before/After** trước khi áp dụng; nút Fix trên toolbar + Edit menu + lỗi syntax trong Result |
 | Visual Query Builder (kéo thả) | ✅ v0.4 (light: chọn bảng/cột/filter/order/limit → SQL); kéo-thả đồ hoạ đầy đủ — P3 |
 | Result pinning | ✅ v0.4 — ghim result khỏi bị cap theo tab |
 | AI Assistant (NL → SQL, giải thích query) | P4 |
@@ -69,7 +72,7 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 | Sort / Filter trong grid | ✅ v0.2 — sort theo cột (client-side), filter loaded rows |
 | Copy cell/row, xem giá trị đầy đủ | ✅ v0.2 — Ctrl+C, double-click cell viewer (JSON pretty, base64) |
 | Export kết quả | ✅ v0.2 — copy CSV / JSON lines (file export + save dialog — P1) |
-| Sửa inline, thêm/xoá dòng, commit | 🔜 P1 (diff-based UPDATE/DELETE theo PK, trả về FE) |
+| Sửa inline, thêm/xoá dòng, commit | ✅ v0.6 — **grid editing**: sửa inline (double-click), thêm/xoá dòng, highlight thay đổi, Apply/Discard theo **PK diff** (1 transaction); cần PK nằm trong kết quả |
 | Raw data view (hex/text editor cho BLOB) | P2 (value model đã giữ Bytes base64) |
 | Column profiling / data masking | ✅ v0.4 — **masked export** (redact/fake/hash/random, rule theo cột); column profiling — P3 |
 
@@ -77,12 +80,12 @@ Ký hiệu: ✅ có trong v0.1 (backend) · 🔜 có trong roadmap (ghi rõ phas
 
 | Tính năng Navicat | MieoSQL |
 |---|---|
-| Import wizard (CSV/TXT/JSON/XML/Excel…) | 🔜 P1 CSV/JSON (thuần Rust), P2 Excel/XML |
-| Export (CSV/TXT/JSON/XML/SQL/HTML/Markdown) | ✅ v0.3 — **CSV, Text(TSV), JSON, JSON Lines, SQL INSERTs, Excel (XLSX)** + save dialog, streaming server-side (không giới hạn bởi FE buffer) |
+| Import wizard (CSV/TXT/JSON/XML/Excel…) | ✅ v0.6 — **CSV + JSON** (delimiter/header/NULL marker/append-hoặc-truncate, batch parameterized); Excel/XML — P2 |
+| Export (CSV/TXT/JSON/XML/SQL/HTML/Markdown) | ✅ v0.3 — **CSV, Text(TSV), JSON, JSON Lines, SQL INSERTs, Excel (XLSX)** + save dialog, streaming server-side; ✅ v0.6 — **export trực tiếp từ chuột phải trên cây** |
 | Data Transfer (copy dữ liệu giữa 2 connection khác engine) | ✅ v0.4 — streaming batch, prepared inserts, 4 mode (create/append/truncate/drop-create), warning per value |
 | Data Synchronization (2 chiều, so sánh) | ✅ v0.4 v1 — diff theo key (INSERT/UPDATE/DELETE), sample limit + statement cap, preview + apply; 2 chiều/conflict handling — P3 |
 | Structure Synchronization (diff schema → script) | ✅ v0.4 — columns/indexes/tables, ALTER đúng engine, preview + apply transaction; FK report-only — P3 |
-| Backup / Restore (dump & restore SQL) | P2 |
+| Backup / Restore (dump & restore SQL) | ✅ v0.6 v1 — **Backup Database/Table → .sql** (DDL + multi-row INSERTs, chọn bảng, schema-only); restore qua **Open SQL File…** (splitter + tiến độ); pg_dump-style đầy đủ — P2 |
 | Data Generation (sinh dữ liệu test) | ✅ v0.4 — 21 strategy, auto heuristic, seed tái lập, preview/execute |
 | Automation / Scheduler (job định kỳ) | P4 (host OS scheduler hoặc daemon in-process) |
 | Server Monitor (CPU/RAM/session list) | P3 |

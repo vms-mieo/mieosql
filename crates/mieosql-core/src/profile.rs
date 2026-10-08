@@ -232,6 +232,10 @@ pub struct ConnectionProfile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub variant: Option<String>,
+    /// Production guard: when true the UI shows a red border and requires
+    /// typing the database name to confirm destructive actions.
+    #[serde(default)]
+    pub is_prod: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -254,6 +258,7 @@ impl ConnectionProfile {
             color: None,
             group: None,
             variant: None,
+            is_prod: false,
             created_at: now,
             updated_at: now,
         }

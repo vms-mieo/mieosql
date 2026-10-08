@@ -94,5 +94,5 @@ jobs:
         with:
           name: mieosql-${{ matrix.os }}
           path: |
-            target/release/mieosql-desktop*
-            apps/mieosql-desktop/target/release/mieosql-desktop*
+            target/release/MieoSQL*
+            apps/mieosql-desktop/target/release/MieoSQL*

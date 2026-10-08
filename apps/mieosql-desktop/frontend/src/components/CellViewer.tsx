@@ -31,7 +31,7 @@ export function CellViewer({
 
   return (
     <div
-      className="fixed inset-0 z-[90] grid place-items-center bg-slate-900/30"
+      className="fixed inset-0 z-[90] grid place-items-center bg-black/40"
       onMouseDown={onClose}
     >
       <div

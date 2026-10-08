@@ -18,7 +18,7 @@ export function DialogShell({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-slate-900/30 p-4"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
       onMouseDown={onClose}
     >
       <div

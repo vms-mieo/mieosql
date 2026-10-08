@@ -96,6 +96,24 @@ fn main() {
             commands::fetch_rows,
             commands::write_text_file,
             commands::write_binary_file,
+            // Maintenance pack: batch execute / file import / grid edits /
+            // script split / backup
+            commands::execute_batch,
+            commands::import_file,
+            commands::apply_grid_edits,
+            commands::script_statements,
+            commands::split_sql_text,
+            commands::dump_backup,
+            commands::list_db_users,
+            commands::list_db_roles,
+            commands::db_role_members,
+            commands::db_user_grants,
+            commands::create_db_user,
+            commands::drop_db_principal,
+            commands::grant,
+            commands::revoke,
+            commands::set_user_password,
+            commands::db_principal_detail,
         ])
         .setup(move |app| {
             // `WebviewUrl::App` resolves against the app URL: the embedded
@@ -111,6 +129,11 @@ fn main() {
             .min_inner_size(1024.0, 640.0)
             .resizable(true)
             .decorations(false)
+            // macOS: transparent window so the frontend shell can draw
+            // Apple-style rounded corners (see styles.css, `data-window-shape`).
+            // The native window shadow follows the rounded opaque region.
+            // No-op on other platforms, which keep square opaque windows.
+            .transparent(cfg!(target_os = "macos"))
             .build()?;
 
             // Optional end-to-end render probe (`MIEOSQL_SMOKE_CHECK=1`):

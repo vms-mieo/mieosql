@@ -15,6 +15,7 @@ import type { QueryEvent, QueryStats, Scope, ServerInfo, SessionInfo, Value } fr
 import { api, errorText } from "./api";
 import { formatBytes } from "./format";
 import { bindPlaceholders, findPlaceholders } from "./sql-params";
+import { findUnsafeWrites } from "./sql-suggest";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,10 +82,55 @@ export type SelectedObject = {
 
 export type RightTab = "object" | "history" | "snippets";
 
+export type ThemeSetting = "system" | "light" | "dark";
+export type FontSizeSetting = "small" | "medium" | "large";
+export type DensitySetting = "comfortable" | "compact";
+
+export type AppSettings = {
+  theme: ThemeSetting;
+  fontSize: FontSizeSetting;
+  density: DensitySetting;
+  /** Editor tab width in spaces (stored; enforcement is TODO). */
+  tabSize: number;
+  /** Format SQL on save (stored; enforcement is TODO). */
+  formatOnSave: boolean;
+  /** Show the unsafe-write (UPDATE/DELETE without WHERE) warning. */
+  confirmUnsafe: boolean;
+};
+
+/**
+ * Database/table management dialogs hosted by `<ObjectDialogs />`.
+ * `props` carries the opening context (session, tree scope, table name).
+ */
+export type ObjectDialogKind =
+  | "new-database"
+  | "new-table"
+  | "edit-table"
+  | "import"
+  | "backup"
+  | "restore";
+
+export type ObjectDialogProps = {
+  sessionId?: string | null;
+  scope?: Scope;
+  table?: string;
+  objectKind?: ObjectKind;
+};
+
 const MAX_BUFFERED_ROWS = 200_000;
 const MAX_RESULTS_PER_TAB = 8;
 const LIMIT_KEY = "mieosql.limit";
+const SETTINGS_KEY = "mieosql.settings";
 const LIMIT_OPTIONS = [100, 500, 1000, 5000, 10000, 0] as const;
+
+const DEFAULT_SETTINGS: AppSettings = {
+  theme: "system",
+  fontSize: "medium",
+  density: "comfortable",
+  tabSize: 2,
+  formatOnSave: false,
+  confirmUnsafe: true,
+};
 
 /** Export formats with their file extension and dialog label. */
 const EXPORT_META: Record<ExportFormat, { ext: string; label: string }> = {
@@ -120,6 +166,9 @@ let historyRefreshTimer: number | null = null;
  */
 const earlyEvents = new Map<string, QueryEvent[]>();
 
+/** Profiles with an in-flight `openSession` (dedupes fast double-clicks). */
+const connectingProfiles = new Set<string>();
+
 function uid(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -131,6 +180,49 @@ function loadLimit(): number {
   const raw = localStorage.getItem(LIMIT_KEY);
   const n = raw ? Number(raw) : NaN;
   return Number.isFinite(n) ? n : 1000;
+}
+
+function loadSettings(): AppSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return DEFAULT_SETTINGS;
+    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    return {
+      theme:
+        parsed.theme === "light" ||
+        parsed.theme === "dark" ||
+        parsed.theme === "system"
+          ? parsed.theme
+          : DEFAULT_SETTINGS.theme,
+      fontSize:
+        parsed.fontSize === "small" ||
+        parsed.fontSize === "large" ||
+        parsed.fontSize === "medium"
+          ? parsed.fontSize
+          : DEFAULT_SETTINGS.fontSize,
+      density:
+        parsed.density === "compact" || parsed.density === "comfortable"
+          ? parsed.density
+          : DEFAULT_SETTINGS.density,
+      tabSize:
+        typeof parsed.tabSize === "number" &&
+        Number.isFinite(parsed.tabSize) &&
+        parsed.tabSize >= 1 &&
+        parsed.tabSize <= 8
+          ? Math.floor(parsed.tabSize)
+          : DEFAULT_SETTINGS.tabSize,
+      formatOnSave:
+        typeof parsed.formatOnSave === "boolean"
+          ? parsed.formatOnSave
+          : DEFAULT_SETTINGS.formatOnSave,
+      confirmUnsafe:
+        typeof parsed.confirmUnsafe === "boolean"
+          ? parsed.confirmUnsafe
+          : DEFAULT_SETTINGS.confirmUnsafe,
+    };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -151,9 +243,12 @@ type State = {
   selected: SelectedObject | null;
   rightTab: RightTab;
   connectionModal: { open: boolean; profileId: string | null };
+  objectDialog: { kind: ObjectDialogKind; props: ObjectDialogProps } | null;
   limit: number;
   limitOptions: readonly number[];
   cursor: { line: number; col: number };
+  settings: AppSettings;
+  settingsOpen: boolean;
 
   // lifecycle
   init: () => Promise<void>;
@@ -169,6 +264,10 @@ type State = {
   refreshSessionInfo: (sessionId: string) => Promise<void>;
   setConnectionModal: (open: boolean, profileId?: string | null) => void;
 
+  // object dialogs (database/table management, import, backup/restore)
+  openObjectDialog: (kind: ObjectDialogKind, props?: ObjectDialogProps) => void;
+  closeObjectDialog: () => void;
+
   // tabs
   newQueryTab: (sessionId?: string | null, sql?: string) => string;
   openTable: (sessionId: string, scope: Scope, table: string) => string;
@@ -182,6 +281,8 @@ type State = {
   setActiveTab: (tabId: string) => void;
   setSql: (tabId: string, sql: string) => void;
   setActiveSession: (sessionId: string) => void;
+  /** Replace a tab's scope (database/schema) — used by the toolbar pickers. */
+  setTabScope: (tabId: string, scope: Scope) => void;
 
   // query execution
   runQuery: (tabId: string, sqlOverride?: string, params?: Value[]) => Promise<void>;
@@ -229,6 +330,8 @@ type State = {
   setRightTab: (tab: RightTab) => void;
   setLimit: (limit: number) => void;
   setCursor: (line: number, col: number) => void;
+  updateSettings: (patch: Partial<AppSettings>) => void;
+  setSettingsOpen: (open: boolean) => void;
 };
 
 function scheduleHistoryRefresh(get: () => State) {
@@ -253,11 +356,14 @@ export const useStore = create<State>((set, get) => ({
   selected: null,
   rightTab: "history",
   connectionModal: { open: false, profileId: null },
+  objectDialog: null,
   featureDialog: null,
   paramDialog: null,
   limit: loadLimit(),
   limitOptions: LIMIT_OPTIONS,
   cursor: { line: 1, col: 1 },
+  settings: loadSettings(),
+  settingsOpen: false,
 
   init: async () => {
     try {
@@ -305,21 +411,34 @@ export const useStore = create<State>((set, get) => ({
   },
 
   openSession: async (profileId) => {
-    const info = await api.openSession(profileId);
-    let serverInfo: ServerInfo | null = null;
-    try {
-      serverInfo = await api.serverInfo(info.id);
-    } catch {
-      /* server info is decorative */
+    // Already connected: focus the existing session instead of opening a
+    // second one. Also dedupe while a connect for this profile is in flight.
+    const existing = get().sessions.find((s) => s.profile_id === profileId);
+    if (existing) {
+      set({ activeSessionId: existing.id });
+      return;
     }
-    set((s) => ({
-      sessions: [...s.sessions.filter((x) => x.id !== info.id), info],
-      serverInfos: serverInfo
-        ? { ...s.serverInfos, [info.id]: serverInfo }
-        : s.serverInfos,
-      activeSessionId: info.id,
-    }));
-    get().toast("success", `Connected to ${info.name}`);
+    if (connectingProfiles.has(profileId)) return;
+    connectingProfiles.add(profileId);
+    try {
+      const info = await api.openSession(profileId);
+      let serverInfo: ServerInfo | null = null;
+      try {
+        serverInfo = await api.serverInfo(info.id);
+      } catch {
+        /* server info is decorative */
+      }
+      set((s) => ({
+        sessions: [...s.sessions.filter((x) => x.id !== info.id), info],
+        serverInfos: serverInfo
+          ? { ...s.serverInfos, [info.id]: serverInfo }
+          : s.serverInfos,
+        activeSessionId: info.id,
+      }));
+      get().toast("success", `Connected to ${info.name}`);
+    } finally {
+      connectingProfiles.delete(profileId);
+    }
   },
 
   closeSession: async (sessionId) => {
@@ -359,6 +478,13 @@ export const useStore = create<State>((set, get) => ({
 
   setConnectionModal: (open, profileId = null) =>
     set({ connectionModal: { open, profileId } }),
+
+  // -------------------------------------------------------- object dialogs
+
+  openObjectDialog: (kind, props) =>
+    set({ objectDialog: { kind, props: props ?? {} } }),
+
+  closeObjectDialog: () => set({ objectDialog: null }),
 
   // ----------------------------------------------------------------- tabs
 
@@ -463,6 +589,11 @@ export const useStore = create<State>((set, get) => ({
     });
   },
 
+  setTabScope: (tabId, scope) =>
+    set((s) => ({
+      tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, scope } : t)),
+    })),
+
   // -------------------------------------------------------------- queries
 
   runQuery: async (tabId, sqlOverride, params) => {
@@ -477,9 +608,36 @@ export const useStore = create<State>((set, get) => ({
     const sql = (sqlOverride ?? tab.sql).trim();
     if (!sql) return;
 
+    if (!confirmUnsafeWrites(sql)) {
+      get().toast("info", "Run cancelled");
+      return;
+    }
+
+    const boundParams = params ?? [];
+    // Navicat-style multi-statement run: split the editor text first. A lone
+    // statement keeps the prepared streaming path (bound params + grids);
+    // several statements — notably DELIMITER-wrapped routine definitions —
+    // run sequentially on the simple execution path instead of being sent to
+    // the server as one prepared statement (which MySQL rejects).
+    if (boundParams.length === 0) {
+      try {
+        const parts = await api.splitSqlText(sql);
+        for (const warning of parts.warnings) {
+          pushMessage(set, tabId, "warn", warning);
+        }
+        if (parts.statements.length > 1) {
+          await runStatementsSequentially(set, get().toast, tabId, sessionId, parts.statements);
+          return;
+        }
+      } catch {
+        // Splitting must never block running: fall through to the single
+        // prepared statement path below.
+      }
+    }
+
     try {
       const limit = state.limit;
-      const queryId = await api.startQuery(sessionId, sql, params ?? [], {
+      const queryId = await api.startQuery(sessionId, sql, boundParams, {
         mode: "prepared",
         fetch_size: 512,
         max_rows: limit > 0 ? limit : null,
@@ -866,7 +1024,42 @@ export const useStore = create<State>((set, get) => ({
   },
 
   setCursor: (line, col) => set({ cursor: { line, col } }),
+
+  updateSettings: (patch) => {
+    const settings = { ...get().settings, ...patch };
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch {
+      /* storage may be unavailable; keep the in-memory value */
+    }
+    set({ settings });
+  },
+
+  setSettingsOpen: (open) => set({ settingsOpen: open }),
 }));
+
+/**
+ * Warn + block UPDATE/DELETE statements without WHERE (DBeaver/Navicat-style
+ * safety net). Returns true when the run may proceed.
+ */
+export function confirmUnsafeWrites(sql: string): boolean {
+  try {
+    if (useStore.getState().settings.confirmUnsafe === false) return true;
+  } catch {
+    /* store unavailable (tests): fall through to the dialog */
+  }
+  const unsafe = findUnsafeWrites(sql);
+  if (unsafe.length === 0) return true;
+  const lines = unsafe
+    .slice(0, 5)
+    .map((w) => `- ${w.kind} ${w.preview}`)
+    .join("\n");
+  const more =
+    unsafe.length > 5 ? `\n… and ${unsafe.length - 5} more` : "";
+  return window.confirm(
+    `Warning: ${unsafe.length} statement(s) without WHERE will hit every row:\n${lines}${more}\n\nRun anyway?`,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Helpers (operate on the store via set/get)
@@ -930,6 +1123,55 @@ function attachResult(
 function firstLine(sql: string): string {
   const line = sql.split("\n").find((l) => l.trim().length > 0) ?? sql;
   return line.length > 160 ? `${line.slice(0, 160)}…` : line;
+}
+
+/**
+ * Run several statements one by one on the simple execution path (the same
+ * path the .sql script runner uses), stopping at the first error. Used when
+ * the editor holds multi-statement input such as DELIMITER-wrapped
+ * CREATE PROCEDURE scripts. Plain SELECT grids are only produced by the
+ * single-statement prepared path — here each statement is reported in the
+ * Messages log, Navicat-style.
+ */
+async function runStatementsSequentially(
+  set: SetFn,
+  toast: (level: "success" | "error" | "info", text: string) => void,
+  tabId: string,
+  sessionId: string,
+  statements: string[],
+): Promise<void> {
+  const startedAt = Date.now();
+  let applied = 0;
+  for (let idx = 0; idx < statements.length; idx++) {
+    const stmt = statements[idx]!;
+    pushMessage(set, tabId, "info", `> ${firstLine(stmt)}`);
+    try {
+      const result = await api.executeBatch(sessionId, [stmt], false);
+      applied += result.applied;
+      if (result.failed > 0) {
+        const msg = `Statement ${idx + 1}/${statements.length} failed: ${result.errors[0] ?? "unknown error"}`;
+        pushMessage(set, tabId, "error", msg);
+        toast("error", msg);
+        return;
+      }
+      pushMessage(
+        set,
+        tabId,
+        "info",
+        `Statement ${idx + 1}/${statements.length} ok (${result.elapsed_ms} ms)`,
+      );
+    } catch (err) {
+      const msg = `Statement ${idx + 1}/${statements.length} failed: ${errorText(err)}`;
+      pushMessage(set, tabId, "error", msg);
+      toast("error", msg);
+      return;
+    }
+  }
+  const elapsedMs = Date.now() - startedAt;
+  toast(
+    "success",
+    `Ran ${statements.length} statements (${applied} applied) in ${elapsedMs} ms`,
+  );
 }
 
 function pushMessage(

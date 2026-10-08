@@ -593,7 +593,7 @@ function appendLine(dom: HTMLElement, className: string, text: string): void {
 function tooltipFor(word: SqlWord, build: (dom: HTMLElement) => void): Tooltip {
   const dom = document.createElement("div");
   dom.className =
-    "max-w-[380px] rounded border border-slate-300 bg-white px-2 py-1.5 font-code text-[11px] leading-snug text-slate-700 shadow-lg";
+    "mieo-insight-tooltip max-w-[380px] px-2 py-1.5 font-code text-[11px] leading-snug shadow-lg";
   build(dom);
   return {
     pos: word.from,

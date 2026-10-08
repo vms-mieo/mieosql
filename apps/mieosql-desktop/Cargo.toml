@@ -22,3 +22,10 @@ tokio = { workspace = true }
 [features]
 # Default Tauri feature set; kept explicit for future tuning.
 default = []
+
+# User-visible app/binary name. Package stays `mieosql-desktop` so every
+# `cargo -p mieosql-desktop` reference keeps working; the emitted executable
+# (and Dock / process name when run directly) is `MieoSQL`.
+[[bin]]
+name = "MieoSQL"
+path = "src/main.rs"

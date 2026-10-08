@@ -219,6 +219,7 @@ async fn sqlserver_full_flow() {
             color: None,
             group: None,
             variant: None,
+            is_prod: false,
             password: Some(url.password.clone()),
             ssh_password: None,
         })

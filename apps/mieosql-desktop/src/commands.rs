@@ -7,8 +7,9 @@ use tauri::{AppHandle, Emitter, State};
 
 use mieosql_api::{ApiError, ExportFormat, ExportStats, PreviewStart, ProfileInput};
 use mieosql_core::{
-    Capabilities, ColumnDef, ConnectionProfile, DatabaseRef, ForeignKeyDef, IndexDef, ObjectKind,
-    ObjectRef, QueryOptions, SchemaRef, Scope, ServerInfo, Value,
+    Capabilities, ColumnDef, ConnectionProfile, CreateDbUser, DatabaseRef, DropDbPrincipal,
+    ForeignKeyDef, GrantRequest, IndexDef, ObjectKind, ObjectRef, QueryOptions, RevokeRequest,
+    SchemaRef, Scope, ServerInfo, Value,
 };
 use mieosql_engine::{HistoryEntry, SessionInfo};
 
@@ -487,4 +488,182 @@ pub fn write_binary_file(
     base64_data: String,
 ) -> Result<(), ApiError> {
     state.api.write_binary_file(path, base64_data)
+}
+
+// ---------------------------------------------------------------------------
+// Maintenance pack: batch execute / file import / grid edits / script split /
+// backup. Command bodies are thin adapters over `Api`.
+// ---------------------------------------------------------------------------
+
+/// Run a list of statements sequentially on the session's simple execution
+/// path. `atomic` wraps the run in one transaction (rolled back on the first
+/// error) when the session is idle.
+#[tauri::command]
+pub async fn execute_batch(
+    state: State<'_, AppState>,
+    session_id: String,
+    statements: Vec<String>,
+    atomic: bool,
+) -> Result<mieosql_api::maintenance::BatchResult, ApiError> {
+    state.api.execute_batch(session_id, statements, atomic).await
+}
+
+/// Import a CSV or JSON file into `table` (append, or truncate first).
+#[tauri::command]
+pub async fn import_file(
+    state: State<'_, AppState>,
+    session_id: String,
+    scope: Scope,
+    table: String,
+    path: String,
+    format: mieosql_api::maintenance::ImportFormat,
+    options: mieosql_api::maintenance::ImportOptions,
+) -> Result<mieosql_api::maintenance::ImportSummary, ApiError> {
+    state
+        .api
+        .import_file(session_id, scope, table, path, format, options)
+        .await
+}
+
+/// Apply staged data-grid inserts/updates/deletes in one transaction.
+#[tauri::command]
+pub async fn apply_grid_edits(
+    state: State<'_, AppState>,
+    request: mieosql_api::maintenance::GridEditRequest,
+) -> Result<mieosql_api::maintenance::EditApplyResult, ApiError> {
+    state.api.apply_grid_edits(request).await
+}
+
+/// Split a `.sql` script into individual statements (quotes, comments,
+/// Postgres dollar quoting, DELIMITER directives and BEGIN..END bodies aware).
+#[tauri::command]
+pub fn script_statements(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<mieosql_api::maintenance::ScriptStatements, ApiError> {
+    state.api.script_statements(path)
+}
+
+/// Split editor text into individual statements with the same tokenizer as
+/// `script_statements`. Pure function of the text — no session needed.
+#[tauri::command]
+pub fn split_sql_text(
+    state: State<'_, AppState>,
+    text: String,
+) -> mieosql_api::maintenance::ScriptStatements {
+    state.api.split_sql_text(text)
+}
+
+// ---------------------------------------------------------------------------
+// Users / roles / grants (also drives the authorization UI).
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn list_db_users(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<Vec<mieosql_core::DbPrincipal>, ApiError> {
+    state.api.list_db_users(session_id).await
+}
+
+#[tauri::command]
+pub async fn list_db_roles(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<Vec<mieosql_core::DbPrincipal>, ApiError> {
+    state.api.list_db_roles(session_id).await
+}
+
+#[tauri::command]
+pub async fn db_role_members(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<Vec<mieosql_core::RoleGrant>, ApiError> {
+    state.api.db_role_members(session_id).await
+}
+
+#[tauri::command]
+pub async fn db_user_grants(
+    state: State<'_, AppState>,
+    session_id: String,
+    name: String,
+    host: Option<String>,
+) -> Result<Vec<String>, ApiError> {
+    state.api.db_user_grants(session_id, name, host).await
+}
+
+#[tauri::command]
+pub async fn create_db_user(
+    state: State<'_, AppState>,
+    session_id: String,
+    request: CreateDbUser,
+) -> Result<(), ApiError> {
+    state.api.create_db_user(session_id, request).await
+}
+
+#[tauri::command]
+pub async fn drop_db_principal(
+    state: State<'_, AppState>,
+    session_id: String,
+    request: DropDbPrincipal,
+) -> Result<(), ApiError> {
+    state.api.drop_db_principal(session_id, request).await
+}
+
+#[tauri::command]
+pub async fn grant(
+    state: State<'_, AppState>,
+    session_id: String,
+    request: GrantRequest,
+) -> Result<(), ApiError> {
+    state.api.grant(session_id, request).await
+}
+
+#[tauri::command]
+pub async fn revoke(
+    state: State<'_, AppState>,
+    session_id: String,
+    request: RevokeRequest,
+) -> Result<(), ApiError> {
+    state.api.revoke(session_id, request).await
+}
+
+#[tauri::command]
+pub async fn set_user_password(
+    state: State<'_, AppState>,
+    session_id: String,
+    name: String,
+    host: Option<String>,
+    password: String,
+) -> Result<(), ApiError> {
+    state
+        .api
+        .set_user_password(session_id, name, host, password)
+        .await
+}
+
+#[tauri::command]
+pub async fn db_principal_detail(
+    state: State<'_, AppState>,
+    session_id: String,
+    name: String,
+    host: Option<String>,
+) -> Result<mieosql_core::DbPrincipalDetail, ApiError> {
+    state.api.db_principal_detail(session_id, name, host).await
+}
+
+/// Dump a scope to a `.sql` backup file (object DDL + optional data).
+#[tauri::command]
+pub async fn dump_backup(
+    state: State<'_, AppState>,
+    session_id: String,
+    scope: Scope,
+    path: String,
+    include_data: bool,
+    tables: Option<Vec<String>>,
+) -> Result<mieosql_api::maintenance::BackupSummary, ApiError> {
+    state
+        .api
+        .dump_backup(session_id, scope, path, include_data, tables)
+        .await
 }

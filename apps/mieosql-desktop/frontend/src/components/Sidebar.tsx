@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  Archive,
+  Braces,
+  CalendarClock,
   ChevronDown,
   ChevronRight,
+  Cog,
   Database,
   Eye,
   FileCode2,
@@ -11,16 +15,17 @@ import {
   Loader2,
   Plug,
   Plus,
-  Radio,
   RefreshCw,
   Search,
   Settings,
   Star,
   Table2,
-  Unplug,
   X,
+  Zap,
 } from "lucide-react";
 
+import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
+import { EngineGlyph } from "./EngineGlyph";
 import { api, errorText } from "../lib/api";
 import type {
   ConnectionProfile,
@@ -32,7 +37,24 @@ import type {
   Scope,
   SessionInfo,
 } from "../lib/bindings";
-import { engineVersionBadge } from "../lib/format";
+import { copyText, plainText } from "../lib/format";
+import {
+  canRenameTable,
+  countSql,
+  dropDatabaseSql,
+  dropRoutineSql,
+  dropSchemaSql,
+  dropTableSql,
+  dropViewSql,
+  duplicateTableSql,
+  isSqlEngine,
+  qualified,
+  quoteIdent,
+  renameTableSql,
+  selectStarSql,
+  truncateTableSql,
+} from "../lib/quoting";
+import { exportTableData, TABLE_EXPORT_MENU } from "../lib/table-export";
 import { useStore } from "../lib/store";
 
 type Loadable<T> = T | "loading";
@@ -67,38 +89,41 @@ function folderKey(sid: string, db: string, schema: string, kind: string) {
   return `${sid}|${db}|${schema}|${kind}`;
 }
 
-const ENGINE_LABEL: Record<Engine, string> = {
-  mysql: "MySQL",
-  mariadb: "MariaDB",
-  postgres: "PostgreSQL",
-  sqlite: "SQLite",
-  sql_server: "SQL Server",
-  mongodb: "MongoDB",
-  redis: "Redis",
-  kafka: "Kafka",
-  oracle: "Oracle",
-  snowflake: "Snowflake",
-};
-
 /** Message brokers get their own "Messaging" section in the tree. */
 function isBroker(engine: Engine): boolean {
   return engine === "kafka";
 }
 
-function engineIcon(engine: Engine): React.ReactNode {
-  return engine === "kafka" ? <Radio size={12} /> : <Plug size={12} />;
-}
-
-function objectIcon(kind: ObjectKind, size = 11): React.ReactNode {
+function objectIcon(kind: ObjectKind, size = 11, selected = false): React.ReactNode {
+  const tone = (normal: string) => (selected ? "text-white" : normal);
   switch (kind) {
     case "view":
-      return <Eye size={size} />;
+      return <Eye size={size} className={tone("text-emerald-600")} />;
     case "materialized_view":
-      return <Layers size={size} />;
+      return <Layers size={size} className={tone("text-amber-600")} />;
     case "sequence":
-      return <ListOrdered size={size} />;
+      return <ListOrdered size={size} className={tone("text-slate-400")} />;
+    case "function":
+      return <Braces size={size} className={tone("text-violet-600")} />;
+    case "procedure":
+      return <Cog size={size} className={tone("text-violet-600")} />;
+    case "trigger":
+      return <Zap size={size} className={tone("text-amber-600")} />;
     default:
-      return <Table2 size={size} />;
+      return <Table2 size={size} className={tone("text-sky-600")} />;
+  }
+}
+
+type VirtualFolderId = "events" | "queries" | "backups";
+
+function virtualFolderIcon(id: VirtualFolderId, size = 12): React.ReactNode {
+  switch (id) {
+    case "events":
+      return <CalendarClock size={size} className="text-amber-600" />;
+    case "queries":
+      return <FileCode2 size={size} className="text-slate-500" />;
+    case "backups":
+      return <Archive size={size} className="text-slate-500" />;
   }
 }
 
@@ -111,10 +136,12 @@ function TreeRow({
   trailing,
   expanded,
   selected,
+  strong,
   loading,
   onClick,
   onToggle,
   onDoubleClick,
+  onContextMenu,
 }: {
   depth: number;
   caret?: boolean;
@@ -124,23 +151,29 @@ function TreeRow({
   trailing?: React.ReactNode;
   expanded?: boolean;
   selected?: boolean;
+  /** Solid accent highlight (Navicat-style) instead of the subtle tint. */
+  strong?: boolean;
   loading?: boolean;
   onClick?: (e: React.MouseEvent) => void;
   onToggle?: () => void;
   onDoubleClick?: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   return (
     <div
-      className={`group flex min-h-6 cursor-default items-center gap-1 rounded-md pr-1 ${
+      className={`group flex min-h-7 cursor-default items-center gap-1 rounded-md pr-1 ${
         subtitle ? "py-[3px]" : "py-px"
       } ${
         selected
-          ? "bg-accent/[0.12] text-accent"
+          ? strong
+            ? "bg-accent text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+            : "bg-accent/[0.12] text-accent"
           : "text-slate-700 hover:bg-slate-900/[0.04]"
       }`}
       style={{ paddingLeft: 4 + depth * 13 }}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
     >
       <button
         className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded ${
@@ -150,7 +183,10 @@ function TreeRow({
         }`}
         onClick={(e) => {
           e.stopPropagation();
-          onToggle?.();
+          // Most rows only pass `onClick` (single-click toggles, double-click
+          // reloads); the caret falls back to it so `>` is never a dead button.
+          if (onToggle) onToggle();
+          else onClick?.(e);
         }}
         tabIndex={-1}
       >
@@ -162,13 +198,17 @@ function TreeRow({
           <ChevronRight size={11} />
         )}
       </button>
-      <span className={`shrink-0 ${selected ? "text-accent" : "text-slate-500"}`}>
+      <span
+        className={`shrink-0 ${
+          selected ? (strong ? "text-white" : "text-accent") : "text-slate-500"
+        }`}
+      >
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col leading-tight">
         <span className="truncate text-[13px]">{label}</span>
         {subtitle && (
-          <span className="truncate text-[11px] text-slate-500">{subtitle}</span>
+          <span className="truncate text-[11.5px] text-slate-500">{subtitle}</span>
         )}
       </span>
       {trailing}
@@ -236,6 +276,15 @@ export function Sidebar() {
   const loadSchemas = useCallback(
     async (sid: string, db: string, engine: Engine) => {
       const key = dbKey(sid, db);
+      // Engines without a schema level (MySQL, SQLite, SQL Server boxes...)
+      // render the object folders directly — nothing to load.
+      const caps = useStore
+        .getState()
+        .sessions.find((s) => s.id === sid)?.capabilities;
+      if (caps && !caps.list_schemas) {
+        setCache((c) => ({ ...c, schemas: { ...c.schemas, [key]: [] } }));
+        return;
+      }
       setCache((c) => ({ ...c, schemas: { ...c.schemas, [key]: "loading" } }));
       try {
         if (engine === "postgres") {
@@ -297,14 +346,14 @@ export function Sidebar() {
         const sid = key.slice(2);
         if (!cache.databases[sid]) void loadDatabases(sid);
       } else if (key.startsWith("db:")) {
-        const [, sid, db] = key.split("|");
+        const [sid, db] = key.slice(3).split("|");
         const session = store.sessions.find((s) => s.id === sid);
         if (!sid || !db || !session) continue;
         if (!cache.schemas[dbKey(sid, db)]) {
           void loadSchemas(sid, db, session.engine);
         }
       } else if (key.startsWith("f:")) {
-        const [, sid, db, schema, kind] = key.split("|");
+        const [sid, db, schema, kind] = key.slice(2).split("|");
         if (!sid || !kind) continue;
         if (!cache.objects[folderKey(sid, db ?? "", schema ?? "", kind)]) {
           void loadObjects(sid, db || null, schema || null, kind as ObjectKind);
@@ -319,6 +368,1229 @@ export function Sidebar() {
     window.addEventListener("mieosql:refresh-tree", handler);
     return () => window.removeEventListener("mieosql:refresh-tree", handler);
   }, []);
+
+  // ------------------------------------------------------- context menus
+
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    items: ContextMenuItem[];
+  } | null>(null);
+
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  const openMenu = (e: React.MouseEvent, items: ContextMenuItem[]) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ x: e.clientX, y: e.clientY, items });
+  };
+
+  const refreshTreeEvent = () =>
+    window.dispatchEvent(new CustomEvent("mieosql:refresh-tree"));
+
+  const copyName = (name: string) => {
+    void copyText(name).then((ok) =>
+      useStore
+        .getState()
+        .toast(ok ? "success" : "error", ok ? `Copied "${name}"` : "Copy failed"),
+    );
+  };
+
+  // Drop cached entries for a key prefix so the declarative loader refetches
+  // the expanded nodes on the next render.
+  const clearObjectCaches = (prefix: string) => {
+    setCache((c) => {
+      const schemas = Object.fromEntries(
+        Object.entries(c.schemas).filter(([k]) => !k.startsWith(prefix)),
+      ) as Cache["schemas"];
+      const objects = Object.fromEntries(
+        Object.entries(c.objects).filter(([k]) => !k.startsWith(prefix)),
+      ) as Cache["objects"];
+      return { ...c, schemas, objects };
+    });
+  };
+
+  const refreshSession = (session: SessionInfo) => {
+    setCache((c) => {
+      const databases = { ...c.databases };
+      delete databases[session.id];
+      const prefix = `${session.id}|`;
+      const schemas = Object.fromEntries(
+        Object.entries(c.schemas).filter(([k]) => !k.startsWith(prefix)),
+      ) as Cache["schemas"];
+      const objects = Object.fromEntries(
+        Object.entries(c.objects).filter(([k]) => !k.startsWith(prefix)),
+      ) as Cache["objects"];
+      return { databases, schemas, objects };
+    });
+  };
+
+  const refreshDatabase = (session: SessionInfo, db: string) => {
+    setCache((c) => {
+      const schemas = { ...c.schemas };
+      delete schemas[dbKey(session.id, db)];
+      return { ...c, schemas };
+    });
+    clearObjectCaches(`${session.id}|${db}|`);
+  };
+
+  const refreshSchema = (session: SessionInfo, db: string, schema: string) =>
+    clearObjectCaches(`${session.id}|${db}|${schema}|`);
+
+  /** Whether the session belongs to a production profile. */
+  const isProdSession = (session: SessionInfo): boolean =>
+    useStore.getState().profiles.some(
+      (p) => p.id === session.profile_id && p.is_prod,
+    );
+
+  /** Production name of the session's profile (for confirm dialogs). */
+  const prodProfileName = (session: SessionInfo): string =>
+    useStore.getState().profiles.find((p) => p.id === session.profile_id)
+      ?.name ?? session.name;
+
+  /**
+   * Strong confirmation for production: the user must type the exact
+   * database name (compared trimmed). Cancel or mismatch returns false.
+   */
+  const confirmDangerous = (profileName: string, dbName: string): boolean => {
+    const typed = window.prompt(
+      `PRODUCTION "${profileName}" — destructive action.\nType the database name "${dbName}" to confirm:`,
+      "",
+    );
+    if (typed === null) return false;
+    return typed.trim() === dbName;
+  };
+
+  /** Execute small maintenance statements, then toast + reload the tree. */
+  const runStatements = async (
+    sessionId: string,
+    statements: string[],
+    successText: string,
+    atomic = false,
+  ) => {
+    try {
+      const result = await api.executeBatch(sessionId, statements, atomic);
+      if (result.failed > 0) {
+        useStore
+          .getState()
+          .toast("error", result.errors[0] ?? "Statement failed");
+        return;
+      }
+      useStore.getState().toast("success", successText);
+      refreshTreeEvent();
+    } catch (err) {
+      useStore.getState().toast("error", errorText(err));
+    }
+  };
+
+  const openDdlTab = async (session: SessionInfo, scope: Scope, obj: ObjectRef) => {
+    try {
+      const ddl = await api.objectDdl(session.id, scope, obj.kind, obj.name);
+      if (ddl) useStore.getState().newQueryTab(session.id, ddl);
+      else useStore.getState().toast("info", "DDL is not available for this object yet");
+    } catch (err) {
+      useStore.getState().toast("error", errorText(err));
+    }
+  };
+
+  const copyDdl = async (session: SessionInfo, scope: Scope, obj: ObjectRef) => {
+    try {
+      const ddl = await api.objectDdl(session.id, scope, obj.kind, obj.name);
+      if (!ddl) {
+        useStore.getState().toast("info", "DDL is not available for this object yet");
+        return;
+      }
+      const ok = await copyText(ddl);
+      useStore
+        .getState()
+        .toast(ok ? "success" : "error", ok ? "Copied CREATE statement" : "Copy failed");
+    } catch (err) {
+      useStore.getState().toast("error", errorText(err));
+    }
+  };
+
+  // ------------------------------------------------- connection groups
+  // Profiles carry an optional `group` folder + `color` dot. The tree shows
+  // the group in the subtitle; these helpers implement
+  // Edit / Duplicate / Copy to / Move to for both connected sessions and
+  // disconnected profiles.
+
+  const promptForGroup = (current?: string | null): string | null => {
+    const next = window.prompt(
+      "Group (empty = Ungrouped):",
+      current ?? "",
+    );
+    if (next === null) return null; // cancelled
+    return next.trim();
+  };
+
+  const updateProfileGroup = (profile: ConnectionProfile, group: string) => {
+    void (async () => {
+      try {
+        const full = await api.getProfile(profile.id);
+        await useStore.getState().saveProfile({
+          id: full.id,
+          name: full.name,
+          engine: full.engine,
+          host: full.host,
+          port: full.port,
+          username: full.username,
+          database: full.database,
+          file: full.file,
+          params: full.params,
+          ssl_mode: full.ssl_mode,
+          ssh: full.ssh,
+          color: full.color,
+          group: group || undefined,
+          variant: full.variant,
+          is_prod: full.is_prod,
+          password: undefined,
+          ssh_password: undefined,
+        } as unknown as Parameters<typeof api.saveProfile>[0]);
+        await useStore.getState().refreshProfiles();
+        useStore
+          .getState()
+          .toast(
+            "success",
+            group ? `Moved "${profile.name}" to "${group}"` : `Moved "${profile.name}" to Ungrouped`,
+          );
+      } catch (err) {
+        useStore.getState().toast("error", errorText(err));
+      }
+    })();
+  };
+
+  const duplicateConnection = (profile: ConnectionProfile, targetGroup?: string) => {
+    void (async () => {
+      try {
+        const full = await api.getProfile(profile.id);
+        const group = targetGroup !== undefined ? targetGroup : (full.group ?? undefined);
+        await useStore.getState().saveProfile({
+          name: `${full.name} copy`,
+          engine: full.engine,
+          host: full.host,
+          port: full.port,
+          username: full.username,
+          database: full.database,
+          file: full.file,
+          params: full.params,
+          ssl_mode: full.ssl_mode,
+          ssh: full.ssh,
+          color: full.color,
+          group,
+          variant: full.variant,
+          is_prod: full.is_prod,
+          // password intentionally not copied — user re-enters it.
+          password: null,
+        } as unknown as Parameters<typeof api.saveProfile>[0]);
+        await useStore.getState().refreshProfiles();
+        useStore.getState().toast("success", `Duplicated "${profile.name}"`);
+      } catch (err) {
+        useStore.getState().toast("error", errorText(err));
+      }
+    })();
+  };
+
+  const moveConnectionTo = (profile: ConnectionProfile) => {
+    const next = promptForGroup(profile.group);
+    if (next === null) return;
+    void updateProfileGroup(profile, next);
+  };
+
+  const copyConnectionTo = (profile: ConnectionProfile) => {
+    const next = promptForGroup(profile.group);
+    if (next === null) return;
+    duplicateConnection(profile, next);
+  };
+
+  const renameGroup = (group: string) => {
+    const next = window.prompt(`Rename group "${group}" to:`, group)?.trim();
+    if (!next || next === group) return;
+    void (async () => {
+      try {
+        const all = store.profiles.filter((p) => (p.group ?? "") === group);
+        for (const p of all) {
+          const full = await api.getProfile(p.id);
+          await useStore.getState().saveProfile({
+            id: full.id,
+            name: full.name,
+            engine: full.engine,
+            host: full.host,
+            port: full.port,
+            username: full.username,
+            database: full.database,
+            file: full.file,
+            params: full.params,
+            ssl_mode: full.ssl_mode,
+            ssh: full.ssh,
+            color: full.color,
+            group: next,
+            variant: full.variant,
+            is_prod: full.is_prod,
+            password: undefined,
+            ssh_password: undefined,
+          } as unknown as Parameters<typeof api.saveProfile>[0]);
+        }
+        await useStore.getState().refreshProfiles();
+        useStore.getState().toast("success", `Renamed group "${group}" to "${next}"`);
+      } catch (err) {
+        useStore.getState().toast("error", errorText(err));
+      }
+    })();
+  };
+
+  const groupHeaderMenu = (group: string): ContextMenuItem[] => [
+    {
+      kind: "item",
+      label: "Rename Group…",
+      onClick: () => renameGroup(group),
+    },
+    {
+      kind: "item",
+      label: "Ungroup All",
+      onClick: () => {
+        if (!window.confirm(`Move all connections out of "${group}"?`)) return;
+        void (async () => {
+          try {
+            const all = useStore.getState().profiles.filter((p) => (p.group ?? "") === group);
+            for (const p of all) {
+              const full = await api.getProfile(p.id);
+              await useStore.getState().saveProfile({
+                id: full.id,
+                name: full.name,
+                engine: full.engine,
+                host: full.host,
+                port: full.port,
+                username: full.username,
+                database: full.database,
+                file: full.file,
+                params: full.params,
+                ssl_mode: full.ssl_mode,
+                ssh: full.ssh,
+                color: full.color,
+                group: undefined,
+                variant: full.variant,
+                is_prod: full.is_prod,
+                password: undefined,
+                ssh_password: undefined,
+              } as unknown as Parameters<typeof api.saveProfile>[0]);
+            }
+            await useStore.getState().refreshProfiles();
+          } catch (err) {
+            useStore.getState().toast("error", errorText(err));
+          }
+        })();
+      },
+    },
+    { kind: "separator" },
+    { kind: "item", label: "Copy Name", onClick: () => copyName(group) },
+  ];
+
+  const sessionMenu = (session: SessionInfo): ContextMenuItem[] => {
+    const profile = store.profiles.find((p) => p.id === session.profile_id);
+    const sqlEngine = isSqlEngine(session.engine);
+    const items: ContextMenuItem[] = [
+      { kind: "item", label: "New Query", onClick: () => store.newQueryTab(session.id) },
+      {
+        kind: "item",
+        label: "New Table…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("new-table", {
+            sessionId: session.id,
+            scope: session.database ? { database: session.database } : {},
+          }),
+      },
+    ];
+    if (sqlEngine && session.engine !== "sqlite") {
+      items.push({
+        kind: "item",
+        label: "New Database…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("new-database", { sessionId: session.id }),
+      });
+    }
+    items.push(
+      { kind: "item", label: "Refresh", onClick: () => refreshSession(session) },
+      { kind: "separator" },
+      {
+        kind: "item",
+        label: "Backup Database…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("backup", {
+            sessionId: session.id,
+            scope: session.database ? { database: session.database } : {},
+          }),
+      },
+      {
+        kind: "item",
+        label: "Restore SQL Script…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("restore", { sessionId: session.id }),
+      },
+      {
+        kind: "item",
+        label: "Users & Roles…",
+        onClick: () => {
+          store.setActiveSession(session.id);
+          store.openFeatureTab("users", "Users & Roles", { sessionId: session.id });
+        },
+      },
+      { kind: "separator" },
+      { kind: "item", label: "Copy Name", onClick: () => copyName(session.name) },
+    );
+    if (profile) {
+      items.push(
+        { kind: "separator" },
+        { kind: "label", label: "Connection" },
+        {
+          kind: "item",
+          label: "Edit Connection…",
+          onClick: () => store.setConnectionModal(true, profile.id),
+        },
+        {
+          kind: "item",
+          label: "Duplicate Connection",
+          onClick: () => duplicateConnection(profile),
+        },
+        {
+          kind: "item",
+          label: "Copy Connection To…",
+          onClick: () => copyConnectionTo(profile),
+        },
+        {
+          kind: "item",
+          label: "Move Connection To…",
+          onClick: () => moveConnectionTo(profile),
+        },
+      );
+    }
+    items.push(
+      { kind: "separator" },
+      {
+        kind: "item",
+        label: "Disconnect",
+        danger: true,
+        onClick: () => void store.closeSession(session.id),
+      },
+    );
+    return items;
+  };
+
+  const databaseMenu = (
+    session: SessionInfo,
+    db: DatabaseRef,
+  ): ContextMenuItem[] => {
+    const scope: Scope = { database: db.name };
+    const sqlEngine = isSqlEngine(session.engine);
+    const items: ContextMenuItem[] = [
+      { kind: "item", label: "New Query", onClick: () => store.newQueryTab(session.id) },
+      {
+        kind: "item",
+        label: "Open Tables",
+        onClick: () => store.openObjects(session.id, scope, "table", `${db.name} · Tables`),
+      },
+      { kind: "item", label: "Refresh", onClick: () => refreshDatabase(session, db.name) },
+    ];
+    if (sqlEngine) {
+      items.push({ kind: "separator" });
+      items.push({
+        kind: "item",
+        label: "New Table…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("new-table", {
+            sessionId: session.id,
+            scope,
+          }),
+      });
+      if (session.engine !== "sqlite") {
+        items.push({
+          kind: "item",
+          label: "New Database…",
+          onClick: () =>
+            useStore
+              .getState()
+              .openObjectDialog("new-database", { sessionId: session.id }),
+        });
+      }
+      items.push({
+        kind: "item",
+        label: "Import Data…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("import", {
+            sessionId: session.id,
+            scope,
+          }),
+      });
+      items.push({
+        kind: "item",
+        label: "Backup Database…",
+        onClick: () =>
+          useStore
+            .getState()
+            .openObjectDialog("backup", {
+              sessionId: session.id,
+              scope: { database: db.name },
+            }),
+      });
+      items.push({
+        kind: "item",
+        label: "Restore SQL Script…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("restore", { sessionId: session.id }),
+      });
+      items.push({
+        kind: "item",
+        label: "Data Dictionary…",
+        onClick: () => {
+          store.setActiveSession(session.id);
+          store.openFeatureDialog("docs");
+        },
+      });
+    }
+    items.push({ kind: "separator" });
+    items.push({ kind: "item", label: "Copy Name", onClick: () => copyName(db.name) });
+    items.push({
+      kind: "item",
+      label: "Copy SELECT *",
+      onClick: () => {
+        if (!sqlEngine) return;
+        const sql = `SELECT * FROM ${qualified(session.engine, scope, "<table>")} LIMIT 100;`;
+        void copyText(sql).then((ok) =>
+          useStore.getState().toast(ok ? "success" : "error", ok ? "Copied SELECT template" : "Copy failed"),
+        );
+      },
+    });
+    if (sqlEngine) {
+      items.push({ kind: "separator" });
+      items.push({
+        kind: "item",
+        label: "Empty Database… (truncate all tables)",
+        danger: true,
+        onClick: () => void emptyScopeTables(session, scope, `database "${db.name}"`),
+      });
+    }
+    const dropSql = dropDatabaseSql(session.engine, db.name);
+    if (dropSql) {
+      items.push({ kind: "separator" });
+      items.push({
+        kind: "item",
+        label: "Drop Database…",
+        danger: true,
+        onClick: () => {
+          if (isProdSession(session)) {
+            if (!confirmDangerous(prodProfileName(session), db.name)) return;
+          } else if (!window.confirm(`Drop database "${db.name}"? This cannot be undone.`)) {
+            return;
+          }
+          void runStatements(session.id, [dropSql], `Dropped database "${db.name}"`);
+        },
+      });
+    }
+    return items;
+  };
+
+  const emptyScopeTables = async (session: SessionInfo, scope: Scope, label: string) => {
+    try {
+      const tables = await api.listObjects(session.id, scope, "table", null);
+      if (tables.length === 0) {
+        useStore.getState().toast("info", `No tables in ${label}`);
+        return;
+      }
+      // Name the user must re-type on production (database, else schema).
+      const confirmName = scope.database ?? scope.schema ?? label;
+      if (isProdSession(session)) {
+        if (!confirmDangerous(prodProfileName(session), confirmName)) {
+          return;
+        }
+      } else if (
+        !window.confirm(
+          `Truncate ${tables.length} table(s) in ${label}? All rows will be deleted. This cannot be undone.`,
+        )
+      ) {
+        return;
+      }
+      const statements: string[] = [];
+      for (const t of tables) {
+        const tableScope: Scope = {
+          database: scope.database ?? t.database ?? undefined,
+          schema: t.schema ?? scope.schema,
+        };
+        const sql = truncateTableSql(session.engine, tableScope, t.name);
+        if (sql) statements.push(sql);
+      }
+      if (statements.length === 0) {
+        useStore.getState().toast("info", "Truncate is not supported for this engine");
+        return;
+      }
+      await runStatements(session.id, statements, `Emptied ${tables.length} table(s) in ${label}`);
+    } catch (err) {
+      useStore.getState().toast("error", errorText(err));
+    }
+  };
+
+  const openSelectQuery = (session: SessionInfo, scope: Scope, table: string) => {
+    const sql = selectStarSql(session.engine, scope, table, 100);
+    if (!sql) {
+      useStore.getState().toast("info", "Generate SQL is only available for SQL engines");
+      return;
+    }
+    useStore.getState().newQueryTab(session.id, sql);
+  };
+
+  const openCountQuery = (session: SessionInfo, scope: Scope, table: string) => {
+    const sql = countSql(session.engine, scope, table);
+    if (!sql) {
+      useStore.getState().toast("info", "Row count is only available for SQL engines");
+      return;
+    }
+    useStore.getState().newQueryTab(session.id, sql);
+  };
+
+  const showRowCount = async (session: SessionInfo, scope: Scope, table: string) => {
+    const sql = countSql(session.engine, scope, table);
+    if (!sql) {
+      useStore.getState().toast("info", "Row count is only available for SQL engines");
+      return;
+    }
+    try {
+      const out = await api.fetchRows(session.id, sql, 1);
+      const first = out.rows[0]?.[0];
+      const text = first ? plainText(first) : "0";
+      useStore.getState().toast("success", `"${table}" has ${Number(text).toLocaleString()} row(s)`);
+    } catch (err) {
+      useStore.getState().toast("error", errorText(err));
+    }
+  };
+
+  const openInsertTemplate = async (session: SessionInfo, scope: Scope, table: string) => {
+    try {
+      const cols = await api.tableColumns(session.id, scope, table);
+      const names = cols.map((c) => c.name);
+      const q = qualified(session.engine, scope, table);
+      if (names.length === 0) {
+        useStore.getState().newQueryTab(session.id, `INSERT INTO ${q} DEFAULT VALUES;`);
+        return;
+      }
+      const colList = names.map((n) => quoteIdent(session.engine, n)).join(", ");
+      const placeholders = names.map(() => "NULL").join(", ");
+      useStore.getState().newQueryTab(session.id, `INSERT INTO ${q} (${colList})\nVALUES (${placeholders});`);
+    } catch (err) {
+      useStore.getState().toast("error", errorText(err));
+    }
+  };
+
+  const openUpdateTemplate = async (session: SessionInfo, scope: Scope, table: string) => {
+    try {
+      const cols = await api.tableColumns(session.id, scope, table);
+      const names = cols.map((c) => c.name);
+      const q = qualified(session.engine, scope, table);
+      if (names.length === 0) {
+        useStore.getState().newQueryTab(session.id, `SELECT * FROM ${q} LIMIT 100;`);
+        return;
+      }
+      const first = quoteIdent(session.engine, names[0]!);
+      const setList = names.map((n) => `${quoteIdent(session.engine, n)} = NULL`).join(",\n  ");
+      useStore.getState().newQueryTab(session.id, `UPDATE ${q}\nSET ${setList}\nWHERE ${first} = NULL; -- adjust condition`);
+    } catch (err) {
+      useStore.getState().toast("error", errorText(err));
+    }
+  };
+
+  const openDeleteTemplate = (session: SessionInfo, scope: Scope, table: string) => {
+    const q = qualified(session.engine, scope, table);
+    useStore.getState().newQueryTab(session.id, `DELETE FROM ${q}\nWHERE 1 = 0; -- adjust condition`);
+  };
+
+  const duplicateTable = (session: SessionInfo, scope: Scope, table: string) => {
+    const next = window.prompt(`Duplicate table "${table}" as:`, `${table}_copy`)?.trim();
+    if (!next) return;
+    const sql = duplicateTableSql(session.engine, scope, table, next);
+    if (!sql) {
+      useStore.getState().toast("info", "Duplicate is only available for SQL engines");
+      return;
+    }
+    void runStatements(session.id, [sql], `Duplicated "${table}" as "${next}"`);
+  };
+
+  const schemaMenu = (
+    session: SessionInfo,
+    db: string,
+    schema: string,
+  ): ContextMenuItem[] => {
+    const scope: Scope = { database: db, schema };
+    const sqlEngine = isSqlEngine(session.engine);
+    const items: ContextMenuItem[] = [
+      { kind: "item", label: "New Query", onClick: () => store.newQueryTab(session.id) },
+      {
+        kind: "item",
+        label: "Open Tables",
+        onClick: () => store.openObjects(session.id, scope, "table", `${schema} · Tables`),
+      },
+      {
+        kind: "item",
+        label: "Refresh",
+        onClick: () => refreshSchema(session, db, schema),
+      },
+    ];
+    if (sqlEngine) {
+      items.push({ kind: "separator" });
+      items.push({
+        kind: "item",
+        label: "New Table…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("new-table", {
+            sessionId: session.id,
+            scope,
+          }),
+      });
+      items.push({
+        kind: "item",
+        label: "Import Data…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("import", {
+            sessionId: session.id,
+            scope,
+          }),
+      });
+      items.push({
+        kind: "item",
+        label: "Backup Schema…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("backup", {
+            sessionId: session.id,
+            scope,
+          }),
+      });
+      items.push({
+        kind: "item",
+        label: "Data Dictionary…",
+        onClick: () => {
+          store.setActiveSession(session.id);
+          store.openFeatureDialog("docs");
+        },
+      });
+    }
+    items.push({ kind: "separator" });
+    items.push({ kind: "item", label: "Copy Name", onClick: () => copyName(schema) });
+    if (sqlEngine) {
+      items.push({ kind: "separator" });
+      items.push({
+        kind: "item",
+        label: "Empty Schema… (truncate all tables)",
+        danger: true,
+        onClick: () => void emptyScopeTables(session, scope, `schema "${schema}"`),
+      });
+      const dropSql = dropSchemaSql(session.engine, schema);
+      if (dropSql) {
+        items.push({
+          kind: "item",
+          label: "Drop Schema…",
+          danger: true,
+          onClick: () => {
+            if (!window.confirm(`Drop schema "${schema}"? This cannot be undone.`)) return;
+            void runStatements(session.id, [dropSql], `Dropped schema "${schema}"`);
+          },
+        });
+      }
+    }
+    return items;
+  };
+
+  const folderMenu = (
+    session: SessionInfo,
+    db: string | null,
+    schema: string | null,
+    kind: ObjectKind,
+    label: string,
+  ): ContextMenuItem[] => {
+    const scope: Scope = {
+      database: db ?? undefined,
+      schema: schema ?? undefined,
+    };
+    const sqlEngine = isSqlEngine(session.engine);
+    const items: ContextMenuItem[] = [];
+    items.push({
+      kind: "item",
+      label: `Open ${label}`,
+      onClick: () =>
+        store.openObjects(session.id, scope, kind, `${db ?? schema ?? session.name} · ${label}`),
+    });
+    if (kind === "table" && sqlEngine) {
+      items.push({
+        kind: "item",
+        label: "New Table…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("new-table", {
+            sessionId: session.id,
+            scope: {
+              database: db ?? undefined,
+              schema: schema ?? undefined,
+            },
+          }),
+      });
+      items.push({ kind: "separator" });
+      items.push({
+        kind: "item",
+        label: "Import Data…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("import", {
+            sessionId: session.id,
+            scope,
+          }),
+      });
+      items.push({
+        kind: "item",
+        label: "Backup…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("backup", {
+            sessionId: session.id,
+            scope,
+          }),
+      });
+      items.push({
+        kind: "item",
+        label: "Empty All Tables…",
+        danger: true,
+        onClick: () => void emptyScopeTables(session, scope, label.toLowerCase()),
+      });
+    }
+    items.push({
+      kind: "item",
+      label: "Refresh",
+      onClick: () => void loadObjects(session.id, db, schema, kind),
+    });
+    items.push({ kind: "separator" });
+    items.push({ kind: "item", label: "Copy Name", onClick: () => copyName(label) });
+    return items;
+  };
+
+  const exportItems = (
+    session: SessionInfo,
+    scope: Scope,
+    table: string,
+  ): ContextMenuItem[] =>
+    TABLE_EXPORT_MENU.map(({ format, label }) => ({
+      kind: "item" as const,
+      label,
+      onClick: () =>
+        void exportTableData(session.id, session.engine, scope, table, format),
+    }));
+
+  const objectMenu = (
+    session: SessionInfo,
+    db: string | null,
+    schema: string | null,
+    obj: ObjectRef,
+  ): ContextMenuItem[] => {
+    const scope: Scope = {
+      database: db ?? undefined,
+      schema: schema ?? undefined,
+    };
+    const sqlEngine = isSqlEngine(session.engine);
+    const items: ContextMenuItem[] = [];
+
+    if (obj.kind === "table" && sqlEngine) {
+      items.push(
+        {
+          kind: "item",
+          label: "Open Data",
+          onClick: () => store.openTable(session.id, scope, obj.name),
+        },
+        {
+          kind: "item",
+          label: "Row Count",
+          onClick: () => void showRowCount(session, scope, obj.name),
+        },
+        { kind: "separator" },
+        { kind: "label", label: "Query" },
+        { kind: "item", label: "New Query", onClick: () => store.newQueryTab(session.id) },
+        {
+          kind: "item",
+          label: "Generate SELECT *",
+          onClick: () => openSelectQuery(session, scope, obj.name),
+        },
+        {
+          kind: "item",
+          label: "Generate SELECT COUNT(*)",
+          onClick: () => openCountQuery(session, scope, obj.name),
+        },
+        {
+          kind: "item",
+          label: "Generate INSERT",
+          onClick: () => void openInsertTemplate(session, scope, obj.name),
+        },
+        {
+          kind: "item",
+          label: "Generate UPDATE",
+          onClick: () => void openUpdateTemplate(session, scope, obj.name),
+        },
+        {
+          kind: "item",
+          label: "Generate DELETE",
+          onClick: () => openDeleteTemplate(session, scope, obj.name),
+        },
+        {
+          kind: "item",
+          label: "Generate DDL",
+          onClick: () => void openDdlTab(session, scope, obj),
+        },
+        { kind: "separator" },
+        { kind: "label", label: "Data" },
+        {
+          kind: "item",
+          label: "Import Data…",
+          onClick: () =>
+            useStore.getState().openObjectDialog("import", {
+              sessionId: session.id,
+              scope,
+              table: obj.name,
+            }),
+        },
+        ...exportItems(session, scope, obj.name),
+        {
+          kind: "item",
+          label: "Backup Table…",
+          onClick: () =>
+            useStore
+              .getState()
+              .openObjectDialog("backup", { sessionId: session.id, scope }),
+        },
+        {
+          kind: "item",
+          label: "Generate Test Data…",
+          onClick: () => {
+            store.setActiveSession(session.id);
+            store.openFeatureDialog("datagen");
+          },
+        },
+        { kind: "separator" },
+        { kind: "label", label: "Copy" },
+        { kind: "item", label: "Copy Name", onClick: () => copyName(obj.name) },
+        {
+          kind: "item",
+          label: "Copy SELECT *",
+          onClick: () => {
+            const sql = selectStarSql(session.engine, scope, obj.name, 100) ?? "";
+            void copyText(sql).then((ok) =>
+              useStore.getState().toast(ok ? "success" : "error", ok ? "Copied SELECT" : "Copy failed"),
+            );
+          },
+        },
+        {
+          kind: "item",
+          label: "Copy CREATE Statement",
+          onClick: () => void copyDdl(session, scope, obj),
+        },
+        { kind: "separator" },
+        { kind: "label", label: "Manage" },
+        {
+          kind: "item",
+          label: "Edit Table…",
+          onClick: () =>
+            useStore.getState().openObjectDialog("edit-table", {
+              sessionId: session.id,
+              scope,
+              table: obj.name,
+            }),
+        },
+        {
+          kind: "item",
+          label: "Duplicate Table…",
+          onClick: () => duplicateTable(session, scope, obj.name),
+        },
+      );
+      if (canRenameTable(session.engine)) {
+        items.push({
+          kind: "item",
+          label: "Rename Table…",
+          onClick: () => {
+            const next = window.prompt(`Rename table "${obj.name}" to:`, obj.name)?.trim();
+            if (!next || next === obj.name) return;
+            const renameSql = renameTableSql(session.engine, scope, obj.name, next);
+            if (!renameSql) return;
+            void runStatements(
+              session.id,
+              [renameSql],
+              `Renamed "${obj.name}" to "${next}"`,
+            );
+          },
+        });
+      }
+      items.push(
+        {
+          kind: "item",
+          label: "Truncate Table…",
+          danger: true,
+          onClick: () => {
+            const confirmName = scope.database ?? scope.schema ?? obj.name;
+            if (isProdSession(session)) {
+              if (!confirmDangerous(prodProfileName(session), confirmName)) {
+                return;
+              }
+            } else if (
+              !window.confirm(
+                `Truncate table "${obj.name}"? All rows will be deleted.`,
+              )
+            ) {
+              return;
+            }
+            const truncateSql = truncateTableSql(session.engine, scope, obj.name);
+            if (truncateSql) {
+              void runStatements(
+                session.id,
+                [truncateSql],
+                `Truncated "${obj.name}"`,
+                true,
+              );
+            }
+          },
+        },
+        {
+          kind: "item",
+          label: "Drop Table…",
+          danger: true,
+          onClick: () => {
+            const confirmName = scope.database ?? scope.schema ?? obj.name;
+            if (isProdSession(session)) {
+              if (!confirmDangerous(prodProfileName(session), confirmName)) {
+                return;
+              }
+            } else if (!window.confirm(`Drop table "${obj.name}"? This cannot be undone.`)) {
+              return;
+            }
+            const dropSql = dropTableSql(session.engine, scope, obj.name);
+            if (dropSql) {
+              void runStatements(session.id, [dropSql], `Dropped "${obj.name}"`);
+            }
+          },
+        },
+      );
+      return items;
+    }
+
+    if ((obj.kind === "view" || obj.kind === "materialized_view") && sqlEngine) {
+      items.push(
+        {
+          kind: "item",
+          label: "Open Data",
+          onClick: () => store.openTable(session.id, scope, obj.name),
+        },
+        {
+          kind: "item",
+          label: "Row Count",
+          onClick: () => void showRowCount(session, scope, obj.name),
+        },
+        { kind: "separator" },
+        {
+          kind: "item",
+          label: "Generate SELECT *",
+          onClick: () => openSelectQuery(session, scope, obj.name),
+        },
+        {
+          kind: "item",
+          label: "Generate DDL",
+          onClick: () => void openDdlTab(session, scope, obj),
+        },
+        { kind: "separator" },
+        ...exportItems(session, scope, obj.name),
+        { kind: "separator" },
+        { kind: "item", label: "Copy Name", onClick: () => copyName(obj.name) },
+        {
+          kind: "item",
+          label: "Copy CREATE Statement",
+          onClick: () => void copyDdl(session, scope, obj),
+        },
+        { kind: "separator" },
+        {
+          kind: "item",
+          label: `Drop ${obj.kind === "view" ? "View" : "Materialized View"}…`,
+          danger: true,
+          onClick: () => {
+            const confirmName = scope.database ?? scope.schema ?? obj.name;
+            if (isProdSession(session)) {
+              if (!confirmDangerous(prodProfileName(session), confirmName)) {
+                return;
+              }
+            } else if (!window.confirm(`Drop "${obj.name}"? This cannot be undone.`)) {
+              return;
+            }
+            const dropSql = dropViewSql(session.engine, scope, obj.name, obj.kind === "materialized_view");
+            if (dropSql) {
+              void runStatements(session.id, [dropSql], `Dropped "${obj.name}"`);
+            }
+          },
+        },
+      );
+      return items;
+    }
+
+    if (obj.kind === "sequence" && sqlEngine) {
+      items.push(
+        {
+          kind: "item",
+          label: "Generate DDL",
+          onClick: () => void openDdlTab(session, scope, obj),
+        },
+        { kind: "separator" },
+        { kind: "item", label: "Copy Name", onClick: () => copyName(obj.name) },
+        {
+          kind: "item",
+          label: "Copy CREATE Statement",
+          onClick: () => void copyDdl(session, scope, obj),
+        },
+      );
+      return items;
+    }
+
+    if (
+      (obj.kind === "function" || obj.kind === "procedure" || obj.kind === "trigger") &&
+      sqlEngine
+    ) {
+      const routineLabel =
+        obj.kind === "function" ? "Function" : obj.kind === "procedure" ? "Procedure" : "Trigger";
+      items.push(
+        {
+          kind: "item",
+          label: "Generate DDL",
+          onClick: () => void openDdlTab(session, scope, obj),
+        },
+        { kind: "separator" },
+        { kind: "item", label: "Copy Name", onClick: () => copyName(obj.name) },
+        {
+          kind: "item",
+          label: "Copy CREATE Statement",
+          onClick: () => void copyDdl(session, scope, obj),
+        },
+      );
+      const dropSql = dropRoutineSql(session.engine, scope, obj.name, obj.kind);
+      if (dropSql) {
+        items.push(
+          { kind: "separator" },
+          {
+            kind: "item",
+            label: `Drop ${routineLabel}…`,
+            danger: true,
+            onClick: () => {
+              if (!window.confirm(`Drop ${routineLabel.toLowerCase()} "${obj.name}"? This cannot be undone.`)) {
+                return;
+              }
+              void runStatements(session.id, [dropSql], `Dropped "${obj.name}"`);
+            },
+          },
+        );
+      }
+      return items;
+    }
+
+    // Views, materialized views, sequences (and tables on non-SQL engines).
+    items.push(
+      {
+        kind: "item",
+        label: "Open",
+        onClick: () => store.openTable(session.id, scope, obj.name),
+      },
+      {
+        kind: "item",
+        label: "Generate DDL",
+        onClick: () => void openDdlTab(session, scope, obj),
+      },
+    );
+    if (sqlEngine && (obj.kind === "view" || obj.kind === "materialized_view")) {
+      items.push({ kind: "separator" }, ...exportItems(session, scope, obj.name));
+    }
+    items.push(
+      { kind: "separator" },
+      { kind: "item", label: "Copy Name", onClick: () => copyName(obj.name) },
+    );
+    return items;
+  };
+
+  const profileMenu = (profile: ConnectionProfile): ContextMenuItem[] => {
+    const session = store.sessions.find((s) => s.profile_id === profile.id);
+    if (session) {
+      return [
+        {
+          kind: "item",
+          label: "New Query",
+          onClick: () => store.newQueryTab(session.id),
+        },
+        {
+          kind: "item",
+          label: "Refresh",
+          onClick: () => refreshSession(session),
+        },
+        { kind: "item", label: "Copy Name", onClick: () => copyName(profile.name) },
+        {
+          kind: "item",
+          label: "Edit Connection…",
+          onClick: () => store.setConnectionModal(true, profile.id),
+        },
+        { kind: "separator" },
+        {
+          kind: "item",
+          label: "Disconnect",
+          danger: true,
+          onClick: () => void store.closeSession(session.id),
+        },
+      ];
+    }
+    return [
+      {
+        kind: "item",
+        label: "Connect",
+        onClick: () =>
+          void store.openSession(profile.id).catch((err) => {
+            store.toast("error", errorText(err));
+          }),
+      },
+      {
+        kind: "item",
+        label: "Test Connection",
+        onClick: () => {
+          void api
+            .testProfile(profile.id)
+            .then((info) =>
+              useStore.getState().toast("success", `OK — ${info.version ?? "connected"}`),
+            )
+            .catch((err) => useStore.getState().toast("error", errorText(err)));
+        },
+      },
+      {
+        kind: "item",
+        label: "Edit Connection…",
+        onClick: () => store.setConnectionModal(true, profile.id),
+      },
+      {
+        kind: "item",
+        label: "Duplicate Connection",
+        onClick: () => duplicateConnection(profile),
+      },
+      {
+        kind: "item",
+        label: "Copy Connection To…",
+        onClick: () => copyConnectionTo(profile),
+      },
+      {
+        kind: "item",
+        label: "Move Connection To…",
+        onClick: () => moveConnectionTo(profile),
+      },
+      { kind: "separator" },
+      { kind: "item", label: "Copy Name", onClick: () => copyName(profile.name) },
+      { kind: "separator" },
+      {
+        kind: "item",
+        label: "Delete Connection",
+        danger: true,
+        onClick: () => {
+          if (!window.confirm(`Delete connection "${profile.name}"?`)) return;
+          void store.deleteProfile(profile.id).catch((err) => {
+            store.toast("error", errorText(err));
+          });
+        },
+      },
+    ];
+  };
 
   const selected = store.selected;
   const isSelected = (sid: string, db: string | null, schema: string | null, table: string) =>
@@ -353,15 +1625,189 @@ export function Sidebar() {
     );
   };
 
+  const virtualFolderMenu = (
+    session: SessionInfo,
+    db: string | null,
+    schema: string | null,
+    id: VirtualFolderId,
+    label: string,
+  ): ContextMenuItem[] => {
+    const scope: Scope = {
+      database: db ?? undefined,
+      schema: schema ?? undefined,
+    };
+    const items: ContextMenuItem[] = [];
+    if (id === "events") {
+      items.push({
+        kind: "item",
+        label: "Show Events",
+        onClick: () =>
+          useStore.getState().newQueryTab(session.id, "SHOW EVENTS;"),
+      });
+      items.push({
+        kind: "item",
+        label: "Create Event…",
+        onClick: () =>
+          useStore.getState().newQueryTab(
+            session.id,
+            "CREATE EVENT `event_name`\nON SCHEDULE EVERY 1 DAY\nDO\n  SELECT 1;",
+          ),
+      });
+    } else if (id === "queries") {
+      items.push({
+        kind: "item",
+        label: "New Query",
+        onClick: () => store.newQueryTab(session.id),
+      });
+      items.push({
+        kind: "item",
+        label: "Open Snippets",
+        onClick: () => useStore.getState().setRightTab("snippets"),
+      });
+      items.push({
+        kind: "item",
+        label: "Open History",
+        onClick: () => useStore.getState().setRightTab("history"),
+      });
+    } else {
+      items.push({
+        kind: "item",
+        label: "Backup…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("backup", {
+            sessionId: session.id,
+            scope,
+          }),
+      });
+      items.push({
+        kind: "item",
+        label: "Restore SQL Script…",
+        onClick: () =>
+          useStore.getState().openObjectDialog("restore", { sessionId: session.id }),
+      });
+    }
+    items.push({ kind: "separator" });
+    items.push({ kind: "item", label: "Copy Name", onClick: () => copyName(label) });
+    return items;
+  };
+
+  const renderVirtualFolder = (
+    session: SessionInfo,
+    db: string | null,
+    schema: string | null,
+    id: VirtualFolderId,
+    label: string,
+    depth: number,
+  ) => {
+    const vk = `v:${session.id}|${db ?? ""}|${schema ?? ""}|${id}`;
+    const isOpen = expanded.has(vk);
+    const scope: Scope = {
+      database: db ?? undefined,
+      schema: schema ?? undefined,
+    };
+    const rows: { label: string; action: () => void }[] =
+      id === "events"
+        ? [
+            {
+              label: "Show Events",
+              action: () => useStore.getState().newQueryTab(session.id, "SHOW EVENTS;"),
+            },
+            {
+              label: "Create Event…",
+              action: () =>
+                useStore.getState().newQueryTab(
+                  session.id,
+                  "CREATE EVENT `event_name`\nON SCHEDULE EVERY 1 DAY\nDO\n  SELECT 1;",
+                ),
+            },
+          ]
+        : id === "queries"
+          ? [
+              {
+                label: "New Query",
+                action: () => store.newQueryTab(session.id),
+              },
+              {
+                label: "Snippets",
+                action: () => useStore.getState().setRightTab("snippets"),
+              },
+              {
+                label: "History",
+                action: () => useStore.getState().setRightTab("history"),
+              },
+            ]
+          : [
+              {
+                label: "Backup…",
+                action: () =>
+                  useStore.getState().openObjectDialog("backup", {
+                    sessionId: session.id,
+                    scope,
+                  }),
+              },
+              {
+                label: "Restore SQL Script…",
+                action: () =>
+                  useStore.getState().openObjectDialog("restore", { sessionId: session.id }),
+              },
+              {
+                label: "Data Dictionary…",
+                action: () => {
+                  store.setActiveSession(session.id);
+                  store.openFeatureDialog("docs");
+                },
+              },
+            ];
+    return (
+      <div key={vk}>
+        <TreeRow
+          depth={depth}
+          caret
+          expanded={isOpen}
+          icon={virtualFolderIcon(id, 12)}
+          label={<span>{label}</span>}
+          onClick={() => toggle(vk)}
+          onContextMenu={(e) => openMenu(e, virtualFolderMenu(session, db, schema, id, label))}
+        />
+        {isOpen &&
+          rows.map((r) => (
+            <TreeRow
+              key={`${vk}|${r.label}`}
+              depth={depth + 1}
+              icon={virtualFolderIcon(id, 11)}
+              label={<span className="text-slate-600">{r.label}</span>}
+              onClick={() => r.action()}
+              onDoubleClick={() => r.action()}
+              onContextMenu={(e) => openMenu(e, virtualFolderMenu(session, db, schema, id, label))}
+            />
+          ))}
+      </div>
+    );
+  };
+
   const renderFolders = (
     session: SessionInfo,
     db: string | null,
     schema: string | null,
     depth: number,
   ) => {
+    const sqlEngine = isSqlEngine(session.engine);
     const folders: { kind: ObjectKind; label: string }[] = [
       { kind: "table", label: "Tables" },
       { kind: "view", label: "Views" },
+      // Stored routines — hidden on SQLite (no routines) and non-SQL engines
+      // (their tree shows collections/keys/topics instead).
+      ...(sqlEngine && session.engine !== "sqlite"
+        ? [
+            { kind: "function" as ObjectKind, label: "Functions" },
+            { kind: "procedure" as ObjectKind, label: "Procedures" },
+            { kind: "trigger" as ObjectKind, label: "Triggers" },
+          ]
+        : []),
+      // SQLite does support triggers — keep that folder visible there.
+      ...(session.engine === "sqlite"
+        ? [{ kind: "trigger" as ObjectKind, label: "Triggers" }]
+        : []),
       // PostgreSQL exposes these through the same introspection query today.
       ...(session.engine === "postgres"
         ? [
@@ -369,10 +1815,14 @@ export function Sidebar() {
             { kind: "sequence" as ObjectKind, label: "Sequences" },
           ]
         : []),
+      ...(session.engine === "sql_server"
+        ? [{ kind: "sequence" as ObjectKind, label: "Sequences" }]
+        : []),
     ];
-    return folders.map((folder) => {
+    const realFolders = folders.map((folder) => {
       const fk = folderKey(session.id, db ?? "", schema ?? "", folder.kind);
-      const isOpen = expanded.has(fk);
+      const expandKey = `f:${fk}`;
+      const isOpen = expanded.has(expandKey);
       const objects = cache.objects[fk];
       const list = Array.isArray(objects) ? objects : [];
       const shown = list.filter((o) => filterMatch(o.name));
@@ -397,47 +1847,65 @@ export function Sidebar() {
                 void loadObjects(session.id, db, schema, folder.kind);
                 return;
               }
-              toggle(fk);
+              toggle(expandKey);
             }}
+            onContextMenu={(e) =>
+              openMenu(e, folderMenu(session, db, schema, folder.kind, folder.label))
+            }
           />
           {isOpen &&
-            shown.map((obj) => (
-              <TreeRow
-                key={`${fk}|${obj.name}`}
-                depth={depth + 1}
-                icon={objectIcon(obj.kind, 11)}
-                selected={isSelected(session.id, db, schema, obj.name)}
-                label={<span>{obj.name}</span>}
-                trailing={
-                  obj.rows_estimate !== undefined && obj.rows_estimate !== null ? (
-                    <span className="text-[11px] text-slate-400">
-                      {obj.rows_estimate.toLocaleString()}
-                    </span>
-                  ) : undefined
-                }
-                onClick={() =>
-                  store.selectObject({
-                    sessionId: session.id,
-                    scope: {
+            shown.map((obj) => {
+              const selected = isSelected(session.id, db, schema, obj.name);
+              return (
+                <TreeRow
+                  key={`${fk}|${obj.name}`}
+                  depth={depth + 1}
+                  icon={objectIcon(obj.kind, 11, selected)}
+                  selected={selected}
+                  strong
+                  label={<span>{obj.name}</span>}
+                  trailing={
+                    obj.rows_estimate !== undefined && obj.rows_estimate !== null ? (
+                      <span
+                        className={`text-[11px] ${
+                          selected ? "text-white/80" : "text-slate-400"
+                        }`}
+                      >
+                        {obj.rows_estimate.toLocaleString()}
+                      </span>
+                    ) : undefined
+                  }
+                  onClick={() =>
+                    store.selectObject({
+                      sessionId: session.id,
+                      scope: {
+                        database: db ?? undefined,
+                        schema: schema ?? undefined,
+                      },
+                      table: obj.name,
+                      kind: obj.kind,
+                    })
+                  }
+                  onDoubleClick={() => {
+                    const scope = {
                       database: db ?? undefined,
                       schema: schema ?? undefined,
-                    },
-                    table: obj.name,
-                    kind: obj.kind,
-                  })
-                }
-                onDoubleClick={() =>
-                  store.openTable(
-                    session.id,
-                    {
-                      database: db ?? undefined,
-                      schema: schema ?? undefined,
-                    },
-                    obj.name,
-                  )
-                }
-              />
-            ))}
+                    };
+                    if (
+                      obj.kind === "function" ||
+                      obj.kind === "procedure" ||
+                      obj.kind === "trigger" ||
+                      obj.kind === "sequence"
+                    ) {
+                      void openDdlTab(session, scope, obj);
+                      return;
+                    }
+                    store.openTable(session.id, scope, obj.name);
+                  }}
+                  onContextMenu={(e) => openMenu(e, objectMenu(session, db, schema, obj))}
+                />
+              );
+            })}
           {isOpen && Array.isArray(objects) && shown.length === 0 && (
             <div
               className="px-1 py-[2px] text-[13px] text-slate-400"
@@ -449,6 +1917,18 @@ export function Sidebar() {
         </div>
       );
     });
+    // Virtual Navicat-style folders: Events (MySQL/MariaDB scheduler),
+    // Queries (shortcuts) and Backups (shortcuts). They need no backend data.
+    const showEvents = session.engine === "mysql" || session.engine === "mariadb";
+    const showShortcuts = sqlEngine;
+    return (
+      <>
+        {realFolders}
+        {showEvents && renderVirtualFolder(session, db, schema, "events", "Events", depth)}
+        {showShortcuts && renderVirtualFolder(session, db, schema, "queries", "Queries", depth)}
+        {showShortcuts && renderVirtualFolder(session, db, schema, "backups", "Backups", depth)}
+      </>
+    );
   };
 
   const renderDatabase = (session: SessionInfo, db: DatabaseRef, depth: number) => {
@@ -478,6 +1958,7 @@ export function Sidebar() {
             if (e.detail === 2) void loadSchemas(session.id, db.name, session.engine);
             else toggle(dk);
           }}
+          onContextMenu={(e) => openMenu(e, databaseMenu(session, db))}
         />
         {isOpen && hasSchemas && Array.isArray(schemas) &&
           schemas
@@ -494,6 +1975,9 @@ export function Sidebar() {
                     icon={<Folder size={12} />}
                     label={<span className="font-medium">{schema.name}</span>}
                     onClick={() => toggle(sk)}
+                    onContextMenu={(e) =>
+                      openMenu(e, schemaMenu(session, db.name, schema.name))
+                    }
                   />
                   {schemaOpen &&
                     renderFolders(session, db.name, schema.name, depth + 2)}
@@ -509,10 +1993,6 @@ export function Sidebar() {
     const sk = `s:${session.id}`;
     const isOpen = expanded.has(sk);
     const databases = cache.databases[session.id];
-    const serverInfo = store.serverInfos[session.id];
-    const badge = serverInfo
-      ? engineVersionBadge(serverInfo.engine, serverInfo.version)
-      : session.engine.toUpperCase();
     return (
       <div key={session.id}>
         <TreeRow
@@ -520,15 +2000,32 @@ export function Sidebar() {
           caret
           expanded={isOpen}
           loading={databases === "loading"}
-          icon={engineIcon(session.engine)}
+          icon={<EngineGlyph engine={session.engine} />}
           label={<span className="font-medium">{session.name}</span>}
-          subtitle={ENGINE_LABEL[session.engine]}
+          subtitle={
+            store.profiles.find((p) => p.id === session.profile_id)?.group ?? undefined
+          }
           selected={store.activeSessionId === session.id}
           trailing={
             <span className="flex items-center gap-0.5">
-              <span className="rounded bg-slate-900/[0.06] px-1 text-[10.5px] font-medium text-slate-600">
-                {badge}
-              </span>
+              {store.profiles.find((p) => p.id === session.profile_id)?.is_prod ? (
+                <span
+                  className="shrink-0 rounded bg-rose-600 px-1 py-px text-[10px] font-semibold text-white"
+                  title="Production connection — destructive actions need extra confirmation"
+                >
+                  PROD
+                </span>
+              ) : null}
+              {(() => {
+                const c = store.profiles.find((p) => p.id === session.profile_id)?.color;
+                return c ? (
+                  <span
+                    className="inline-block h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: c }}
+                    title={c}
+                  />
+                ) : null;
+              })()}
               {starButton(session.profile_id)}
               <button
                 className="hidden h-5 w-5 place-items-center rounded-md text-slate-400 group-hover:grid hover:bg-slate-900/[0.06] hover:text-slate-600"
@@ -557,6 +2054,7 @@ export function Sidebar() {
             if (e.detail === 2) void loadDatabases(session.id);
             else toggle(sk);
           }}
+          onContextMenu={(e) => openMenu(e, sessionMenu(session))}
         />
         {isOpen &&
           (Array.isArray(databases) ? (
@@ -577,12 +2075,19 @@ export function Sidebar() {
         key={`p-${profile.id}`}
         depth={0}
         caret={false}
-        icon={session ? engineIcon(profile.engine) : <Unplug size={11} />}
+        icon={<EngineGlyph engine={profile.engine} muted={!session} />}
         label={<span>{profile.name}</span>}
-        subtitle={ENGINE_LABEL[profile.engine]}
+        subtitle={profile.group ?? undefined}
         selected={!!session && store.activeSessionId === session.id}
         trailing={
           <span className="flex items-center gap-0.5">
+            {profile.color ? (
+              <span
+                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: profile.color }}
+                title={profile.color}
+              />
+            ) : null}
             {starButton(profile.id)}
             {!session && (
               <button
@@ -600,17 +2105,18 @@ export function Sidebar() {
             )}
           </span>
         }
-        onDoubleClick={() => {
-          if (!session) {
-            void store.openSession(profile.id).catch((err) => {
-              store.toast("error", errorText(err));
-            });
-          }
-        }}
         onClick={() => {
-          if (session) store.setActiveSession(session.id);
-          else store.setConnectionModal(true, profile.id);
+          if (session) {
+            store.setActiveSession(session.id);
+            return;
+          }
+          // A saved connection connects straight away on click; edit or
+          // delete it from the right-click menu.
+          void store.openSession(profile.id).catch((err) => {
+            store.toast("error", errorText(err));
+          });
         }}
+        onContextMenu={(e) => openMenu(e, profileMenu(profile))}
       />
     );
   };
@@ -701,8 +2207,59 @@ export function Sidebar() {
         {hasConnections && (
           <>
             <SectionLabel>Connections</SectionLabel>
-            {dbSessions.map(renderSession)}
-            {dbProfiles.map(renderProfile)}
+            {(() => {
+              const groups = new Map<string, { sessions: typeof dbSessions; profiles: typeof dbProfiles }>();
+              const gkey = (g?: string | null) => (g ?? "").trim();
+              for (const s of dbSessions) {
+                const p = store.profiles.find((x) => x.id === s.profile_id);
+                const k = gkey(p?.group);
+                if (!groups.has(k)) groups.set(k, { sessions: [], profiles: [] });
+                groups.get(k)!.sessions.push(s);
+              }
+              for (const p of dbProfiles) {
+                const k = gkey(p.group);
+                if (!groups.has(k)) groups.set(k, { sessions: [], profiles: [] });
+                groups.get(k)!.profiles.push(p);
+              }
+              const ordered = [...groups.entries()].sort(([a], [b]) =>
+                a === "" ? -1 : b === "" ? 1 : a.localeCompare(b),
+              );
+              return ordered.map(([group, members]) => (
+                <div key={group || "__ungrouped"}>
+                  {group !== "" && (
+                    <div
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          items: groupHeaderMenu(group),
+                        });
+                      }}
+                    >
+                      <TreeRow
+                        depth={0}
+                        caret={false}
+                        icon={<Folder size={12} className="text-slate-400" />}
+                        label={
+                          <span className="font-medium">
+                            {group}
+                            <span className="ml-1 text-[11px] font-normal text-slate-400">
+                              ({members.sessions.length + members.profiles.length})
+                            </span>
+                          </span>
+                        }
+                      />
+                    </div>
+                  )}
+                  <div className={group !== "" ? "pl-2" : undefined}>
+                    {members.sessions.map(renderSession)}
+                    {members.profiles.map(renderProfile)}
+                  </div>
+                </div>
+              ));
+            })()}
           </>
         )}
 
@@ -737,6 +2294,10 @@ export function Sidebar() {
           {activeProfile ? activeProfile.name : "No connection"}
         </span>
       </div>
+
+      {menu && (
+        <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={closeMenu} />
+      )}
     </aside>
   );
 }

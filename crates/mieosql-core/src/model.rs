@@ -242,4 +242,6 @@ pub struct Capabilities {
     pub ddl: bool,
     /// Engine supports multiple databases per server connection.
     pub multiple_databases: bool,
+    /// Engine exposes users/roles/grants management.
+    pub user_management: bool,
 }

@@ -2,7 +2,7 @@
 
 A Navicat-class, multi-engine database client. **Rust core + TypeScript UI, one single executable per OS** (macOS / Linux / Windows).
 
-> **Trạng thái: v0.5 — Backend v0.1 + Frontend theo design + Feature Pack v1 (Code Insight, Search, Explain, Data Tools, Sync, Transfer, ERD, BI) + Connector Pack v2 (SQL Server, MongoDB/DocumentDB, Redis, Kafka).** UI 3 cột theo mockup Navicat Premium Lite: cây connection → editor SQL → **grid kết quả kiểu Excel** (header cột + type badge, sort, resize, filter, virtualized, copy/export), inspector object, history, snippets, transactions, status bar. Tauri 2 IPC + TS bindings tự sinh.
+> **Trạng thái: v0.6 — Backend v0.1 + Frontend theo design + Feature Pack v1 (Code Insight, Search, Explain, Data Tools, Sync, Transfer, ERD, BI) + Connector Pack v2 (SQL Server, MongoDB/DocumentDB, Redis, Kafka) + Basic Pack (quản trị object, import/export, sửa grid, backup, script, Fix SQL Syntax).** UI 3 cột theo mockup Navicat Premium Lite: cây connection → editor SQL → **grid kết quả kiểu Excel** (sort, resize, filter, virtualized, sửa inline, copy/export), inspector object, history, snippets, transactions, status bar. Tauri 2 IPC + TS bindings tự sinh.
 
 ## Tính năng
 
@@ -54,10 +54,10 @@ cargo test                                   # integration test SQLite (không c
 
 # Desktop app — binary LUÔN nhúng sẵn FE, không phụ thuộc dev server
 cd apps/mieosql-desktop/frontend && npm install && npm run build
-cargo build -p mieosql-desktop && ./target/debug/mieosql-desktop
+cargo build -p mieosql-desktop && ./target/debug/MieoSQL
 
 # Kiểm tra render (in ra DOM trong webview thật):
-MIEOSQL_SMOKE_CHECK=1 ./target/debug/mieosql-desktop
+MIEOSQL_SMOKE_CHECK=1 ./target/debug/MieoSQL
 
 # Dev FE với hot-reload (HMR) — cần tauri-cli:
 cargo install tauri-cli --version "^2"

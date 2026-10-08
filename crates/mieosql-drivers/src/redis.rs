@@ -47,10 +47,40 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use mieosql_core::{
-    Capabilities, ColumnDef, ColumnMeta, ConnectionSpec, DataTypeKind, DatabaseRef, Engine,
-    ErrorCode, ForeignKeyDef, IndexDef, MieoError, MieoResult, ObjectKind, ObjectRef,
-    PlaceholderStyle, QueryEvent, QueryOptions, QueryStats, SchemaRef, Scope, ServerInfo, SslMode,
+    Capabilities,
+    ColumnDef,
+    ColumnMeta,
+    ConnectionSpec,
+    CreateDbUser,
+    DataTypeKind,
+    DatabaseRef,
+    DbPrincipal,
+    DropDbPrincipal,
+    Engine,
+    ErrorCode,
+    ForeignKeyDef,
+    GrantRequest,
+    GrantTarget,
+    IndexDef,
+    MieoError,
+    MieoResult,
+    ObjectKind,
+    ObjectRef,
+    PlaceholderStyle,
+    PrincipalKind,
+    QueryEvent,
+    QueryOptions,
+    QueryStats,
+    RevokeRequest,
+    RoleGrant,
+    SchemaRef,
+    Scope,
+    ServerInfo,
+    SslMode,
     Value,
+    DbPrincipalDetail,
+    DetailAttribute,
+    PrivilegeEntry,
 };
 
 /// Maximum number of keys `list_objects` returns from `SCAN`.
@@ -84,6 +114,7 @@ pub(crate) fn redis_capabilities() -> Capabilities {
         simple_mode: true,
         ddl: false,
         multiple_databases: true,
+        user_management: true,
     }
 }
 
@@ -313,6 +344,271 @@ impl RedisDriver {
     ) -> MieoResult<Option<String>> {
         let _ = (scope, kind, name);
         Ok(None)
+    }
+
+    // ------------------------------------------------------------------
+    // Users (ACLs) — also drives the authorization UI. Redis has no roles:
+    // privileges are per-command selectors granted with `ACL SETUSER`.
+    // ------------------------------------------------------------------
+
+    async fn acl_lines(&mut self) -> MieoResult<Vec<String>> {
+        let reply = self.exec_raw(&redis::cmd("ACL").arg("LIST")).await?;
+        match reply {
+            RedisValue::Array(items) => Ok(items
+                .iter()
+                .filter_map(|item| match item {
+                    RedisValue::BulkString(bytes) => {
+                        Some(String::from_utf8_lossy(bytes).into_owned())
+                    }
+                    RedisValue::SimpleString(s) => Some(s.clone()),
+                    _ => None,
+                })
+                .collect()),
+            _ => Err(MieoError::new(
+                ErrorCode::Internal,
+                "unexpected ACL LIST reply",
+            )),
+        }
+    }
+
+    fn acl_name(line: &str) -> Option<String> {
+        line.split_whitespace()
+            .nth(1)
+            .map(str::to_string)
+            .filter(|n| !n.is_empty())
+    }
+
+    pub async fn list_db_users(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        Ok(self
+            .acl_lines()
+            .await?
+            .iter()
+            .filter_map(|line| Self::acl_name(line))
+            .map(|name| DbPrincipal {
+                name: name.clone(),
+                host: None,
+                kind: PrincipalKind::User,
+                is_super: name == "default",
+                can_login: true,
+                comment: None,
+            })
+            .collect())
+    }
+
+    pub async fn list_db_roles(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        Ok(Vec::new())
+    }
+
+    pub async fn db_role_members(&mut self) -> MieoResult<Vec<RoleGrant>> {
+        Ok(Vec::new())
+    }
+
+    pub async fn db_user_grants(
+        &mut self,
+        name: &str,
+        _host: Option<&str>,
+    ) -> MieoResult<Vec<String>> {
+        Ok(self
+            .acl_lines()
+            .await?
+            .into_iter()
+            .filter(|line| Self::acl_name(line).as_deref() == Some(name))
+            .collect())
+    }
+
+    /// ACL GETUSER as field/value pairs (RESP2 flat array or RESP3 map).
+    fn acl_fields(reply: &RedisValue) -> Vec<(String, RedisValue)> {
+        match reply {
+            RedisValue::Array(items) => {
+                let mut out = Vec::new();
+                let mut i = 0;
+                while i + 1 < items.len() {
+                    if let (Some(k), v) = (Self::bulk_str(&items[i]), items[i + 1].clone()) {
+                        out.push((k, v));
+                    }
+                    i += 2;
+                }
+                out
+            }
+            RedisValue::Map(pairs) => pairs
+                .iter()
+                .filter_map(|(k, v)| Self::bulk_str(k).map(|k| (k, v.clone())))
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    fn bulk_str(v: &RedisValue) -> Option<String> {
+        match v {
+            RedisValue::BulkString(bytes) => Some(String::from_utf8_lossy(bytes).into_owned()),
+            RedisValue::SimpleString(s) => Some(s.clone()),
+            _ => None,
+        }
+    }
+
+    fn acl_str_list(v: &RedisValue) -> Vec<String> {
+        match v {
+            RedisValue::Array(items) | RedisValue::Set(items) => {
+                items.iter().filter_map(Self::bulk_str).collect()
+            }
+            other => Self::bulk_str(other).into_iter().collect(),
+        }
+    }
+
+    pub async fn db_principal_detail(
+        &mut self,
+        name: &str,
+        _host: Option<&str>,
+    ) -> MieoResult<DbPrincipalDetail> {
+        let reply = self
+            .exec_raw(&redis::cmd("ACL").arg("GETUSER").arg(name))
+            .await?;
+        let fields = Self::acl_fields(&reply);
+        if fields.is_empty() {
+            return Err(MieoError::new(ErrorCode::NotFound, format!("user `{name}` not found")));
+        }
+        let get = |key: &str| fields.iter().find(|(k, _)| k == key).map(|(_, v)| v);
+        let flags = get("flags").map(Self::acl_str_list).unwrap_or_default();
+        let passwords = get("passwords").map(Self::acl_str_list).unwrap_or_default();
+        let commands = get("commands").and_then(reply_as_text).unwrap_or_default();
+        let keys = get("keys").and_then(reply_as_text).unwrap_or_default();
+        let channels = get("channels").and_then(reply_as_text).unwrap_or_default();
+        let selectors = get("selectors").map(Self::acl_str_list).unwrap_or_default();
+        let principal = DbPrincipal {
+            name: name.to_string(),
+            host: None,
+            kind: PrincipalKind::User,
+            is_super: name == "default" || commands.contains("+@all"),
+            can_login: !flags.iter().any(|f| f == "off" || f == "disabled"),
+            comment: None,
+        };
+        let kv = |k: &str, v: String| DetailAttribute { key: k.to_string(), value: v };
+        let attributes = vec![
+            kv("Flags", if flags.is_empty() { "—".into() } else { flags.join(" ") }),
+            kv(
+                "Passwords stored",
+                if passwords.is_empty() { "none (nopass?)".into() } else { passwords.len().to_string() },
+            ),
+            kv("Commands", if commands.is_empty() { "—".into() } else { commands }),
+            kv("Keys", if keys.is_empty() { "—".into() } else { keys }),
+            kv("Channels", if channels.is_empty() { "—".into() } else { channels }),
+            kv(
+                "Selectors",
+                if selectors.is_empty() { "—".into() } else { selectors.join(" │ ") },
+            ),
+        ];
+        Ok(DbPrincipalDetail {
+            principal,
+            attributes,
+            global_privileges: Vec::new(),
+            object_privileges: Vec::new(),
+            member_of: Vec::new(),
+            members: Vec::new(),
+        })
+    }
+
+    pub async fn create_db_user(&mut self, req: &CreateDbUser) -> MieoResult<()> {
+        // Least privilege by default: enabled, no commands, no keys.
+        let mut cmd = redis::cmd("ACL");
+        cmd.arg("SETUSER").arg(&req.name).arg("on");
+        match req.password.as_deref().filter(|p| !p.is_empty()) {
+            Some(pw) => {
+                cmd.arg(format!(">{pw}"));
+            }
+            None => {
+                cmd.arg("nopass");
+            }
+        }
+        cmd.arg("-@all");
+        self.exec_raw(&cmd).await.map(|_| ())
+    }
+
+    pub async fn drop_db_principal(&mut self, req: &DropDbPrincipal) -> MieoResult<()> {
+        if req.name == "default" {
+            return Err(MieoError::new(
+                ErrorCode::Data,
+                "the default user cannot be dropped",
+            ));
+        }
+        self.exec_raw(&redis::cmd("ACL").arg("DELUSER").arg(&req.name))
+            .await
+            .map(|_| ())
+    }
+
+    pub async fn grant(&mut self, req: &GrantRequest) -> MieoResult<()> {
+        match &req.target {
+            GrantTarget::Privileges { privileges, .. } => {
+                let tokens: Vec<&str> = privileges.split_whitespace().collect();
+                if tokens.is_empty() {
+                    return Err(MieoError::new(
+                        ErrorCode::Data,
+                        "privileges must not be empty (e.g. `+@read`, `+get allkeys`)",
+                    ));
+                }
+                let mut cmd = redis::cmd("ACL");
+                cmd.arg("SETUSER").arg(&req.grantee);
+                for t in tokens {
+                    cmd.arg(t);
+                }
+                self.exec_raw(&cmd).await.map(|_| ())
+            }
+            GrantTarget::Role { .. } => Err(MieoError::unsupported(
+                "Redis has no roles: grant command selectors (e.g. `+@read`) instead",
+            )),
+        }
+    }
+
+    pub async fn revoke(&mut self, req: &RevokeRequest) -> MieoResult<()> {
+        match &req.target {
+            GrantTarget::Privileges { privileges, .. } => {
+                // Revoking `+get` means applying its negation `-get`.
+                let negated: Vec<String> = privileges
+                    .split_whitespace()
+                    .map(|t| {
+                        if let Some(rest) = t.strip_prefix('+') {
+                            format!("-{rest}")
+                        } else if t.starts_with('-') {
+                            t.to_string()
+                        } else {
+                            format!("-{t}")
+                        }
+                    })
+                    .collect();
+                if negated.is_empty() {
+                    return Err(MieoError::new(
+                        ErrorCode::Data,
+                        "privileges must not be empty (e.g. `+get`, `+@write`)",
+                    ));
+                }
+                let mut cmd = redis::cmd("ACL");
+                cmd.arg("SETUSER").arg(&req.grantee);
+                for t in &negated {
+                    cmd.arg(t);
+                }
+                self.exec_raw(&cmd).await.map(|_| ())
+            }
+            GrantTarget::Role { .. } => Err(MieoError::unsupported(
+                "Redis has no roles: revoke command selectors instead",
+            )),
+        }
+    }
+
+    pub async fn set_user_password(
+        &mut self,
+        name: &str,
+        _host: Option<&str>,
+        password: &str,
+    ) -> MieoResult<()> {
+        self.exec_raw(
+            &redis::cmd("ACL")
+                .arg("SETUSER")
+                .arg(name)
+                .arg("resetpass")
+                .arg(format!(">{password}"))
+                .to_owned(),
+        )
+        .await
+        .map(|_| ())
     }
 
     pub async fn use_database(&mut self, database: &str) -> MieoResult<()> {

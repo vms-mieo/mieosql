@@ -14,9 +14,11 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use mieosql_core::{
-    Capabilities, ColumnDef, ConnectionSpec, DataTypeKind, DatabaseRef, ErrorCode, ForeignKeyDef,
-    IndexDef, MieoError, MieoResult, ObjectKind, ObjectRef, PlaceholderStyle, QueryEvent,
-    QueryOptions, QueryStats, SchemaRef, Scope, ServerInfo, Value,
+    Capabilities, ColumnDef, ConnectionSpec, CreateDbUser, DataTypeKind, DatabaseRef,
+    DbPrincipal, DbPrincipalDetail, DetailAttribute, DropDbPrincipal, ErrorCode, ForeignKeyDef,
+    GrantRequest, GrantTarget, IndexDef, MieoError, MieoResult, ObjectKind, ObjectRef,
+    PlaceholderStyle, PrincipalKind, PrivilegeEntry, QueryEvent, QueryOptions, QueryStats,
+    RevokeRequest, RoleGrant, SchemaRef, Scope, ServerInfo, Value,
 };
 
 use crate::error_map::map_err;
@@ -40,6 +42,7 @@ pub(crate) fn mysql_capabilities() -> Capabilities {
         simple_mode: true,
         ddl: true,
         multiple_databases: true,
+        user_management: true,
     }
 }
 
@@ -169,17 +172,140 @@ impl MySqlDriver {
                     TABLE_COMMENT, CREATE_TIME, UPDATE_TIME \
              FROM information_schema.TABLES WHERE TABLE_SCHEMA = ?",
         );
+        if matches!(
+            kind,
+            Some(ObjectKind::Function | ObjectKind::Procedure)
+        ) {
+            let want = if kind == Some(ObjectKind::Function) {
+                "FUNCTION"
+            } else {
+                "PROCEDURE"
+            };
+            let mut rsql = String::from(
+                "SELECT ROUTINE_NAME, ROUTINE_COMMENT FROM information_schema.ROUTINES                  WHERE ROUTINE_SCHEMA = ? AND ROUTINE_TYPE = ?",
+            );
+            if pattern.is_some() {
+                rsql.push_str(" AND ROUTINE_NAME LIKE ?");
+            }
+            rsql.push_str(" ORDER BY ROUTINE_NAME");
+            let mut q = sqlx::query::<MySql>(sqlx::AssertSqlSafe(rsql)).bind(&db).bind(want);
+            if let Some(p) = pattern {
+                q = q.bind(format!("%{p}%"));
+            }
+            let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
+            let rkind = if want == "FUNCTION" {
+                ObjectKind::Function
+            } else {
+                ObjectKind::Procedure
+            };
+            return Ok(rows
+                .into_iter()
+                .map(|row| ObjectRef {
+                    name: s(&row, 0),
+                    kind: rkind.clone(),
+                    database: Some(db.clone()),
+                    schema: None,
+                    comment: os(&row, 1).filter(|c| !c.is_empty()),
+                    rows_estimate: None,
+                    size_bytes: None,
+                    updated_at: None,
+                })
+                .collect());
+        }
+        // Triggers come from information_schema.TRIGGERS. MySQL Events ride
+        // along under this kind too — core ObjectKind has no Event variant
+        // (contract frozen) — marked with an "EVENT · ..." comment. The
+        // EVENTS catalog needs the EVENT privilege; on failure just return
+        // the triggers.
+        if kind == Some(ObjectKind::Trigger) {
+            let mut tsql = String::from(
+                "SELECT TRIGGER_NAME, EVENT_OBJECT_TABLE, ACTION_TIMING, EVENT_MANIPULATION \
+                 FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = ?",
+
+            );
+            if pattern.is_some() {
+                tsql.push_str(" AND TRIGGER_NAME LIKE ?");
+            }
+            tsql.push_str(" ORDER BY TRIGGER_NAME");
+            let mut q = sqlx::query::<MySql>(sqlx::AssertSqlSafe(tsql)).bind(&db);
+            if let Some(p) = pattern {
+                q = q.bind(format!("%{p}%"));
+            }
+            let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
+            let mut out: Vec<ObjectRef> = rows
+                .into_iter()
+                .map(|row| {
+                    let timing = s(&row, 2);
+                    let event = s(&row, 3);
+                    let table = s(&row, 1);
+                    let comment = if table.is_empty() {
+                        None
+                    } else {
+                        Some(format!("ON {table} · {timing} {event}"))
+                    };
+                    ObjectRef {
+                        name: s(&row, 0),
+                        kind: ObjectKind::Trigger,
+                        database: Some(db.clone()),
+                        schema: None,
+                        comment,
+                        rows_estimate: None,
+                        size_bytes: None,
+                        updated_at: None,
+                    }
+                })
+                .collect();
+
+            let mut esql = String::from(
+                "SELECT EVENT_NAME, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, \
+                        INTERVAL_FIELD, STARTS, ENDS, STATUS \
+                 FROM information_schema.EVENTS WHERE EVENT_SCHEMA = ?",
+            );
+            if pattern.is_some() {
+                esql.push_str(" AND EVENT_NAME LIKE ?");
+            }
+            esql.push_str(" ORDER BY EVENT_NAME");
+            let mut eq = sqlx::query::<MySql>(sqlx::AssertSqlSafe(esql)).bind(&db);
+            if let Some(p) = pattern {
+                eq = eq.bind(format!("%{p}%"));
+            }
+            if let Ok(rows) = eq.fetch_all(&self.pool).await {
+                out.extend(rows.into_iter().map(|row| {
+                    let schedule = format_event_schedule(
+                        &s(&row, 1),
+                        dt_o(&row, 2).map(fmt_naive_dt).as_deref(),
+                        os(&row, 3).as_deref(),
+                        os(&row, 4).as_deref(),
+                        dt_o(&row, 5).map(fmt_naive_dt).as_deref(),
+                        dt_o(&row, 6).map(fmt_naive_dt).as_deref(),
+
+                        os(&row, 7).as_deref(),
+                    );
+                    ObjectRef {
+                        name: s(&row, 0),
+                        kind: ObjectKind::Trigger,
+                        database: Some(db.clone()),
+                        schema: None,
+                        comment: Some(format!("EVENT · {schedule}")),
+                        rows_estimate: None,
+                        size_bytes: None,
+                        updated_at: None,
+                    }
+                }));
+            }
+            return Ok(out);
+        }
         match kind {
             Some(ObjectKind::Table) => sql.push_str(" AND TABLE_TYPE = 'BASE TABLE'"),
             Some(ObjectKind::View) => sql.push_str(" AND TABLE_TYPE = 'VIEW'"),
             Some(
-                ObjectKind::Function
-                | ObjectKind::Procedure
-                | ObjectKind::Trigger
-                | ObjectKind::Sequence
+                ObjectKind::Sequence
                 | ObjectKind::MaterializedView,
             ) => return Ok(Vec::new()),
             None => sql.push_str(" AND TABLE_TYPE IN ('BASE TABLE', 'VIEW')"),
+            Some(ObjectKind::Function | ObjectKind::Procedure | ObjectKind::Trigger) => {
+                unreachable!("handled above")
+            }
         }
         if pattern.is_some() {
             sql.push_str(" AND TABLE_NAME LIKE ?");
@@ -365,9 +491,46 @@ impl MySqlDriver {
     ) -> MieoResult<Option<String>> {
         let db = self.resolve_db(scope)?;
         let qualified = format!("{}.{}", quote_mysql_ident(&db), quote_mysql_ident(name));
-        let stmt = match kind {
-            ObjectKind::Table => format!("SHOW CREATE TABLE {qualified}"),
-            ObjectKind::View => format!("SHOW CREATE VIEW {qualified}"),
+        // `Trigger` also covers MySQL Events (no `ObjectKind::Event` in the
+        // frozen core contract): try SHOW CREATE TRIGGER first, then
+        // SHOW CREATE EVENT. Trigger DDL sits in column 2
+        // (Trigger, sql_mode, SQL Original Statement, ...); event DDL in
+        // column 3 (Event, sql_mode, time_zone, Create Event, ...).
+
+        if kind == ObjectKind::Trigger {
+            let trigger_stmt = format!("SHOW CREATE TRIGGER {qualified}");
+            if let Ok(rows) = sqlx::raw_sql(sqlx::AssertSqlSafe(trigger_stmt))
+                .fetch_all(&self.pool)
+                .await
+            {
+                if let Some(row) = rows.first() {
+                    let ddl = row.try_get::<String, _>(2).unwrap_or_default();
+                    if !ddl.is_empty() {
+                        return Ok(Some(ddl));
+                    }
+                }
+            }
+            let event_stmt = format!("SHOW CREATE EVENT {qualified}");
+            let rows = sqlx::raw_sql(sqlx::AssertSqlSafe(event_stmt))
+                .fetch_all(&self.pool)
+                .await
+                .map_err(map_err)?;
+            if let Some(row) = rows.first() {
+                let ddl = row.try_get::<String, _>(3).unwrap_or_default();
+                if !ddl.is_empty() {
+                    return Ok(Some(ddl));
+                }
+            }
+            return Ok(None);
+        }
+        // SHOW CREATE FUNCTION/PROCEDURE return the body in column 2
+        // (Function, sql_mode, Create Function).
+        let (stmt, col) = match kind {
+            ObjectKind::Table => (format!("SHOW CREATE TABLE {qualified}"), 1),
+            ObjectKind::View => (format!("SHOW CREATE VIEW {qualified}"), 1),
+            ObjectKind::Function => (format!("SHOW CREATE FUNCTION {qualified}"), 2),
+            ObjectKind::Procedure => (format!("SHOW CREATE PROCEDURE {qualified}"), 2),
+
             _ => return Ok(None),
         };
         let rows = sqlx::raw_sql(sqlx::AssertSqlSafe(stmt))
@@ -375,7 +538,7 @@ impl MySqlDriver {
             .await
             .map_err(map_err)?;
         if let Some(row) = rows.first() {
-            let ddl = row.try_get::<String, _>(1).unwrap_or_default();
+            let ddl = row.try_get::<String, _>(col).unwrap_or_default();
             if !ddl.is_empty() {
                 return Ok(Some(ddl));
             }
@@ -468,6 +631,387 @@ impl MySqlDriver {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Users / roles / grants (also drives the authorization UI).
+    // ------------------------------------------------------------------
+
+    fn user_host(user: &str, host: Option<&str>) -> String {
+        let host = host.filter(|h| !h.is_empty()).unwrap_or("%");
+        format!(
+            "{}@{}",
+            quote_mysql_ident(user),
+            quote_mysql_ident(host)
+        )
+    }
+
+    async fn exec(&self, sql: &str) -> MieoResult<()> {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(sql.to_string()))
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn list_db_users(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        let rows = sqlx::query::<MySql>(
+            "SELECT user, host, Super_priv FROM mysql.user ORDER BY user, host",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows
+            .into_iter()
+            .map(|row| DbPrincipal {
+                name: s(&row, 0),
+                host: Some(s(&row, 1)),
+                kind: PrincipalKind::User,
+                is_super: row
+                    .try_get::<String, _>(2)
+                    .map(|v| v.eq_ignore_ascii_case("Y"))
+                    .unwrap_or(false),
+                can_login: true,
+                comment: None,
+            })
+            .collect())
+    }
+
+    pub async fn list_db_roles(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        // MySQL 8+: roles surface through `mysql.role_edges`. MariaDB 10.5+
+        // exposes `is_role` on `mysql.user` instead.
+        if let Ok(rows) = sqlx::query::<MySql>(
+            "SELECT DISTINCT FROM_USER, FROM_HOST FROM mysql.role_edges ORDER BY 1, 2",
+        )
+        .fetch_all(&self.pool)
+        .await
+        {
+            return Ok(rows
+                .into_iter()
+                .map(|row| DbPrincipal {
+                    name: s(&row, 0),
+                    host: Some(s(&row, 1)),
+                    kind: PrincipalKind::Role,
+                    is_super: false,
+                    can_login: false,
+                    comment: None,
+                })
+                .collect());
+        }
+        let rows = sqlx::query::<MySql>(
+            "SELECT user, host FROM mysql.user WHERE is_role = 'Y' ORDER BY user, host",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows
+            .into_iter()
+            .map(|row| DbPrincipal {
+                name: s(&row, 0),
+                host: Some(s(&row, 1)),
+                kind: PrincipalKind::Role,
+                is_super: false,
+                can_login: false,
+                comment: None,
+            })
+            .collect())
+    }
+
+    pub async fn db_role_members(&mut self) -> MieoResult<Vec<RoleGrant>> {
+        let Ok(rows) = sqlx::query::<MySql>(
+            "SELECT FROM_USER, FROM_HOST, TO_USER, TO_HOST, WITH_ADMIN_OPTION              FROM mysql.role_edges ORDER BY 1, 2, 3, 4",
+        )
+        .fetch_all(&self.pool)
+        .await
+        else {
+            return Ok(Vec::new());
+        };
+        Ok(rows
+            .into_iter()
+            .map(|row| RoleGrant {
+                role: s(&row, 0),
+                role_host: Some(s(&row, 1)),
+                member: s(&row, 2),
+                member_host: Some(s(&row, 3)),
+                admin_option: row
+                    .try_get::<String, _>(4)
+                    .map(|v| v.eq_ignore_ascii_case("Y"))
+                    .unwrap_or(false),
+            })
+            .collect())
+    }
+
+    pub async fn db_user_grants(&mut self, name: &str, host: Option<&str>) -> MieoResult<Vec<String>> {
+        let stmt = format!("SHOW GRANTS FOR {}", Self::user_host(name, host));
+        let rows = sqlx::raw_sql(sqlx::AssertSqlSafe(stmt))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(rows.into_iter().map(|row| s(&row, 0)).collect())
+    }
+
+    fn grantee_of(user: &str, host: Option<&str>) -> String {
+        let lit = |v: &str| format!("\'{}\'", v.replace('\'', "''"));
+        format!("{}@{}", lit(user), lit(host.filter(|h| !h.is_empty()).unwrap_or("%")))
+    }
+
+    pub async fn db_principal_detail(
+        &mut self,
+        name: &str,
+        host: Option<&str>,
+    ) -> MieoResult<DbPrincipalDetail> {
+        let grantee = Self::grantee_of(name, host);
+        let host_owned = host.filter(|h| !h.is_empty()).unwrap_or("%").to_string();
+
+        // Base principal: reuse the users/roles listings.
+        let mut principals = self.list_db_users().await?;
+        principals.extend(self.list_db_roles().await?);
+        let principal = principals
+            .into_iter()
+            .find(|p| p.name == name && p.host.as_deref().unwrap_or("%") == host_owned)
+            .unwrap_or(DbPrincipal {
+                name: name.to_string(),
+                host: Some(host_owned.clone()),
+                kind: PrincipalKind::User,
+                is_super: false,
+                can_login: true,
+                comment: None,
+            });
+
+        // Account attributes (never the password hash).
+        let mut attributes: Vec<DetailAttribute> = Vec::new();
+        let attr_rows = sqlx::query::<MySql>(
+            "SELECT plugin, account_locked, password_expired, password_last_changed, \
+                    max_questions, max_updates, max_connections, max_user_connections \
+             FROM mysql.user WHERE user = ? AND host = ?",
+        )
+        .bind(name)
+        .bind(&host_owned)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        if let Some(row) = attr_rows {
+            let kv = |k: &str, v: String| DetailAttribute { key: k.to_string(), value: v };
+            if let Some(v) = os(&row, 0).filter(|v| !v.is_empty()) {
+                attributes.push(kv("Auth plugin", v));
+            }
+            attributes.push(kv(
+                "Account",
+                if s(&row, 1) == "Y" { "locked".into() } else { "unlocked".into() },
+            ));
+            attributes.push(kv(
+                "Password expired",
+                if s(&row, 2) == "Y" { "yes".into() } else { "no".into() },
+            ));
+            if let Some(v) = os(&row, 3).filter(|v| !v.is_empty()) {
+                attributes.push(kv("Password changed", v));
+            }
+            let limits = [
+                ("max_questions", i64o(&row, 4)),
+                ("max_updates", i64o(&row, 5)),
+                ("max_connections", i64o(&row, 6)),
+                ("max_user_connections", i64o(&row, 7)),
+            ];
+            let set: Vec<String> = limits
+                .into_iter()
+                .filter_map(|(k, v)| match v {
+                    Some(n) if n > 0 => Some(format!("{k}={n}")),
+                    _ => None,
+                })
+                .collect();
+            attributes.push(kv(
+                "Resource limits",
+                if set.is_empty() { "none".into() } else { set.join("  ") },
+            ));
+        }
+
+        // Global privileges via USER_PRIVILEGES (stable across versions).
+        let mut global_privileges: Vec<String> = Vec::new();
+        let mut grantable_global = false;
+        if let Ok(rows) = sqlx::query::<MySql>(
+            "SELECT PRIVILEGE_TYPE, IS_GRANTABLE FROM INFORMATION_SCHEMA.USER_PRIVILEGES \
+             WHERE GRANTEE = ? ORDER BY PRIVILEGE_TYPE",
+        )
+        .bind(&grantee)
+        .fetch_all(&self.pool)
+        .await
+        {
+            for row in rows {
+                global_privileges.push(s(&row, 0));
+                if s(&row, 1).eq_ignore_ascii_case("YES") {
+                    grantable_global = true;
+                }
+            }
+        }
+        if grantable_global {
+            attributes.push(DetailAttribute {
+                key: "Grant option".into(),
+                value: "global".into(),
+            });
+        }
+
+        // Object privileges, grouped by (schema, table).
+        let mut object_privileges: Vec<PrivilegeEntry> = Vec::new();
+        let mut grouped: std::collections::BTreeMap<(String, Option<String>), Vec<String>> =
+            std::collections::BTreeMap::new();
+        let mut grantable = std::collections::BTreeSet::new();
+        if let Ok(rows) = sqlx::query::<MySql>(
+            "SELECT TABLE_SCHEMA, NULL, PRIVILEGE_TYPE, IS_GRANTABLE \
+             FROM INFORMATION_SCHEMA.SCHEMA_PRIVILEGES WHERE GRANTEE = ? \
+             UNION ALL \
+             SELECT TABLE_SCHEMA, TABLE_NAME, PRIVILEGE_TYPE, IS_GRANTABLE \
+             FROM INFORMATION_SCHEMA.TABLE_PRIVILEGES WHERE GRANTEE = ? \
+             ORDER BY 1, 2",
+        )
+        .bind(&grantee)
+        .bind(&grantee)
+        .fetch_all(&self.pool)
+        .await
+        {
+            for row in rows {
+                let key = (s(&row, 0), os(&row, 1).filter(|v| !v.is_empty() && v != "NULL"));
+                grouped.entry(key.clone()).or_default().push(s(&row, 2));
+                if s(&row, 3).eq_ignore_ascii_case("YES") {
+                    grantable.insert(key);
+                }
+            }
+        }
+        // information_schema returns the literal string "NULL" for missing
+        // table names in some versions — normalize it away.
+        for ((db, table), mut privs) in grouped {
+            let table = table.filter(|t| t != "NULL");
+            let gkey = (db.clone(), table.clone());
+            privs.sort();
+            privs.dedup();
+            object_privileges.push(PrivilegeEntry {
+                privileges: privs,
+                database: Some(db),
+                schema: None,
+                table,
+                grantable: grantable.contains(&gkey),
+            });
+        }
+
+        // Memberships both directions.
+        let all_members = self.db_role_members().await.unwrap_or_default();
+        let member_of = all_members
+            .iter()
+            .filter(|g| {
+                g.member == name && g.member_host.as_deref().unwrap_or("%") == host_owned
+            })
+            .cloned()
+            .collect();
+        let members = all_members
+            .iter()
+            .filter(|g| {
+                g.role == name && g.role_host.as_deref().unwrap_or("%") == host_owned
+            })
+            .cloned()
+            .collect();
+
+        Ok(DbPrincipalDetail {
+            principal,
+            attributes,
+            global_privileges,
+            object_privileges,
+            member_of,
+            members,
+        })
+    }
+
+    pub async fn create_db_user(&mut self, req: &CreateDbUser) -> MieoResult<()> {
+        let account = Self::user_host(&req.name, req.host.as_deref());
+        let mut stmt = format!("CREATE USER {account}");
+        if let Some(pw) = req.password.as_deref().filter(|p| !p.is_empty()) {
+            stmt.push_str(&format!(" IDENTIFIED BY {}", quote_literal(pw)));
+        }
+        self.exec(&stmt).await?;
+        if req.superuser {
+            let grant = format!(
+                "GRANT ALL PRIVILEGES ON *.* TO {account} WITH GRANT OPTION"
+            );
+            self.exec(&grant).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn drop_db_principal(&mut self, req: &DropDbPrincipal) -> MieoResult<()> {
+        let account = Self::user_host(&req.name, req.host.as_deref());
+        let stmt = match req.kind {
+            PrincipalKind::User => format!("DROP USER {account}"),
+            PrincipalKind::Role => format!("DROP ROLE {account}"),
+        };
+        self.exec(&stmt).await
+    }
+
+    fn grant_object(req_host: Option<&str>, database: Option<&str>, table: Option<&str>) -> String {
+        let _ = req_host;
+        match (database.filter(|d| !d.is_empty()), table.filter(|t| !t.is_empty())) {
+            (Some(db), Some(tbl)) => format!(
+                "{}.{}",
+                quote_mysql_ident(db),
+                quote_mysql_ident(tbl)
+            ),
+            (Some(db), None) => format!("{}.*", quote_mysql_ident(db)),
+            (None, Some(tbl)) => format!("*.{}", quote_mysql_ident(tbl)),
+            (None, None) => "*.*".to_string(),
+        }
+    }
+
+    pub async fn grant(&mut self, req: &GrantRequest) -> MieoResult<()> {
+        let account = Self::user_host(&req.grantee, req.grantee_host.as_deref());
+        let stmt = match &req.target {
+            GrantTarget::Privileges {
+                privileges,
+                database,
+                schema: _,
+                table,
+            } => {
+                let object = Self::grant_object(req.grantee_host.as_deref(), database.as_deref(), table.as_deref());
+                let mut s = format!("GRANT {privileges} ON {object} TO {account}");
+                if req.with_grant_option {
+                    s.push_str(" WITH GRANT OPTION");
+                }
+                s
+            }
+            GrantTarget::Role { role, host } => {
+                format!("GRANT {} TO {account}", Self::user_host(role, host.as_deref()))
+            }
+        };
+        self.exec(&stmt).await
+    }
+
+    pub async fn revoke(&mut self, req: &RevokeRequest) -> MieoResult<()> {
+        let account = Self::user_host(&req.grantee, req.grantee_host.as_deref());
+        let stmt = match &req.target {
+            GrantTarget::Privileges {
+                privileges,
+                database,
+                schema: _,
+                table,
+            } => {
+                let object = Self::grant_object(req.grantee_host.as_deref(), database.as_deref(), table.as_deref());
+                format!("REVOKE {privileges} ON {object} FROM {account}")
+            }
+            GrantTarget::Role { role, host } => {
+                format!("REVOKE {} FROM {account}", Self::user_host(role, host.as_deref()))
+            }
+        };
+        self.exec(&stmt).await
+    }
+
+    pub async fn set_user_password(
+        &mut self,
+        name: &str,
+        host: Option<&str>,
+        password: &str,
+    ) -> MieoResult<()> {
+        let account = Self::user_host(name, host);
+        self.exec(&format!(
+            "ALTER USER {account} IDENTIFIED BY {}",
+            quote_literal(password)
+        ))
+        .await
+    }
+
     fn resolve_db(&self, scope: &Scope) -> MieoResult<String> {
         scope
             .database
@@ -502,6 +1046,53 @@ fn i64o(row: &MySqlRow, idx: usize) -> Option<i64> {
 
 fn dt_o(row: &MySqlRow, idx: usize) -> Option<NaiveDateTime> {
     row.try_get::<Option<NaiveDateTime>, _>(idx).ok().flatten()
+}
+
+/// Human-readable schedule for a MySQL Event Scheduler row, shown after the
+/// "EVENT · " prefix in the explorer comment. All inputs are the already
+/// stringified `information_schema.EVENTS` columns; each is optional because
+/// one-time and recurring events populate different subsets.
+fn format_event_schedule(
+    event_type: &str,
+    execute_at: Option<&str>,
+    interval_value: Option<&str>,
+    interval_field: Option<&str>,
+    starts: Option<&str>,
+    ends: Option<&str>,
+    status: Option<&str>,
+) -> String {
+    let mut out = String::new();
+    if event_type.eq_ignore_ascii_case("ONE TIME") {
+        out.push_str("ONE TIME");
+        if let Some(at) = execute_at.filter(|s| !s.is_empty()) {
+            out.push_str(" AT ");
+            out.push_str(at);
+        }
+    } else {
+        out.push_str("EVERY ");
+        match (interval_value, interval_field) {
+            (Some(v), Some(f)) if !v.is_empty() && !f.is_empty() => {
+                out.push_str(v);
+                out.push(' ');
+                out.push_str(f);
+            }
+            _ => out.push_str("?"),
+        }
+        if let Some(s) = starts.filter(|s| !s.is_empty()) {
+            out.push_str(" STARTS ");
+            out.push_str(s);
+        }
+        if let Some(e) = ends.filter(|s| !s.is_empty()) {
+            out.push_str(" ENDS ");
+            out.push_str(e);
+        }
+    }
+    if let Some(st) = status.filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("ENABLED")) {
+        out.push_str(" (");
+        out.push_str(st);
+        out.push(')');
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -778,3 +1369,72 @@ pub(crate) fn bind_mysql<'q>(
 const _: Binder<MySql> = bind_mysql;
 const _: Decoder<MySql> = decode_mysql_row;
 const _: KindFn = kind_mysql;
+
+// ---------------------------------------------------------------------------
+// Unit tests (no server required)
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn event_schedule_recurring() {
+        assert_eq!(
+            format_event_schedule(
+                "RECURRING",
+                None,
+                Some("1"),
+                Some("HOUR"),
+                Some("2026-01-01 00:00:00"),
+                None,
+                Some("ENABLED"),
+            ),
+            "EVERY 1 HOUR STARTS 2026-01-01 00:00:00"
+        );
+    }
+
+    #[test]
+    fn event_schedule_one_time() {
+        assert_eq!(
+            format_event_schedule(
+                "ONE TIME",
+                Some("2026-05-01 12:00:00"),
+                None,
+                None,
+                None,
+                None,
+                Some("ENABLED"),
+            ),
+            "ONE TIME AT 2026-05-01 12:00:00"
+        );
+    }
+
+    #[test]
+    fn event_schedule_disabled_flagged() {
+        assert_eq!(
+            format_event_schedule(
+                "RECURRING",
+                None,
+                Some("1"),
+                Some("DAY"),
+                None,
+                None,
+                Some("DISABLED"),
+            ),
+            "EVERY 1 DAY (DISABLED)"
+        );
+    }
+
+    #[test]
+    fn event_schedule_missing_parts() {
+        assert_eq!(
+            format_event_schedule("RECURRING", None, None, None, None, None, None),
+            "EVERY ?"
+        );
+        assert_eq!(
+            format_event_schedule("ONE TIME", None, None, None, None, None, None),
+            "ONE TIME"
+        );
+    }
+}

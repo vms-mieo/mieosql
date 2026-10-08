@@ -414,9 +414,23 @@ body {
   --color-inspector: #262628;
   --color-surface: #2c2c2e;
   --color-hairline: #3a3a3c;
-  --color-slate-100: #2c2c2e;
+  /* Full slate inversion so every slate utility flips.
+     Dark text roles (600-900) become light; light surfaces (50-200) become
+     dark; mid-grays stay mid. Opacity hovers turn into a light veil
+     automatically. */
+  --color-slate-50: #3a3a3c;
+  --color-slate-100: #323234;
   --color-slate-200: #3a3a3c;
   --color-slate-300: #48484a;
+  --color-slate-400: #98989d;
+  --color-slate-500: #8e8e93;
+  --color-slate-600: #c7c7cc;
+  --color-slate-700: #e5e5ea;
+  --color-slate-800: #f2f2f7;
+  --color-slate-900: #f5f5f7;
+  --color-slate-950: #ffffff;
+  --color-accent: #0a84ff;
+  --color-accent-hover: #409cff;
   --grid-zebra: #262628;
   --grid-hover: #2c2c2e;
   --grid-selected: rgba(10, 132, 255, 0.24);
@@ -425,6 +439,21 @@ body {
   --grid-focus: #0a84ff;
   --grid-focus-bg: rgba(10, 132, 255, 0.12);
 }
+/* Unlayered rules win over Tailwind's layered utilities. bg-white is used
+   for every card/dialog/input surface: in dark mode those become panels
+   (text-white stays white intentionally — buttons and badges). */
+[data-theme="dark"] .bg-white {
+  background-color: #2c2c2e;
+}
+[data-theme="dark"] ::selection {
+  background: rgba(10, 132, 255, 0.35);
+}
+[data-theme="dark"] .cm-cursor {
+  border-left-color: #f5f5f7 !important;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22) !important;
+}
 [data-theme="dark"] body {
   background: var(--color-window);
   color: #f5f5f7;
@@ -432,8 +461,54 @@ body {
 [data-theme="dark"] .cm-editor {
   background: #1c1c1e;
 }
+[data-theme="dark"] .cm-content {
+  color: #f5f5f7;
+}
 [data-theme="dark"] .cm-gutters {
   background: #232325 !important;
   border-right-color: #3a3a3c !important;
   color: #6e6e73 !important;
+}
+
+/* CodeMirror tooltips (autocomplete suggest + completion info): the built-in
+   tooltip theme is light-only — style the surfaces explicitly per theme. */
+.cm-tooltip.cm-tooltip-autocomplete > ul {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  max-height: 260px;
+}
+[data-theme="dark"] .cm-tooltip {
+  background: #2c2c2e !important;
+  border-color: #48484a !important;
+  color: #f2f2f7 !important;
+}
+[data-theme="dark"] .cm-tooltip.cm-tooltip-autocomplete > ul > li {
+  color: #f2f2f7 !important;
+}
+[data-theme="dark"] .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: rgba(10, 132, 255, 0.35) !important;
+  color: #ffffff !important;
+}
+[data-theme="dark"] .cm-tooltip .cm-completionIcon {
+  color: #98989d !important;
+}
+[data-theme="dark"] .cm-tooltip .cm-completionDetail {
+  color: #98989d !important;
+}
+[data-theme="dark"] .cm-tooltip.cm-completionInfo {
+  background: #2c2c2e !important;
+  border-color: #48484a !important;
+  color: #e5e5ea !important;
+}
+/* Insight hover tooltips (schema info) follow the theme variables. */
+.mieo-insight-tooltip {
+  border: 1px solid var(--color-slate-300);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--color-slate-700);
+}
+[data-theme="dark"] .mieo-insight-tooltip {
+  background: #2c2c2e;
+  border-color: #48484a;
+  color: #e5e5ea;
 }

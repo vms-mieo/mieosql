@@ -26,6 +26,7 @@ import {
 
 import type { SchemaSnapshot, Scope } from "../lib/bindings";
 import { api, errorText } from "../lib/api";
+import { resolveTheme } from "../lib/theme";
 import type { Tab } from "../lib/store";
 import { useStore } from "../lib/store";
 import {
@@ -71,6 +72,7 @@ export function ErdPanel({ tab }: { tab: Tab }) {
   const selected = useStore((s) => s.selected);
   const sessions = useStore((s) => s.sessions);
   const toast = useStore((s) => s.toast);
+  const dark = resolveTheme(useStore((s) => s.settings.theme)) === "dark";
 
   const sessionId = props.sessionId ?? activeSessionId ?? null;
   const session = sessions.find((s) => s.id === sessionId);
@@ -436,7 +438,7 @@ export function ErdPanel({ tab }: { tab: Tab }) {
                   <circle cx={1} cy={1} r={1} fill="#d2d2d7" />
                 </pattern>
               </defs>
-              <rect x={0} y={0} width={layout.width} height={layout.height} fill="#f2f2f7" />
+              <rect x={0} y={0} width={layout.width} height={layout.height} fill={dark ? "#232325" : "#f2f2f7"} />
               <rect x={0} y={0} width={layout.width} height={layout.height} fill="url(#erd-grid)" />
 
               {/* FK edges first so boxes sit on top of the lines. */}
@@ -461,6 +463,7 @@ export function ErdPanel({ tab }: { tab: Tab }) {
                       box={box}
                       dim={!!query && !matched}
                       highlight={!!query && matched}
+                      dark={dark}
                     />
                   );
                 })}
@@ -545,14 +548,20 @@ function TableBoxG({
   box,
   dim,
   highlight,
+  dark,
 }: {
   box: ErdBox;
   dim: boolean;
   highlight: boolean;
+  dark: boolean;
 }) {
   const table = box.table;
   // Neutral header strip (matches bg-sidebar); kind is conveyed by the icon/title.
-  const header = "#f2f2f7";
+  const header = dark ? "#323234" : "#f2f2f7";
+  const card = dark ? "#2c2c2e" : "#ffffff";
+  const titleInk = dark ? "#f5f5f7" : "#1d1d1f";
+  const bodyInk = dark ? "#c7c7cc" : "#3a3a3c";
+  const zebra = dark ? "#262628" : "#fafafc";
   const instance = table.name;
   return (
     <g opacity={dim ? 0.22 : 1}>
@@ -569,8 +578,8 @@ function TableBoxG({
         width={box.width}
         height={box.height}
         rx={6}
-        fill="#ffffff"
-        stroke={highlight ? "#007aff" : "#e5e5ea"}
+        fill={card}
+        stroke={highlight ? "#0a84ff" : dark ? "#3a3a3c" : "#e5e5ea"}
         strokeWidth={highlight ? 2 : 1}
       />
       <rect
@@ -591,7 +600,7 @@ function TableBoxG({
       <text
         x={box.x + 10}
         y={box.y + 19.5}
-        fill="#1d1d1f"
+        fill={titleInk}
         fontSize={12}
         fontWeight={600}
       >
@@ -619,7 +628,7 @@ function TableBoxG({
                 y={rowY}
                 width={box.width}
                 height={COLUMN_ROW_HEIGHT}
-                fill="#fafafc"
+                fill={zebra}
               />
             )}
             {col.pk && <KeyIcon x={box.x + 11} y={centerY} />}
@@ -628,7 +637,7 @@ function TableBoxG({
               x={box.x + 28}
               y={centerY + 3.5}
               fontSize={10.5}
-              fill={col.pk ? "#1d1d1f" : "#3a3a3c"}
+              fill={col.pk ? titleInk : bodyInk}
               fontWeight={col.pk ? 600 : 400}
             >
               {truncate(col.name, 22)}

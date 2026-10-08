@@ -28,10 +28,36 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use mieosql_core::{
-    Capabilities, ColumnDef, ColumnMeta, ConnectionSpec, DataTypeKind, DatabaseRef, Engine,
-    ErrorCode, ForeignKeyDef, IndexDef, MieoError, MieoResult, ObjectKind, ObjectRef,
-    PlaceholderStyle, QueryEvent, QueryOptions, QueryStats, SchemaRef, Scope, ServerInfo, SslMode,
+    Capabilities,
+    ColumnDef,
+    ColumnMeta,
+    ConnectionSpec,
+    CreateDbUser,
+    DataTypeKind,
+    DatabaseRef,
+    DbPrincipal,
+    DropDbPrincipal,
+    Engine,
+    ErrorCode,
+    ForeignKeyDef,
+    GrantRequest,
+    IndexDef,
+    MieoError,
+    MieoResult,
+    ObjectKind,
+    ObjectRef,
+    PlaceholderStyle,
+    QueryEvent,
+    QueryOptions,
+    QueryStats,
+    RevokeRequest,
+    RoleGrant,
+    SchemaRef,
+    Scope,
+    ServerInfo,
+    SslMode,
     Value,
+    DbPrincipalDetail,
 };
 
 use crate::util::b64_encode;
@@ -144,6 +170,7 @@ pub(crate) fn kafka_capabilities() -> Capabilities {
         simple_mode: true,
         ddl: false,
         multiple_databases: false,
+        user_management: false,
     }
 }
 
@@ -313,6 +340,72 @@ impl KafkaDriver {
     ) -> MieoResult<Option<String>> {
         let _ = (scope, kind, name);
         Ok(None)
+    }
+
+    // Kafka broker ACLs live outside the data path: no users/roles here.
+    pub async fn list_db_users(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        Ok(Vec::new())
+    }
+
+    pub async fn list_db_roles(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        Ok(Vec::new())
+    }
+
+    pub async fn db_role_members(&mut self) -> MieoResult<Vec<RoleGrant>> {
+        Ok(Vec::new())
+    }
+
+    pub async fn db_user_grants(
+        &mut self,
+        _name: &str,
+        _host: Option<&str>,
+    ) -> MieoResult<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    pub async fn db_principal_detail(
+        &mut self,
+        _name: &str,
+        _host: Option<&str>,
+    ) -> MieoResult<DbPrincipalDetail> {
+        Err(MieoError::unsupported(
+            "this engine has no user management",
+        ))
+    }
+
+    pub async fn create_db_user(&mut self, _req: &CreateDbUser) -> MieoResult<()> {
+        Err(MieoError::unsupported(
+            "Kafka has no user management in MieoSQL: broker ACLs are managed outside the client",
+        ))
+    }
+
+    pub async fn drop_db_principal(&mut self, _req: &DropDbPrincipal) -> MieoResult<()> {
+        Err(MieoError::unsupported(
+            "Kafka has no user management in MieoSQL: broker ACLs are managed outside the client",
+        ))
+    }
+
+    pub async fn grant(&mut self, _req: &GrantRequest) -> MieoResult<()> {
+        Err(MieoError::unsupported(
+            "Kafka has no user management in MieoSQL: broker ACLs are managed outside the client",
+        ))
+    }
+
+    pub async fn revoke(&mut self, _req: &RevokeRequest) -> MieoResult<()> {
+        Err(MieoError::unsupported(
+            "Kafka has no user management in MieoSQL: broker ACLs are managed outside the client",
+        ))
+    }
+
+    pub async fn set_user_password(
+        &mut self,
+        _name: &str,
+        _host: Option<&str>,
+        _password: &str,
+    ) -> MieoResult<()> {
+        Err(MieoError::unsupported(
+            "Kafka has no user management in MieoSQL: broker ACLs are managed outside the client",
+        ))
     }
 
     pub async fn use_database(&mut self, database: &str) -> MieoResult<()> {

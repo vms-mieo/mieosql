@@ -1,5 +1,77 @@
+import { save } from "@tauri-apps/plugin-dialog";
+
+import { api, errorText } from "../lib/api";
+import { isSqlEngine } from "../lib/quoting";
+import { runScriptFile } from "../lib/run-script";
 import { useStore } from "../lib/store";
 import { PopupMenu, type MenuItem } from "./PopupMenu";
+
+/** Last path each query tab was saved to (module-level: survives rerenders). */
+const savedPaths = new Map<string, string>();
+
+function activeQuerySql(): { tabId: string; title: string; sql: string } | null {
+  const st = useStore.getState();
+  const tab = st.tabs.find((t) => t.id === st.activeTabId);
+  if (!tab || tab.kind !== "query") return null;
+  return { tabId: tab.id, title: tab.title || "query", sql: tab.sql };
+}
+
+/** Save the active query tab to a .sql file (prompt when needed). */
+export async function saveActiveQuery(saveAs: boolean): Promise<void> {
+  const st = useStore.getState();
+  const active = activeQuerySql();
+  if (!active) {
+    st.toast("info", "No query tab is active");
+    return;
+  }
+  let path = !saveAs ? (savedPaths.get(active.tabId) ?? null) : null;
+  if (!path) {
+    const safe = active.title.replace(/[^\w.-]+/g, "_").slice(0, 60) || "query";
+    try {
+      path = await save({
+        title: "Save SQL",
+        defaultPath: `${safe}.sql`,
+        filters: [{ name: "SQL", extensions: ["sql"] }],
+      });
+    } catch (err) {
+      st.toast("error", errorText(err));
+      return;
+    }
+    if (!path) return; // cancelled
+  }
+  try {
+    await api.writeTextFile(path, active.sql);
+    savedPaths.set(active.tabId, path);
+    st.toast("success", `Saved ${path}`);
+  } catch (err) {
+    st.toast("error", errorText(err));
+  }
+}
+
+/** Open a user-picked .sql/.txt file in a new query tab (FileReader). */
+export function openSqlFile(): void {
+  const st = useStore.getState();
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".sql,.txt,text/plain";
+  input.onchange = () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === "string" ? reader.result : "";
+      const sid =
+        st.activeSessionId ?? useStore.getState().sessions[0]?.id ?? null;
+      useStore.getState().newQueryTab(sid, text);
+      useStore.getState().toast("success", `Opened ${file.name}`);
+    };
+    reader.onerror = () => {
+      useStore.getState().toast("error", `Could not read ${file.name}`);
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
 
 /**
  * Classic menu bar (24px) — Apple-style dropdowns with accent highlight.
@@ -27,11 +99,62 @@ export function MenuBar() {
     { kind: "separator" },
     {
       kind: "item",
+      label: "Save",
+      shortcut: "⌘S",
+      disabled: activeTab?.kind !== "query",
+      onClick: () => void saveActiveQuery(false),
+    },
+    {
+      kind: "item",
+      label: "Save As…",
+      disabled: activeTab?.kind !== "query",
+      onClick: () => void saveActiveQuery(true),
+    },
+    {
+      kind: "item",
+      label: "Open .sql in Editor…",
+      onClick: () => openSqlFile(),
+    },
+    { kind: "separator" },
+    {
+      kind: "item",
       label: "Refresh Connections",
       onClick: () => {
         void store.refreshProfiles();
         dispatch("mieosql:refresh-tree");
       },
+    },
+    { kind: "separator" },
+    {
+      kind: "item",
+      label: "New Database…",
+      disabled: !session || !isSqlEngine(session.engine) || session.engine === "sqlite",
+      onClick: () => {
+        if (session) store.openObjectDialog("new-database", { sessionId: session.id });
+      },
+    },
+    {
+      kind: "item",
+      label: "Backup Database…",
+      disabled: !session,
+      onClick: () => {
+        if (session) store.openObjectDialog("backup", { sessionId: session.id, scope: {} });
+      },
+    },
+    {
+      kind: "item",
+      label: "Restore from SQL File…",
+      disabled: !session,
+      onClick: () => {
+        if (session) store.openObjectDialog("restore", { sessionId: session.id });
+      },
+    },
+    { kind: "separator" },
+    {
+      kind: "item",
+      label: "Open SQL File…",
+      disabled: !session,
+      onClick: () => void runScriptFile(),
     },
     { kind: "separator" },
     {
@@ -82,6 +205,12 @@ export function MenuBar() {
       label: "Minify SQL",
       disabled: activeTab?.kind !== "query",
       onClick: () => dispatch("mieosql:minify-sql"),
+    },
+    {
+      kind: "item",
+      label: "Fix SQL Syntax",
+      disabled: activeTab?.kind !== "query",
+      onClick: () => dispatch("mieosql:fix-sql"),
     },
     {
       kind: "item",

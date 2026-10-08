@@ -27,10 +27,40 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use mieosql_core::{
-    Capabilities, ColumnDef, ColumnMeta, ConnectionSpec, DataTypeKind, DatabaseRef, Engine,
-    ErrorCode, ForeignKeyDef, IndexDef, MieoError, MieoResult, ObjectKind, ObjectRef,
-    PlaceholderStyle, QueryEvent, QueryOptions, QueryStats, SchemaRef, Scope, ServerInfo, SslMode,
+    Capabilities,
+    ColumnDef,
+    ColumnMeta,
+    ConnectionSpec,
+    CreateDbUser,
+    DataTypeKind,
+    DatabaseRef,
+    DbPrincipal,
+    DropDbPrincipal,
+    Engine,
+    ErrorCode,
+    ForeignKeyDef,
+    GrantRequest,
+    GrantTarget,
+    IndexDef,
+    MieoError,
+    MieoResult,
+    ObjectKind,
+    ObjectRef,
+    PlaceholderStyle,
+    PrincipalKind,
+    QueryEvent,
+    QueryOptions,
+    QueryStats,
+    RevokeRequest,
+    RoleGrant,
+    SchemaRef,
+    Scope,
+    ServerInfo,
+    SslMode,
     Value,
+    DbPrincipalDetail,
+    DetailAttribute,
+    PrivilegeEntry,
 };
 
 use crate::util::b64_encode;
@@ -67,6 +97,7 @@ pub(crate) fn mongo_capabilities() -> Capabilities {
         simple_mode: true,
         ddl: false,
         multiple_databases: true,
+        user_management: true,
     }
 }
 
@@ -359,6 +390,415 @@ impl MongoDriver {
     ) -> MieoResult<Option<String>> {
         let _ = (scope, kind, name);
         Ok(None)
+    }
+
+    // ------------------------------------------------------------------
+    // Users / roles / grants (also drives the authorization UI).
+    // MongoDB users and custom roles live per-database; listings merge the
+    // `admin` database with the session database. `host` carries the auth db.
+    // ------------------------------------------------------------------
+
+    fn user_db(&self, database: Option<&str>) -> String {
+        database
+            .map(str::trim)
+            .filter(|d| !d.is_empty())
+            .unwrap_or(&self.default_db)
+            .to_string()
+    }
+
+    fn user_dbs(&self) -> Vec<String> {
+        let mut dbs = vec!["admin".to_string()];
+        if self.default_db != "admin" {
+            dbs.push(self.default_db.clone());
+        }
+        dbs
+    }
+
+    fn doc_users(doc: &Document) -> Vec<(String, String, Vec<(String, String)>)> {
+        let mut out = Vec::new();
+        let Ok(users) = doc.get_array("users") else {
+            return out;
+        };
+        for u in users {
+            let Bson::Document(user) = u else {
+                continue;
+            };
+            let (Ok(name), Ok(db)) = (user.get_str("user"), user.get_str("db")) else {
+                continue;
+            };
+            let mut roles = Vec::new();
+            if let Ok(rlist) = user.get_array("roles") {
+                for r in rlist {
+                    if let Bson::Document(rd) = r
+                        && let (Ok(role), Ok(rdb)) = (rd.get_str("role"), rd.get_str("db"))
+                    {
+                        roles.push((role.to_string(), rdb.to_string()));
+                    }
+                }
+            }
+            out.push((name.to_string(), db.to_string(), roles));
+        }
+        out
+    }
+
+    pub async fn list_db_users(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        let mut out = Vec::new();
+        for db in self.user_dbs() {
+            let doc = self
+                .client
+                .database(&db)
+                .run_command(doc! { "usersInfo": 1, "showCredentials": false })
+                .await
+                .map_err(map_mongo_err)?;
+            for (name, udb, roles) in Self::doc_users(&doc) {
+                out.push(DbPrincipal {
+                    name,
+                    host: Some(udb.clone()),
+                    kind: PrincipalKind::User,
+                    is_super: roles.iter().any(|(r, _)| {
+                        matches!(r.as_str(), "root" | "userAdminAnyDatabase" | "dbOwner")
+                    }),
+                    can_login: true,
+                    comment: if roles.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            roles
+                                .iter()
+                                .map(|(r, d)| format!("{r}@{d}"))
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        )
+                    },
+                });
+            }
+        }
+        Ok(out)
+    }
+
+    pub async fn list_db_roles(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        let mut out = Vec::new();
+        for db in self.user_dbs() {
+            let doc = self
+                .client
+                .database(&db)
+                .run_command(doc! { "rolesInfo": 1, "showPrivileges": false })
+                .await
+                .map_err(map_mongo_err)?;
+            let Ok(roles) = doc.get_array("roles") else {
+                continue;
+            };
+            for r in roles {
+                let Bson::Document(rd) = r else {
+                    continue;
+                };
+                let (Ok(role), Ok(rdb)) = (rd.get_str("role"), rd.get_str("db")) else {
+                    continue;
+                };
+                out.push(DbPrincipal {
+                    name: role.to_string(),
+                    host: Some(rdb.to_string()),
+                    kind: PrincipalKind::Role,
+                    is_super: false,
+                    can_login: false,
+                    comment: rd
+                        .get_bool("isBuiltin")
+                        .ok()
+                        .filter(|b| *b)
+                        .map(|_| "builtin".to_string()),
+                });
+            }
+        }
+        Ok(out)
+    }
+
+    pub async fn db_role_members(&mut self) -> MieoResult<Vec<RoleGrant>> {
+        let mut out = Vec::new();
+        for db in self.user_dbs() {
+            let doc = self
+                .client
+                .database(&db)
+                .run_command(doc! { "usersInfo": 1, "showCredentials": false })
+                .await
+                .map_err(map_mongo_err)?;
+            for (user, udb, roles) in Self::doc_users(&doc) {
+                for (role, rdb) in roles {
+                    out.push(RoleGrant {
+                        role,
+                        role_host: Some(rdb),
+                        member: user.clone(),
+                        member_host: Some(udb.clone()),
+                        admin_option: false,
+                    });
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    pub async fn db_user_grants(
+        &mut self,
+        name: &str,
+        host: Option<&str>,
+    ) -> MieoResult<Vec<String>> {
+        let db = self.user_db(host);
+        let doc = self
+            .client
+            .database(&db)
+            .run_command(doc! {
+                "usersInfo": { "user": name, "db": db },
+                "showPrivileges": true,
+            })
+            .await
+            .map_err(map_mongo_err)?;
+        let mut lines = Vec::new();
+        for (user, udb, roles) in Self::doc_users(&doc) {
+            for (role, rdb) in roles {
+                lines.push(format!("ROLE {role}@{rdb} ON {user}@{udb}"));
+            }
+        }
+        if let Ok(users) = doc.get_array("users") {
+            for u in users {
+                let Bson::Document(user) = u else {
+                    continue;
+                };
+                let Ok(privs) = user.get_array("inheritedPrivileges") else {
+                    continue;
+                };
+                for p in privs {
+                    let Bson::Document(pd) = p else {
+                        continue;
+                    };
+                    let actions = pd
+                        .get_array("actions")
+                        .ok()
+                        .map(|a| {
+                            a.iter().filter_map(|b| b.as_str().map(str::to_string)).collect::<Vec<_>>().join(",")
+                        })
+                        .unwrap_or_default();
+                    let resource = pd
+                        .get_document("resource")
+                        .ok()
+                        .map(|r| {
+                            if let Ok(c) = r.get_str("collection") {
+                                format!(
+                                    "{}.{}",
+                                    r.get_str("db").unwrap_or("?"),
+                                    if c.is_empty() { "*" } else { c }
+                                )
+                            } else {
+                                r.get_str("db").unwrap_or("?").to_string()
+                            }
+                        })
+                        .unwrap_or_else(|| "?".to_string());
+                    lines.push(format!("PRIV {actions} ON {resource}"));
+                }
+            }
+        }
+        Ok(lines)
+    }
+
+    pub async fn db_principal_detail(
+        &mut self,
+        name: &str,
+        host: Option<&str>,
+    ) -> MieoResult<DbPrincipalDetail> {
+        let db = self.user_db(host);
+        let doc = self
+            .client
+            .database(&db)
+            .run_command(doc! {
+                "usersInfo": { "user": name, "db": db },
+                "showPrivileges": true,
+            })
+            .await
+            .map_err(map_mongo_err)?;
+        let found = Self::doc_users(&doc).into_iter().next();
+        let Some((user, udb, roles)) = found else {
+            return Err(MieoError::new(ErrorCode::NotFound, format!("user `{name}` not found")));
+        };
+        let principal = DbPrincipal {
+            name: user,
+            host: Some(udb.clone()),
+            kind: PrincipalKind::User,
+            is_super: roles.iter().any(|(r, _)| {
+                matches!(r.as_str(), "root" | "userAdminAnyDatabase" | "dbOwner")
+            }),
+            can_login: true,
+            comment: if roles.is_empty() {
+                None
+            } else {
+                Some(
+                    roles
+                        .iter()
+                        .map(|(r, d)| format!("{r}@{d}"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                )
+            },
+        };
+        let attributes = vec![DetailAttribute {
+            key: "Authentication DB".into(),
+            value: udb.clone(),
+        }];
+        let member_of = roles
+            .into_iter()
+            .map(|(role, rdb)| RoleGrant {
+                role,
+                role_host: Some(rdb),
+                member: name.to_string(),
+                member_host: Some(udb.clone()),
+                admin_option: false,
+            })
+            .collect();
+        // Inherited (effective) privileges grouped per resource.
+        let mut object_privileges: Vec<PrivilegeEntry> = Vec::new();
+        if let Ok(users) = doc.get_array("users") {
+            for u in users {
+                let Bson::Document(user) = u else {
+                    continue;
+                };
+                let Ok(privs) = user.get_array("inheritedPrivileges") else {
+                    continue;
+                };
+                let mut grouped: std::collections::BTreeMap<(String, String), Vec<String>> =
+                    std::collections::BTreeMap::new();
+                for p in privs {
+                    let Bson::Document(pd) = p else {
+                        continue;
+                    };
+                    let actions: Vec<String> = pd
+                        .get_array("actions")
+                        .ok()
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|b| b.as_str().map(str::to_string))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    let (rdb, coll) = pd
+                        .get_document("resource")
+                        .ok()
+                        .map(|r| {
+                            (
+                                r.get_str("db").unwrap_or("?").to_string(),
+                                r.get_str("collection").ok().map(str::to_string),
+                            )
+                        })
+                        .unwrap_or_else(|| ("?".to_string(), None));
+                    grouped.entry((rdb, coll.unwrap_or_default())).or_default().extend(actions);
+                }
+                for ((rdb, coll), mut actions) in grouped {
+                    actions.sort();
+                    actions.dedup();
+                    object_privileges.push(PrivilegeEntry {
+                        privileges: actions,
+                        database: Some(rdb),
+                        schema: None,
+                        table: if coll.is_empty() { None } else { Some(coll) },
+                        grantable: false,
+                    });
+                }
+            }
+        }
+        Ok(DbPrincipalDetail {
+            principal,
+            attributes,
+            global_privileges: Vec::new(),
+            object_privileges,
+            member_of,
+            members: Vec::new(),
+        })
+    }
+
+    pub async fn create_db_user(&mut self, req: &CreateDbUser) -> MieoResult<()> {
+        let db = self.user_db(req.database.as_deref());
+        let mut roles = Vec::new();
+        if req.superuser {
+            roles.push(doc! { "role": "dbOwner", "db": db.clone() });
+        }
+        let mut cmd = doc! { "createUser": req.name.clone(), "roles": Bson::Array(roles.into_iter().map(Bson::Document).collect()) };
+        if let Some(pw) = req.password.as_deref().filter(|p| !p.is_empty()) {
+            cmd.insert("pwd", pw);
+        }
+        self.client
+            .database(&db)
+            .run_command(cmd)
+            .await
+            .map_err(map_mongo_err)?;
+        Ok(())
+    }
+
+    pub async fn drop_db_principal(&mut self, req: &DropDbPrincipal) -> MieoResult<()> {
+        let db = self.user_db(req.host.as_deref());
+        let cmd = match req.kind {
+            PrincipalKind::User => doc! { "dropUser": req.name.clone() },
+            PrincipalKind::Role => doc! { "dropRole": req.name.clone() },
+        };
+        self.client
+            .database(&db)
+            .run_command(cmd)
+            .await
+            .map_err(map_mongo_err)?;
+        Ok(())
+    }
+
+    pub async fn grant(&mut self, req: &GrantRequest) -> MieoResult<()> {
+        let db = self.user_db(req.grantee_host.as_deref());
+        match &req.target {
+            GrantTarget::Role { role, host } => {
+                let rdb = host.as_deref().filter(|h| !h.is_empty()).unwrap_or(&db);
+                self.client
+                    .database(&db)
+                    .run_command(doc! {
+                        "grantRolesToUser": req.grantee.clone(),
+                        "roles": [{ "role": role, "db": rdb }],
+                    })
+                    .await
+                    .map_err(map_mongo_err)?;
+                Ok(())
+            }
+            GrantTarget::Privileges { .. } => Err(MieoError::unsupported(
+                "MongoDB object privileges require custom roles: grant a role to the user instead",
+            )
+            .with_hint("create the role with privileges in mongosh, then grant the role here")),
+        }
+    }
+
+    pub async fn revoke(&mut self, req: &RevokeRequest) -> MieoResult<()> {
+        let db = self.user_db(req.grantee_host.as_deref());
+        match &req.target {
+            GrantTarget::Role { role, host } => {
+                let rdb = host.as_deref().filter(|h| !h.is_empty()).unwrap_or(&db);
+                self.client
+                    .database(&db)
+                    .run_command(doc! {
+                        "revokeRolesFromUser": req.grantee.clone(),
+                        "roles": [{ "role": role, "db": rdb }],
+                    })
+                    .await
+                    .map_err(map_mongo_err)?;
+                Ok(())
+            }
+            GrantTarget::Privileges { .. } => Err(MieoError::unsupported(
+                "MongoDB object privileges require custom roles: revoke the role instead",
+            )),
+        }
+    }
+
+    pub async fn set_user_password(
+        &mut self,
+        name: &str,
+        host: Option<&str>,
+        password: &str,
+    ) -> MieoResult<()> {
+        let db = self.user_db(host);
+        self.client
+            .database(&db)
+            .run_command(doc! { "updateUser": name.to_string(), "pwd": password.to_string() })
+            .await
+            .map_err(map_mongo_err)?;
+        Ok(())
     }
 
     pub async fn use_database(&mut self, database: &str) -> MieoResult<()> {

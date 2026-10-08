@@ -35,6 +35,18 @@ apps/mieosql-desktop/gen/
 *.db3
 *.duckdb
 
+# --- Scratch / generated, never commit --------------------------------------
+# Design mockups, screenshots, QA reports (local reference only).
+design/
+images/
+reports/
+# Local Arch-package staging (CI builds it fresh under dist-arch/).
+dist-arch/
+# Stray dir: tauri runs build hooks with cwd already inside frontend/, so a
+# `npm --prefix frontend ...` hook once created this nested stub. The hook is
+# fixed (bare `npm ...`), this entry guards against recurrence.
+apps/mieosql-desktop/frontend/frontend/
+
 # --- Secrets / env ---------------------------------------------------------
 .env
 .env.*

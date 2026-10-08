@@ -30,6 +30,12 @@ pub(crate) fn quote_sqlite_string(s: &str) -> String {
     format!("'{}'", s.replace('\'', "''"))
 }
 
+/// SQL string literal quoting: `'text'` with quote doubling. Valid for
+/// MySQL / MariaDB / PostgreSQL / SQLite / SQL Server.
+pub(crate) fn quote_literal(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
 /// Expand a leading `~/` to the user's home directory.
 pub(crate) fn expand_tilde(path: &str) -> String {
     if let Some(rest) = path.strip_prefix("~/")

@@ -152,6 +152,7 @@ async fn kafka_produce_consume_roundtrip() {
             color: None,
             group: None,
             variant: None,
+            is_prod: false,
             password,
             ssh_password: None,
         })

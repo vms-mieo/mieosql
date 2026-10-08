@@ -53,6 +53,7 @@ async fn setup(tag: &str) -> TestEnv {
             color: None,
             group: None,
             variant: None,
+            is_prod: false,
             password: Some("vault-roundtrip".into()),
             ssh_password: None,
         })

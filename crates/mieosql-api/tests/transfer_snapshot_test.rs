@@ -51,6 +51,7 @@ async fn add_sqlite_profile(api: &Api, name: &str, file: &std::path::Path) -> St
             color: None,
             group: None,
             variant: None,
+            is_prod: false,
             password: None,
             ssh_password: None,
         })

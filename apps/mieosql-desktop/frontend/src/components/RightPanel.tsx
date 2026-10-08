@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronRight,
   Code2,
@@ -8,13 +8,15 @@ import {
   KeyRound,
   PanelRight,
   RefreshCw,
+  Search,
+  Star,
   Table2,
   Trash2,
 } from "lucide-react";
 
 import { api, errorText } from "../lib/api";
 import type { ColumnDef, IndexDef } from "../lib/bindings";
-import { copyText, kindBadge } from "../lib/format";
+import { copyText } from "../lib/format";
 import type { HistoryEntry } from "../lib/bindings";
 import { useStore } from "../lib/store";
 
@@ -34,7 +36,7 @@ export function RightPanel() {
         ).map(([key, label, Icon]) => (
           <button
             key={key}
-            className={`relative flex flex-1 items-center justify-center gap-1.5 pb-1.5 text-[12.5px] transition-colors ${
+            className={`relative flex flex-1 items-center justify-center gap-1.5 pb-1.5 text-[13px] transition-colors ${
               tab === key
                 ? "font-medium text-slate-900"
                 : "text-slate-500 hover:text-slate-700"
@@ -148,20 +150,34 @@ function ObjectInspector() {
       </div>
 
       <div className="mt-3 flex gap-1.5">
-        <button
-          className="flex h-7 items-center gap-1 rounded-md bg-accent px-2.5 text-[12.5px] font-medium text-white hover:bg-accent-hover"
-          onClick={() =>
-            store.openTable(selected.sessionId, selected.scope, selected.table)
-          }
-        >
-          Open Data
-        </button>
-        <button
-          className="flex h-7 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 text-[12.5px] text-slate-700 hover:bg-slate-50"
-          onClick={() => void openDdl()}
-        >
-          <FileCode2 size={11} /> DDL
-        </button>
+        {selected.kind === "function" ||
+        selected.kind === "procedure" ||
+        selected.kind === "trigger" ||
+        selected.kind === "sequence" ? (
+          <button
+            className="flex h-7 items-center gap-1 rounded-md bg-accent px-2.5 text-[12.5px] font-medium text-white hover:bg-accent-hover"
+            onClick={() => void openDdl()}
+          >
+            <FileCode2 size={11} /> View Definition
+          </button>
+        ) : (
+          <>
+            <button
+              className="flex h-7 items-center gap-1 rounded-md bg-accent px-2.5 text-[12.5px] font-medium text-white hover:bg-accent-hover"
+              onClick={() =>
+                store.openTable(selected.sessionId, selected.scope, selected.table)
+              }
+            >
+              Open Data
+            </button>
+            <button
+              className="flex h-7 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 text-[12.5px] text-slate-700 hover:bg-slate-50"
+              onClick={() => void openDdl()}
+            >
+              <FileCode2 size={11} /> DDL
+            </button>
+          </>
+        )}
         <button
           className="grid h-7 w-7 place-items-center rounded-md border border-slate-300 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
           onClick={() => {
@@ -213,14 +229,17 @@ function ObjectInspector() {
                 <span className="min-w-0 flex-1 truncate font-code text-[12px] text-slate-700">
                   {c.name}
                 </span>
-                <span className="shrink-0 text-[11px] text-slate-400">
-                  {kindBadge(c.data_type)}
-                </span>
                 {!c.nullable && (
-                  <span className="shrink-0 rounded bg-slate-900/[0.06] px-1 text-[10.5px] text-slate-600">
+                  <span className="shrink-0 text-[10.5px] text-slate-400" title="NOT NULL">
                     NN
                   </span>
                 )}
+                <span
+                  className="w-[86px] shrink-0 truncate text-right font-code text-[10.5px] text-slate-400"
+                  title={c.native_type}
+                >
+                  {c.native_type}
+                </span>
               </div>
             ))}
           </div>
@@ -266,6 +285,41 @@ function ObjectInspector() {
 
 function HistoryList() {
   const store = useStore();
+  const [query, setQuery] = useState("");
+  const [starred, setStarred] = useState<Set<string>>(loadStarredHistory);
+
+  const toggleStar = (id: string) => {
+    setStarred((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        localStorage.setItem(STARRED_HISTORY_KEY, JSON.stringify([...next]));
+      } catch {
+        // Best-effort only.
+      }
+      return next;
+    });
+  };
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? store.history.filter((h) =>
+          `${h.sql}\n${h.database ?? ""}\n${h.engine}`
+            .toLowerCase()
+            .includes(q),
+        )
+      : store.history.slice();
+    // Starred entries sort first, keeping backend order otherwise.
+    filtered.sort((a, b) => {
+      const sa = starred.has(a.id) ? 0 : 1;
+      const sb = starred.has(b.id) ? 0 : 1;
+      return sa - sb;
+    });
+    return filtered;
+  }, [store.history, query, starred]);
+
   return (
     <div className="custom-scrollbar flex-1 overflow-y-auto px-2 pb-2 text-[11px]">
       <div className="flex items-center justify-between pt-2 pb-1 pl-1">
@@ -289,19 +343,66 @@ function HistoryList() {
           </button>
         </div>
       </div>
+      <div className="relative mb-1">
+        <Search
+          size={11}
+          className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-slate-400"
+        />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search sql, database, engine…"
+          className="h-6 w-full rounded-md border border-slate-200 bg-white pr-2 pl-7 text-[12px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-accent/40 focus:outline-none"
+        />
+      </div>
+      {visible.length === 0 && store.history.length > 0 && (
+        <div className="p-2 text-[12px] leading-relaxed text-slate-500">
+          No history matches “{query.trim()}”.
+        </div>
+      )}
       {store.history.length === 0 && (
         <div className="p-2 text-[12px] leading-relaxed text-slate-500">
           Executed queries will show up here.
         </div>
       )}
-      {store.history.map((h) => (
-        <HistoryItem key={h.id} entry={h} />
+      {visible.map((h) => (
+        <HistoryItem
+          key={h.id}
+          entry={h}
+          starred={starred.has(h.id)}
+          onToggleStar={() => toggleStar(h.id)}
+        />
       ))}
     </div>
   );
 }
 
-function HistoryItem({ entry }: { entry: HistoryEntry }) {
+/** History ids the user starred, persisted across restarts. */
+const STARRED_HISTORY_KEY = "mieosql.history.starred.v1";
+
+function loadStarredHistory(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STARRED_HISTORY_KEY);
+    if (!raw) return new Set();
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return new Set(parsed.filter((x): x is string => typeof x === "string"));
+    }
+  } catch {
+    // Corrupt value: start fresh.
+  }
+  return new Set();
+}
+
+function HistoryItem({
+  entry,
+  starred,
+  onToggleStar,
+}: {
+  entry: HistoryEntry;
+  starred: boolean;
+  onToggleStar: () => void;
+}) {
   const store = useStore();
   const open = () => {
     const live = store.sessions.find((s) => s.id === entry.session_id);
@@ -334,7 +435,19 @@ function HistoryItem({ entry }: { entry: HistoryEntry }) {
         </span>
         <span className="text-[11px] text-slate-400">{ago}</span>
       </div>
-      <div className="flex min-w-0 items-center gap-1.5">
+      <div className="flex min-w-0 items-center gap-1">
+        <button
+          className={`grid h-5 w-5 shrink-0 place-items-center rounded-md hover:bg-slate-900/[0.06] ${
+            starred ? "text-amber-500" : "text-slate-300 hover:text-slate-500"
+          }`}
+          title={starred ? "Unstar" : "Star (pin to top)"}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleStar();
+          }}
+        >
+          <Star size={11} fill={starred ? "currentColor" : "none"} />
+        </button>
         <FileCode2 size={11} className="shrink-0 text-slate-400" />
         <span className="truncate font-code text-[12px] text-slate-700">
           {entry.sql.replace(/\s+/g, " ").slice(0, 90)}

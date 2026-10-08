@@ -33,4 +33,8 @@ ddl: boolean,
 /**
  * Engine supports multiple databases per server connection.
  */
-multiple_databases: boolean, };
+multiple_databases: boolean, 
+/**
+ * Engine exposes users/roles/grants management.
+ */
+user_management: boolean, };

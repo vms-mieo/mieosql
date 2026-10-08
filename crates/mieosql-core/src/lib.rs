@@ -8,6 +8,7 @@ pub mod error;
 pub mod events;
 pub mod model;
 pub mod profile;
+pub mod security;
 pub mod value;
 
 pub use error::{ErrorCode, ErrorInfo, MieoError, MieoResult};
@@ -21,6 +22,10 @@ pub use model::{
 pub use profile::{
     ConnectionProfile, ConnectionSpec, Engine, EngineKind, ProfileId, SshAuthKind, SshSpec,
     SslMode,
+};
+pub use security::{
+    CreateDbUser, DetailAttribute, DropDbPrincipal, DbPrincipal, DbPrincipalDetail,
+    GrantRequest, GrantTarget, PrincipalKind, PrivilegeEntry, RevokeRequest, RoleGrant,
 };
 pub use value::{DataTypeKind, Value};
 

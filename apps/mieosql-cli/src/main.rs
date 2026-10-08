@@ -202,6 +202,7 @@ async fn run() -> Result<()> {
                     variant: None,
                     password: args.password,
                     ssh_password: None,
+                    is_prod: false,
                 };
                 let profile = api.save_profile(input)?;
                 println!("saved profile {} ({})", profile.id.0, profile.name);

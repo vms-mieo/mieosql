@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="mieo-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3AA1FF"/>
+      <stop offset="0.45" stop-color="#007AFF"/>
+      <stop offset="1" stop-color="#0052CC"/>
+    </linearGradient>
+    <radialGradient id="mieo-gloss" cx="0.5" cy="0.22" r="0.75">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="mieo-squircle">
+      <rect width="1024" height="1024" rx="230"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#mieo-squircle)">
+    <rect width="1024" height="1024" fill="url(#mieo-bg)"/>
+    <rect width="1024" height="1024" fill="url(#mieo-gloss)"/>
+    <!-- drop shadow -->
+    <g opacity="0.3">
+      <rect x="293" y="300" width="438" height="480" fill="#00143C" filter="blur(0)"/>
+    </g>
+    <!-- cylinder body -->
+    <g>
+      <rect x="287" y="290" width="450" height="470" fill="#FFFFFF"/>
+      <!-- divider gaps (background shows through) -->
+      <rect x="287" y="482" width="450" height="16" fill="#0064DD"/>
+      <rect x="287" y="606" width="450" height="16" fill="#005BCC"/>
+      <!-- top face -->
+      <ellipse cx="512" cy="290" rx="225" ry="76" fill="#FFFFFF" stroke="#BFD6F8" stroke-width="5"/>
+      <!-- bottom face shading -->
+      <ellipse cx="512" cy="760" rx="225" ry="76" fill="#E4EFFF" stroke="#BED4F5" stroke-width="4"/>
+    </g>
+    <!-- iOS inner edge highlight -->
+    <rect x="3" y="3" width="1018" height="1018" rx="227" fill="none" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="5"/>
+    <rect x="2" y="2" width="1020" height="1020" rx="228" fill="none" stroke="#001E5A" stroke-opacity="0.28" stroke-width="4"/>
+  </g>
+</svg>

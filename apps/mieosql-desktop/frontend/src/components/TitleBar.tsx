@@ -1,5 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Minus, Square, X } from "lucide-react";
+import { AppLogo } from "./AppLogo";
 
 const isTauri =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -48,12 +49,7 @@ export function TitleBar() {
       onDoubleClick={onToggleMaximize}
     >
       <div className="flex min-w-0 items-center gap-2" data-tauri-drag-region>
-        <div
-          className="grid h-4 w-4 shrink-0 place-items-center rounded-[5px] bg-accent text-[10px] font-bold text-white"
-          data-tauri-drag-region
-        >
-          M
-        </div>
+        <AppLogo size={16} radius={5} />
         <span
           className="truncate text-[13px] font-medium text-slate-900"
           data-tauri-drag-region

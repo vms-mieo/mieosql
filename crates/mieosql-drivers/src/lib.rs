@@ -27,9 +27,31 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use mieosql_core::{
-    Capabilities, ColumnDef, ConnectionSpec, DatabaseRef, Engine, ForeignKeyDef, IndexDef,
-    MieoError, MieoResult, ObjectKind, ObjectRef, QueryEvent, QueryOptions, QueryStats, SchemaRef,
-    Scope, ServerInfo, Value,
+    Capabilities,
+    ColumnDef,
+    ConnectionSpec,
+    CreateDbUser,
+    DatabaseRef,
+    DbPrincipal,
+    DropDbPrincipal,
+    Engine,
+    ForeignKeyDef,
+    GrantRequest,
+    IndexDef,
+    MieoError,
+    MieoResult,
+    ObjectKind,
+    ObjectRef,
+    QueryEvent,
+    QueryOptions,
+    QueryStats,
+    RevokeRequest,
+    RoleGrant,
+    SchemaRef,
+    Scope,
+    ServerInfo,
+    Value,
+    DbPrincipalDetail,
 };
 
 /// Dispatches a call to the active engine driver.
@@ -156,6 +178,63 @@ impl AnyDriver {
 
     pub async fn use_database(&mut self, database: &str) -> MieoResult<()> {
         dispatch!(self, d => d.use_database(database).await)
+    }
+
+    // ------------------------------------------------------------------
+    // Users / roles / grants (also drives the authorization UI).
+    // ------------------------------------------------------------------
+
+    pub async fn list_db_users(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        dispatch!(self, d => d.list_db_users().await)
+    }
+
+    pub async fn list_db_roles(&mut self) -> MieoResult<Vec<DbPrincipal>> {
+        dispatch!(self, d => d.list_db_roles().await)
+    }
+
+    pub async fn db_role_members(&mut self) -> MieoResult<Vec<RoleGrant>> {
+        dispatch!(self, d => d.db_role_members().await)
+    }
+
+    pub async fn db_user_grants(
+        &mut self,
+        name: &str,
+        host: Option<&str>,
+    ) -> MieoResult<Vec<String>> {
+        dispatch!(self, d => d.db_user_grants(name, host).await)
+    }
+
+    pub async fn create_db_user(&mut self, req: &CreateDbUser) -> MieoResult<()> {
+        dispatch!(self, d => d.create_db_user(req).await)
+    }
+
+    pub async fn drop_db_principal(&mut self, req: &DropDbPrincipal) -> MieoResult<()> {
+        dispatch!(self, d => d.drop_db_principal(req).await)
+    }
+
+    pub async fn grant(&mut self, req: &GrantRequest) -> MieoResult<()> {
+        dispatch!(self, d => d.grant(req).await)
+    }
+
+    pub async fn revoke(&mut self, req: &RevokeRequest) -> MieoResult<()> {
+        dispatch!(self, d => d.revoke(req).await)
+    }
+
+    pub async fn db_principal_detail(
+        &mut self,
+        name: &str,
+        host: Option<&str>,
+    ) -> MieoResult<DbPrincipalDetail> {
+        dispatch!(self, d => d.db_principal_detail(name, host).await)
+    }
+
+    pub async fn set_user_password(
+        &mut self,
+        name: &str,
+        host: Option<&str>,
+        password: &str,
+    ) -> MieoResult<()> {
+        dispatch!(self, d => d.set_user_password(name, host, password).await)
     }
 
     pub async fn begin(&mut self) -> MieoResult<()> {

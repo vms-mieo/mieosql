@@ -73,3 +73,16 @@ export type { TransferMode } from "@bindings/TransferMode";
 export type { TransferRequest } from "@bindings/TransferRequest";
 export type { TransferResult } from "@bindings/TransferResult";
 export type { WorkspaceBundle } from "@bindings/WorkspaceBundle";
+
+// Users / roles / grants
+export type { CreateDbUser } from "@bindings/CreateDbUser";
+export type { DbPrincipal } from "@bindings/DbPrincipal";
+export type { DbPrincipalDetail } from "@bindings/DbPrincipalDetail";
+export type { DetailAttribute } from "@bindings/DetailAttribute";
+export type { DropDbPrincipal } from "@bindings/DropDbPrincipal";
+export type { GrantRequest } from "@bindings/GrantRequest";
+export type { GrantTarget } from "@bindings/GrantTarget";
+export type { PrincipalKind } from "@bindings/PrincipalKind";
+export type { PrivilegeEntry } from "@bindings/PrivilegeEntry";
+export type { RevokeRequest } from "@bindings/RevokeRequest";
+export type { RoleGrant } from "@bindings/RoleGrant";

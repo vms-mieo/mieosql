@@ -381,6 +381,7 @@ fn build_profile(input: ProfileInput) -> ApiResult<(ConnectionProfile, ProfileSe
     profile.color = input.color.clone();
     profile.group = input.group.clone();
     profile.variant = input.variant.clone();
+    profile.is_prod = input.is_prod;
 
     let secrets = ProfileSecrets {
         password: input.password.clone(),

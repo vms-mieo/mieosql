@@ -13,6 +13,7 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+csv = { workspace = true }
 ts-rs = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
