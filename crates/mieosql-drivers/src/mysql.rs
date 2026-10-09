@@ -551,12 +551,17 @@ impl MySqlDriver {
                 "cannot switch database inside an open transaction",
             ));
         }
-        let stmt = format!("USE {}", quote_mysql_ident(database));
-        sqlx::raw_sql(sqlx::AssertSqlSafe(stmt))
-            .execute(&self.pool)
-            .await
-            .map_err(map_err)?;
-        self.spec.database = Some(database.to_string());
+        // NOTE: do not `USE <db>` against the pool — it flips the default
+        // catalog on a single pooled connection while the others (and any
+        // future ones) keep none, so unqualified queries intermittently fail
+        // with MySQL 1046 "No database selected". Reconnect instead so every
+        // pooled connection handshakes with the new default database
+        // (same approach as the Postgres driver).
+        let mut spec = self.spec.clone();
+        spec.database = Some(database.to_string());
+        let new = Self::connect(&spec).await?;
+        let old = std::mem::replace(self, new);
+        old.pool.close().await;
         Ok(())
     }
 
