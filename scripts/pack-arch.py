@@ -129,22 +129,42 @@ def main() -> int:
         out_path = os.path.abspath(os.path.join(args.out_dir, out_name))
         # Reproducible-ish archive: fixed owner/group on GNU tar; file mtimes
         # come from the just-written stage (all "now"). zstd -19 matches makepkg.
-        tar_cmd = ["tar"]
         try:
             ver = subprocess.run(["tar", "--version"], capture_output=True,
                                  text=True, timeout=30)
             is_gnu = "GNU tar" in (ver.stdout + ver.stderr)
         except (OSError, subprocess.SubprocessError):
             is_gnu = False
+        repro_flags: list[str] = []
         if is_gnu:
-            tar_cmd += ["--sort-name", "--owner=0", "--group=0", "--numeric-owner"]
-        tar_cmd += ["-cf", "-", "-C", stage, ".PKGINFO", ".MTREE", "usr"]
-        tar = subprocess.Popen(tar_cmd, stdout=subprocess.PIPE)
-        with open(out_path, "wb") as out:
-            subprocess.run(["zstd", "-19", "-c"], stdin=tar.stdout,
-                           stdout=out, check=True)
-        tar.wait()
-        if tar.returncode != 0:
+            # NOTE: GNU tar spelling is `--sort=name` (with `=`), not `--sort-name`.
+            # bsdtar (macOS) has no --sort at all, hence the is_gnu guard.
+            repro_flags = ["--sort=name", "--owner=0", "--group=0", "--numeric-owner"]
+
+        def run_tar(extra_flags: list[str]) -> int:
+            cmd = ["tar", *extra_flags, "-cf", "-", "-C", stage,
+                   ".PKGINFO", ".MTREE", "usr"]
+            tar = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+            assert tar.stdout is not None
+            with open(out_path, "wb") as out:
+                zstd_proc = subprocess.run(["zstd", "-19", "-c"],
+                                           stdin=tar.stdout, stdout=out)
+            tar.stdout.close()
+            rc_tar = tar.wait()
+            # If zstd itself failed, surface that too.
+            if zstd_proc.returncode != 0:
+                print("error: zstd failed", file=sys.stderr)
+                return 1
+            return rc_tar
+
+        rc = run_tar(repro_flags)
+        if rc != 0 and repro_flags:
+            # Old/stripped GNU tar may reject --sort; retry plainly rather
+            # than hard-failing CI. Package is still valid, just unsorted.
+            print("warning: tar with repro flags failed, retrying without them",
+                  file=sys.stderr)
+            rc = run_tar([])
+        if rc != 0:
             print("error: tar failed", file=sys.stderr)
             return 1
         print(f"wrote {out_path} ({os.path.getsize(out_path)} bytes)")
