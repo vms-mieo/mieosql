@@ -21,6 +21,9 @@ jobs:
   macos-arm64:
     name: macOS arm64 (.dmg)
     runs-on: macos-latest
+    env:
+      # Automatically flips to signed + notarized once APPLE_CERTIFICATE is set.
+      SIGN_MACOS: ${{ secrets.APPLE_CERTIFICATE != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
@@ -38,6 +41,26 @@ jobs:
 
       - name: Install tauri-cli
         run: cargo install tauri-cli --version "^2" --locked
+
+      # Code signing + notarization are driven by APPLE_* environment
+      # variables. See docs/CODE_SIGNING.md for the secrets to configure.
+      - name: Configure macOS signing (when secrets are set)
+        if: env.SIGN_MACOS == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            value="${!name}"
+            if [ -n "$value" ]; then
+              echo "$name=$value" >> "$GITHUB_ENV"
+            fi
+          done
+          echo "macOS signing + notarization enabled."
 
       # tauri runs the build hook with cwd already inside frontend/, so the
       # bare `npm ...` beforeBuildCommand in tauri.conf.json just works.
@@ -111,6 +134,9 @@ jobs:
   windows-amd64:
     name: Windows amd64 (.exe)
     runs-on: windows-latest
+    env:
+      # Automatically flips to signed once WINDOWS_CERTIFICATE is set.
+      SIGN_WINDOWS: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
@@ -129,9 +155,38 @@ jobs:
       - name: Install tauri-cli
         run: cargo install tauri-cli --version "^2" --locked
 
+      # Import the base64 .pfx into the runner's certificate store; the
+      # thumbprint is captured for the build config. See docs/CODE_SIGNING.md.
+      - name: Import Windows signing certificate (when configured)
+        if: env.SIGN_WINDOWS == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          New-Item -ItemType directory -Path certificate | Out-Null
+          Set-Content -Path certificate/tempCert.txt -Value $env:WINDOWS_CERTIFICATE
+          certutil -decode certificate/tempCert.txt certificate/certificate.pfx
+          Remove-Item certificate/tempCert.txt
+          $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
+          $cert = Import-PfxCertificate -FilePath certificate/certificate.pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          "WINDOWS_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+          Write-Host "Imported certificate $($cert.Thumbprint) — Windows signing enabled."
+
       - name: Build NSIS setup (amd64)
         working-directory: apps/mieosql-desktop
-        run: cargo tauri build --bundles nsis
+        shell: pwsh
+        run: |
+          if ($env:WINDOWS_CERT_THUMBPRINT) {
+            # Inject the imported certificate into the bundle config so the
+            # Tauri bundler signs the app exe and the NSIS installer.
+            @{ bundle = @{ windows = @{ certificateThumbprint = $env:WINDOWS_CERT_THUMBPRINT; digestAlgorithm = "sha256"; timestampUrl = "http://timestamp.digicert.com" } } } |
+              ConvertTo-Json -Depth 5 | Set-Content -Path sign-config.json
+            cargo tauri build --bundles nsis --config sign-config.json
+          } else {
+            Write-Host "No Windows certificate configured — building unsigned."
+            cargo tauri build --bundles nsis
+          }
 
       - name: Upload .exe
         uses: actions/upload-artifact@v4

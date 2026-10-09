@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Demo end-to-end của backend MieoSQL qua CLI + SQLite (không cần server).
+# End-to-end demo of the MieoSQL backend through the CLI + SQLite (no server needed).
 set -euo pipefail
 
 DIR="$(mktemp -d "${TMPDIR:-/tmp}/mieosql-demo.XXXXXX")"
@@ -11,7 +11,7 @@ BIN=(cargo run -q -p mieosql-cli -- --data-dir "$DATA")
 
 echo "== demo dir: $DIR"
 echo
-echo "== 1. thêm connection profile"
+echo "== 1. add a connection profile"
 "${BIN[@]}" profile add --name demo --engine sqlite --file "$DB" --ssl-mode disable
 
 echo
@@ -19,7 +19,7 @@ echo "== 2. test connection"
 "${BIN[@]}" test demo
 
 echo
-echo "== 3. tạo schema"
+echo "== 3. create schema"
 "${BIN[@]}" query demo "CREATE TABLE products (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -29,14 +29,14 @@ echo "== 3. tạo schema"
 )"
 
 echo
-echo "== 4. insert với tham số"
+echo "== 4. insert with parameters"
 "${BIN[@]}" query demo "INSERT INTO products (name, price, tags) VALUES
   ('Espresso Machine', 1299.99, 'kitchen,coffee'),
   ('Grinder', 249.50, 'kitchen'),
   ('Scale', NULL, 'measure')"
 
 echo
-echo "== 5. select (bảng)"
+echo "== 5. select (table)"
 "${BIN[@]}" query demo "SELECT id, name, price, tags FROM products ORDER BY id"
 
 echo
@@ -56,8 +56,8 @@ echo "== 9. DDL"
 "${BIN[@]}" ddl demo products
 
 echo
-echo "== 10. lịch sử query"
+echo "== 10. query history"
 "${BIN[@]}" history --limit 5
 
 echo
-echo "demo hoàn tất. app data (profiles/vault/history): $DATA"
+echo "demo complete. app data (profiles/vault/history): $DATA"
