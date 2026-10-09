@@ -30,6 +30,10 @@ export type EditorHandle = {
   getText: () => string;
   setText: (text: string) => void;
   focus: () => void;
+  /** Currently selected text ("", when the selection is empty). */
+  getSelection: () => string;
+  /** Move the cursor to a document offset and scroll it into view. */
+  revealOffset: (offset: number) => void;
 };
 
 /**
@@ -363,6 +367,21 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(
         });
       },
       focus: () => viewRef.current?.focus(),
+      getSelection: () => {
+        const view = viewRef.current;
+        if (!view) return "";
+        const sel = view.state.selection.main;
+        return sel.empty
+          ? ""
+          : view.state.doc.sliceString(sel.from, sel.to);
+      },
+      revealOffset: (offset: number) => {
+        const view = viewRef.current;
+        if (!view) return;
+        const pos = Math.max(0, Math.min(offset, view.state.doc.length));
+        view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+        view.focus();
+      },
     }),
     [],
   );

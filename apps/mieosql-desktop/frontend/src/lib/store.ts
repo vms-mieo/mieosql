@@ -141,7 +141,6 @@ export type ObjectDialogProps = {
 };
 
 const MAX_BUFFERED_ROWS = 200_000;
-const MAX_RESULTS_PER_TAB = 8;
 const LIMIT_KEY = "mieosql.limit";
 const SETTINGS_KEY = "mieosql.settings";
 const LIMIT_OPTIONS = [100, 500, 1000, 5000, 10000, 0] as const;
@@ -1385,9 +1384,12 @@ function attachResult(
         rowsDropped: false,
       };
       const appended = [...tab.results, rs];
+      // DBeaver-style replace-on-run: a new execution drops all previous
+      // unpinned results and keeps only pinned ones + the new set, so the
+      // bar never accumulates stale "Result N" tabs.
       const keep = new Set<ResultSet>();
       for (const r of appended) if (r.pinned) keep.add(r);
-      for (const r of appended.slice(-MAX_RESULTS_PER_TAB)) keep.add(r);
+      keep.add(rs);
       const results = appended.filter((r) => keep.has(r));
       return {
         ...tab,

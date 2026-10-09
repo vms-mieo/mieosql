@@ -39,6 +39,7 @@ function PickerDropdown({
   loading,
   emptyText,
   title,
+  warn,
   onSelect,
 }: {
   label: string;
@@ -48,6 +49,8 @@ function PickerDropdown({
   loading?: boolean;
   emptyText?: string;
   title?: string;
+  /** Highlight the label as a warning (e.g. no database selected). */
+  warn?: boolean;
   onSelect: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -95,7 +98,13 @@ function PickerDropdown({
         ) : (
           icon
         )}
-        <span className="min-w-0 flex-1 truncate text-left font-medium">{label}</span>
+        <span
+          className={`min-w-0 flex-1 truncate text-left font-medium ${
+            warn ? "text-amber-600" : ""
+          }`}
+        >
+          {label}
+        </span>
         <ChevronDown size={11} className="shrink-0 text-slate-400" />
       </button>
 
@@ -164,6 +173,17 @@ function PickerDropdown({
 }
 
 const SQL_ENGINES = new Set(["mysql", "mariadb", "postgres", "sqlite", "sql_server"]);
+
+/** Profile accent dot (null when the profile has no color set). */
+function connDot(color?: string | null) {
+  if (!color) return null;
+  return (
+    <span
+      className="h-2 w-2 shrink-0 rounded-full"
+      style={{ backgroundColor: color }}
+    />
+  );
+}
 
 export function EditorScopePickers({ tab }: { tab: Tab }) {
   const sessions = useStore((s) => s.sessions);
@@ -270,19 +290,35 @@ export function EditorScopePickers({ tab }: { tab: Tab }) {
   const offline = profiles.filter(
     (p) => !sessions.some((s) => s.profile_id === p.id),
   );
+  const sessionColor = session
+    ? profiles.find((p) => p.id === session.profile_id)?.color
+    : undefined;
   const connItems: PickerItem[] = [
-    ...sessions.map((s) => ({
-      id: s.id,
-      label: s.name,
-      sub: s.database ?? undefined,
-      icon: <EngineGlyph engine={s.engine} size={13} />,
-      current: session?.id === s.id,
-    })),
+    ...sessions.map((s) => {
+      const color = profiles.find((p) => p.id === s.profile_id)?.color;
+      return {
+        id: s.id,
+        label: s.name,
+        sub: s.database ?? undefined,
+        icon: (
+          <span className="flex shrink-0 items-center gap-1">
+            {connDot(color)}
+            <EngineGlyph engine={s.engine} size={13} />
+          </span>
+        ),
+        current: session?.id === s.id,
+      };
+    }),
     ...offline.map((p) => ({
       id: `p:${p.id}`,
       label: p.name,
       sub: "offline",
-      icon: <EngineGlyph engine={p.engine} size={13} muted />,
+      icon: (
+        <span className="flex shrink-0 items-center gap-1">
+          {connDot(p.color)}
+          <EngineGlyph engine={p.engine} size={13} muted />
+        </span>
+      ),
     })),
   ];
 
@@ -309,7 +345,10 @@ export function EditorScopePickers({ tab }: { tab: Tab }) {
         label={session ? session.name : "No connection"}
         icon={
           session ? (
-            <EngineGlyph engine={session.engine} size={13} />
+            <span className="flex shrink-0 items-center gap-1">
+              {connDot(sessionColor)}
+              <EngineGlyph engine={session.engine} size={13} />
+            </span>
           ) : (
             <Plug size={12} className="shrink-0 text-slate-400" />
           )
@@ -322,11 +361,12 @@ export function EditorScopePickers({ tab }: { tab: Tab }) {
 
       {showDb && (
         <PickerDropdown
-          label={currentDb ?? "default database"}
+          label={currentDb ?? "No database"}
           icon={
             <Database size={12} className="shrink-0 text-slate-400" />
           }
           loading={dbState === "loading"}
+          warn={!currentDb}
           items={dbList.map((db) => ({
             id: db.name,
             label: db.name,
@@ -334,7 +374,11 @@ export function EditorScopePickers({ tab }: { tab: Tab }) {
             current: currentDb === db.name,
           }))}
           emptyText="No databases"
-          title="Choose the default database"
+          title={
+            currentDb
+              ? `Default database: ${currentDb} — choose to switch`
+              : "No database selected — choose one before running queries"
+          }
           onSelect={(id) => void pickDatabase(id)}
         />
       )}

@@ -9,6 +9,8 @@ import {
   Eraser,
   FileCode2,
   GitBranch,
+  History,
+  Keyboard,
   Layers,
   ListTree,
   Loader2,
@@ -74,6 +76,10 @@ export function Workspace() {
   useEffect(() => {
     const clear = () => editorRef.current?.setText("");
     const focus = () => editorRef.current?.focus();
+    const gotoOffset = (e: Event) => {
+      const off = (e as CustomEvent<number>).detail;
+      if (typeof off === "number") editorRef.current?.revealOffset(off);
+    };
     const fix = () => {
       const view = editorRef.current;
       if (!view) return;
@@ -140,10 +146,12 @@ export function Workspace() {
     window.addEventListener("mieosql:clear-editor", clear);
     window.addEventListener("mieosql:focus-editor", focus);
     window.addEventListener("mieosql:fix-sql", fix);
+    window.addEventListener("mieosql:goto-offset", gotoOffset);
     return () => {
       window.removeEventListener("mieosql:clear-editor", clear);
       window.removeEventListener("mieosql:focus-editor", focus);
       window.removeEventListener("mieosql:fix-sql", fix);
+      window.removeEventListener("mieosql:goto-offset", gotoOffset);
     };
   }, []);
 
@@ -154,6 +162,13 @@ export function Workspace() {
   const runActive = () => {
     const tab = activeTab;
     if (!tab || tab.kind !== "query") return;
+    // Beekeeper-style: a non-empty selection runs instead of the whole
+    // script (the tab SQL is left untouched in that case).
+    const selected = editorRef.current?.getSelection()?.trim() ?? "";
+    if (selected) {
+      void store.requestRun(tab.id, selected);
+      return;
+    }
     const text = editorRef.current?.getText() ?? tab.sql;
     store.setSql(tab.id, text);
     void store.requestRun(tab.id, text);
@@ -288,6 +303,14 @@ export function Workspace() {
 
 function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
   const store = useStore();
+  const session = store.sessions.find((s) => s.id === tab.sessionId);
+  const profileColor = store.profiles.find(
+    (p) => p.id === session?.profile_id,
+  )?.color;
+  // Query tabs show their target database (Sequel Ace-style); the colored
+  // dot mirrors the connection accent so prod/dev are told apart at a glance.
+  const dbSuffix =
+    tab.kind === "query" && tab.scope?.database ? ` · ${tab.scope.database}` : "";
   const icon =
     tab.kind === "query" ? (
       <FileCode2 size={12} className="text-slate-500" />
@@ -306,14 +329,24 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
           : "text-slate-500 hover:bg-slate-900/[0.04]"
       }`}
       onClick={() => store.setActiveTab(tab.id)}
-      title={tab.title}
+      title={`${tab.title}${dbSuffix}`}
     >
       {tab.running ? (
         <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
       ) : (
         icon
       )}
-      <span className="truncate text-[13px]">{tab.title}</span>
+      {profileColor && (
+        <span
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{ backgroundColor: profileColor }}
+          title={session?.name}
+        />
+      )}
+      <span className="truncate text-[13px]">
+        {tab.title}
+        {dbSuffix && <span className="text-slate-400">{dbSuffix}</span>}
+      </span>
       {tab.results.length > 0 && !tab.running && (
         <span className="font-num text-[11.5px] text-slate-400">
           {tab.results
@@ -422,7 +455,7 @@ function QueryToolbar({
           className="flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12.5px] font-medium text-white transition-colors hover:bg-accent-hover active:scale-[0.98] disabled:opacity-40"
           onClick={onRun}
           disabled={!tab.sessionId || !!runningResult}
-          title="Run query (⌘Enter)"
+          title="Run selection, or whole query (⌘Enter)"
         >
           <CirclePlay size={13} />
           Run
@@ -436,6 +469,11 @@ function QueryToolbar({
           <Square size={10} className="text-rose-500" />
           Stop
         </button>
+        {!tab.sessionId && (
+          <span className="ml-1 shrink-0 text-[12px] font-medium text-amber-600">
+            No connection — pick one on the right
+          </span>
+        )}
 
         <div className="mx-1.5 h-4 w-px bg-slate-200" />
 
@@ -502,6 +540,21 @@ function QueryToolbar({
         >
           <Braces size={13} className="text-slate-500" />
           Builder
+        </button>
+        <button
+          className={toolBtn}
+          title="Query history — search and re-run past queries"
+          onClick={() => store.openFeatureDialog("history")}
+        >
+          <History size={13} className="text-slate-500" />
+          History
+        </button>
+        <button
+          className={toolBtn}
+          title="Keyboard shortcuts"
+          onClick={() => store.openFeatureDialog("shortcuts")}
+        >
+          <Keyboard size={13} className="text-slate-500" />
         </button>
         <div className="mx-1.5 h-4 w-px bg-slate-200" />
         <button

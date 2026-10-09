@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  Crosshair,
   Database,
   FileDown,
   FileJson,
@@ -100,6 +101,12 @@ export function ResultPanel({ tab }: { tab: Tab }) {
   const gridApiRef = useRef<GridApi | null>(null);
   // Rectangular range size reported by the grid (cell count, null = none).
   const [rangeCells, setRangeCells] = useState<number | null>(null);
+  // Numeric aggregates over the current range (DbGate-style selection math).
+  const [rangeStats, setRangeStats] = useState<{
+    numeric: number;
+    sum: number;
+    avg: number;
+  } | null>(null);
   // Find bar state (the grid owns matching/highlighting/navigation).
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
@@ -124,6 +131,7 @@ export function ResultPanel({ tab }: { tab: Tab }) {
       setFindTotal(0);
       setFindActive(0);
       setRangeCells(null);
+      setRangeStats(null);
     }
   }, [tab.results.length]);
 
@@ -455,6 +463,35 @@ export function ResultPanel({ tab }: { tab: Tab }) {
         ? (Math.abs(r.toRow - r.fromRow) + 1) * (Math.abs(r.toCol - r.fromCol) + 1)
         : null,
     );
+    if (!r) {
+      setRangeStats(null);
+      return;
+    }
+    let data: { rows: Value[][] } | null = null;
+    try {
+      data = gridApiRef.current?.getRangeData?.() ?? null;
+    } catch {
+      data = null;
+    }
+    if (!data) {
+      setRangeStats(null);
+      return;
+    }
+    let numeric = 0;
+    let sum = 0;
+    for (const row of data.rows) {
+      for (const v of row) {
+        if (!v || v.t === "null") continue;
+        const text = plainText(v).trim().replace(/,/g, "");
+        if (text === "") continue;
+        const n = Number(text);
+        if (Number.isFinite(n)) {
+          numeric += 1;
+          sum += n;
+        }
+      }
+    }
+    setRangeStats(numeric > 0 ? { numeric, sum, avg: sum / numeric } : null);
   }, []);
 
   const handleFindMatches = useCallback((total: number, active: number) => {
@@ -494,6 +531,12 @@ export function ResultPanel({ tab }: { tab: Tab }) {
           {tab.results.map((r, i) => (
             <button
               key={r.queryId}
+              title={resultTitle(
+                store.sessions.find((s) => s.id === tab.sessionId)?.name,
+                r.sql,
+                r.startedAt,
+                r.elapsedMs,
+              )}
               className={`relative flex h-full items-center gap-1.5 px-3 text-[12.5px] transition-colors ${
                 i === tab.activeResult && subTab === "result"
                   ? "font-medium text-slate-900"
@@ -608,6 +651,14 @@ export function ResultPanel({ tab }: { tab: Tab }) {
               <span className="text-slate-700">
                 {result.rows.length.toLocaleString()} rows retrieved
               </span>
+              {result.stats && result.stats.rows_affected > 0 && (
+                <>
+                  <span>•</span>
+                  <span className="text-slate-700">
+                    {result.stats.rows_affected.toLocaleString()} affected
+                  </span>
+                </>
+              )}
               {result.truncated && (
                 <>
                   <span>•</span>
@@ -849,6 +900,13 @@ export function ResultPanel({ tab }: { tab: Tab }) {
           {rangeCells !== null && (
             <span className="text-[12px] font-medium whitespace-nowrap text-accent">
               {rangeCells.toLocaleString()} selected
+              {rangeStats && rangeStats.numeric > 0 && (
+                <span className="font-normal text-slate-500">
+                  {" · "}
+                  {rangeStats.numeric.toLocaleString()} numeric · Σ{" "}
+                  {formatAgg(rangeStats.sum)} · avg {formatAgg(rangeStats.avg)}
+                </span>
+              )}
             </span>
           )}
           <div className="flex shrink-0 items-center rounded-md bg-slate-900/[0.04] p-0.5">
@@ -943,8 +1001,24 @@ export function ResultPanel({ tab }: { tab: Tab }) {
           ) : result.error ? (
             <ErrorPanel
               error={result.error}
+              sql={result.sql}
               onShowMessages={() => setSubTab("messages")}
             />
+          ) : result.status === "done" && result.rows.length === 0 ? (
+            <div className="grid flex-1 place-items-center bg-surface">
+              <div className="flex flex-col items-center gap-1.5 text-center">
+                <CheckCircle2 size={22} strokeWidth={1.6} className="text-emerald-500" />
+                <div className="text-[13.5px] font-medium text-slate-700">
+                  Success — no rows returned
+                </div>
+                <div className="text-[12px] text-slate-400">
+                  {result.elapsedMs !== null ? `${result.elapsedMs} ms` : ""}
+                  {result.stats && result.stats.rows_affected > 0
+                    ? ` · ${result.stats.rows_affected.toLocaleString()} row${result.stats.rows_affected === 1 ? "" : "s"} affected`
+                    : ""}
+                </div>
+              </div>
+            </div>
           ) : viewMode === "form" ? (
             <RecordView
               columns={result.columns}
@@ -1002,6 +1076,25 @@ export function ResultPanel({ tab }: { tab: Tab }) {
   );
 }
 
+/** Compact number for selection aggregates (up to 2 decimals). */
+function formatAgg(n: number): string {
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+/** Tooltip for a result sub-tab: connection + time + SQL (DBeaver-style). */
+function resultTitle(
+  sessionName: string | undefined,
+  sql: string,
+  startedAt: number,
+  elapsedMs: number | null,
+): string {
+  const first = sql.split("\n").find((l) => l.trim().length > 0) ?? sql;
+  const short = first.length > 160 ? `${first.slice(0, 160)}…` : first;
+  const when = new Date(startedAt).toLocaleString();
+  const took = elapsedMs !== null ? ` · ${elapsedMs} ms` : "";
+  return `${sessionName ?? "query"} · ${when}${took}\n${short}`;
+}
+
 function ExportIcon({ format }: { format: ExportFormat }) {
   switch (format) {
     case "csv":
@@ -1017,13 +1110,36 @@ function ExportIcon({ format }: { format: ExportFormat }) {
   }
 }
 
+/**
+ * Character offset of a query error inside its SQL text: native `position`
+ * when the engine reports one (Postgres), otherwise the start of the
+ * `... at line N` line MySQL reports (e.g. error 1064). Null when unknown.
+ */
+function errorOffset(sql: string, error: ApiError): number | null {
+  if (typeof error.position === "number" && Number.isFinite(error.position)) {
+    return Math.max(0, Math.min(error.position, sql.length));
+  }
+  const m = / at line (\d+)/i.exec(error.message);
+  if (!m) return null;
+  const lineNo = Math.max(1, parseInt(m[1], 10));
+  const lines = sql.split("\n");
+  let off = 0;
+  for (let i = 0; i < Math.min(lineNo - 1, lines.length); i++) {
+    off += (lines[i]?.length ?? 0) + 1;
+  }
+  return Math.min(off, sql.length);
+}
+
 function ErrorPanel({
   error,
+  sql,
   onShowMessages,
 }: {
   error: ApiError;
+  sql: string;
   onShowMessages: () => void;
 }) {
+  const offset = errorOffset(sql, error);
   return (
     <div className="flex-1 overflow-auto bg-rose-50 p-4">
       <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-white p-3">
@@ -1058,6 +1174,19 @@ function ErrorPanel({
               >
                 <Wrench size={12} strokeWidth={1.8} />
                 Try to fix the syntax
+              </button>
+            )}
+            {offset !== null && (
+              <button
+                className="inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:underline"
+                onClick={() =>
+                  window.dispatchEvent(
+                    new CustomEvent("mieosql:goto-offset", { detail: offset }),
+                  )
+                }
+              >
+                <Crosshair size={12} strokeWidth={1.8} />
+                Go to error
               </button>
             )}
             <button

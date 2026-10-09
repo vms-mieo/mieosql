@@ -798,6 +798,18 @@ export function Sidebar({ width = 240 }: { width?: number }) {
     const items: ContextMenuItem[] = [
       {
         kind: "item",
+        label: "Set as Active Database",
+        onClick: () => {
+          store.selectTreeScope({ sessionId: session.id, database: db.name });
+          void store
+            .ensureSessionDatabase(session.id, db.name)
+            .then((ok) => {
+              if (ok) store.toast("success", `Active database: ${db.name}`);
+            });
+        },
+      },
+      {
+        kind: "item",
         label: "New Query",
         onClick: () => {
           store.setActiveSession(session.id);

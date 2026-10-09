@@ -7,10 +7,12 @@ import { useStore } from "../lib/store";
 import { DataGenDialog } from "./DataGenDialog";
 import { DataSyncDialog } from "./DataSyncDialog";
 import { DocExportDialog } from "./DocExportDialog";
+import { HistoryDialog } from "./HistoryDialog";
 import { MaskExportDialog } from "./MaskExportDialog";
 import { ParamRunDialog } from "./ParamRunDialog";
 import { QueryBuilderDialog } from "./QueryBuilderDialog";
 import { SearchDialog } from "./SearchDialog";
+import { ShortcutsDialog } from "./ShortcutsDialog";
 import { StructureSyncDialog } from "./StructureSyncDialog";
 import { TransferDialog } from "./TransferDialog";
 import { WorkspaceDialog } from "./WorkspaceDialog";
@@ -26,6 +28,10 @@ export function FeatureDialogs() {
   switch (dialog) {
     case "search":
       return <SearchDialog onClose={close} />;
+    case "history":
+      return <HistoryDialog onClose={close} />;
+    case "shortcuts":
+      return <ShortcutsDialog onClose={close} />;
     case "datagen":
       return <DataGenDialog onClose={close} />;
     case "mask":
