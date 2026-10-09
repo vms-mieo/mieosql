@@ -3236,7 +3236,7 @@ dependencies = [
 
 [[package]]
 name = "mieosql-api"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.23.1",
  "chrono",
@@ -3255,7 +3255,7 @@ dependencies = [
 
 [[package]]
 name = "mieosql-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3271,7 +3271,7 @@ dependencies = [
 
 [[package]]
 name = "mieosql-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "serde",
@@ -3282,7 +3282,7 @@ dependencies = [
 
 [[package]]
 name = "mieosql-desktop"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "mieosql-api",
  "mieosql-core",
@@ -3297,7 +3297,7 @@ dependencies = [
 
 [[package]]
 name = "mieosql-drivers"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -3324,7 +3324,7 @@ dependencies = [
 
 [[package]]
 name = "mieosql-engine"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.23.1",
  "chacha20poly1305",
